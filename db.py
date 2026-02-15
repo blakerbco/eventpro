@@ -8,6 +8,7 @@ of all charges (research fees, lead fees) and top-ups (Stripe payments).
 import os
 import secrets
 import sqlite3
+import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
@@ -90,6 +91,8 @@ def init_db():
     # Create or update admin user from env vars
     admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "admin@auctionfinder.local").strip().lower()
     admin_password = os.environ.get("AUCTIONFINDER_PASSWORD", "admin")
+    print(f"[INIT] Admin email from env: '{admin_email}'", file=sys.stderr)
+    print(f"[INIT] Admin password length: {len(admin_password)}", file=sys.stderr)
     row = conn.execute("SELECT id FROM users WHERE email = ?", (admin_email,)).fetchone()
     if not row:
         pw_hash = generate_password_hash(admin_password)
