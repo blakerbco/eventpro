@@ -1202,7 +1202,7 @@ REGISTER_HTML = f"""<!DOCTYPE html>
   <div class="promo-section">
     <label>Have a promo code?</label>
     <input type="text" name="promo_code" placeholder="Enter promo code for free trial" style="text-transform:uppercase;">
-    <p class="promo-hint">Enter code for a free 7-day trial with $50 credit. No credit card needed.</p>
+    <p class="promo-hint">Have a promo code? Enter it to activate your trial.</p>
   </div>
   <button type="submit">Create Account</button>
   <p class="link">Already have an account? <a href="/login">Log in</a></p>
@@ -2687,7 +2687,7 @@ LANDING_HTML = """<!DOCTYPE html>
     <div style="display:inline-block;padding:6px 20px;background:#eab30822;border:1px solid #eab30844;border-radius:24px;font-size:13px;color:#eab308;font-weight:700;margin-bottom:20px;">LIMITED TIME OFFER</div>
     <h2 style="font-size:36px;font-weight:800;margin-bottom:12px;">Free Trial: <span style="color:#4ade80;">150 Nonprofit Searches</span> Included</h2>
     <p style="font-size:17px;color:#a3a3a3;margin-bottom:8px;">Up to $50 in value. No credit card required.</p>
-    <p style="font-size:15px;color:#737373;margin-bottom:28px;">Use promo code <span style="background:#1a1a1a;padding:4px 12px;border-radius:6px;font-family:monospace;color:#eab308;font-weight:700;font-size:16px;border:1px solid #333;">26AUCTION26</span> at registration</p>
+    <p style="font-size:15px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial</p>
     <a href="/register" style="display:inline-block;padding:16px 40px;background:#ffd900;color:#000;border-radius:10px;font-size:17px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
     <p style="font-size:12px;color:#525252;margin-top:16px;">7-day trial. No auto-charge. Cancel anytime.</p>
   </div>

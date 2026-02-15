@@ -17,6 +17,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_PATH = os.environ.get("AUCTIONFINDER_DB", "auctionfinder.db")
 
+# Ensure parent directory exists (important for Railway volume mount)
+_db_dir = os.path.dirname(DB_PATH)
+if _db_dir:
+    os.makedirs(_db_dir, exist_ok=True)
+
+print(f"[DB] Using database at: {DB_PATH}")
+
 # Thread-local storage for connections (SQLite is not thread-safe by default)
 _local = threading.local()
 

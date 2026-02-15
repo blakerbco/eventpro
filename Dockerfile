@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Create data directory (Railway volume mounts here)
+RUN mkdir -p /app/data/results
+
 EXPOSE 5000
 
 CMD ["python", "app.py"]
