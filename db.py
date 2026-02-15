@@ -87,7 +87,7 @@ def init_db():
     """)
     conn.commit()
 
-    # Create default admin if not exists
+    # Create or update admin user from env vars
     admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "admin@auctionfinder.local")
     admin_password = os.environ.get("AUCTIONFINDER_PASSWORD", "admin")
     row = conn.execute("SELECT id FROM users WHERE email = ?", (admin_email,)).fetchone()
@@ -101,6 +101,12 @@ def init_db():
             "INSERT INTO wallets (user_id, balance_cents) VALUES (?, 0)",
             (cur.lastrowid,),
         )
+        conn.commit()
+    else:
+        # Update password and ensure admin flag on every startup
+        pw_hash = generate_password_hash(admin_password)
+        conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE id = ?",
+                      (pw_hash, row["id"]))
         conn.commit()
 
 
