@@ -88,7 +88,7 @@ def init_db():
     conn.commit()
 
     # Create or update admin user from env vars
-    admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "admin@auctionfinder.local")
+    admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "admin@auctionfinder.local").strip().lower()
     admin_password = os.environ.get("AUCTIONFINDER_PASSWORD", "admin")
     row = conn.execute("SELECT id FROM users WHERE email = ?", (admin_email,)).fetchone()
     if not row:
