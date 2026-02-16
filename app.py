@@ -60,8 +60,13 @@ from db import (
     get_user_jobs, cleanup_expired_jobs,
     get_user_by_email, create_reset_token, validate_reset_token,
     consume_reset_token,
+    create_ticket, get_ticket, get_tickets_for_user, get_all_tickets,
+    get_ticket_messages, add_ticket_message, update_ticket_status,
+    mark_messages_read_by_user, mark_messages_read_by_admin,
+    get_unread_ticket_count,
 )
 import emails
+from html import escape as html_escape
 
 # ─── App Configuration ───────────────────────────────────────────────────────
 
@@ -115,6 +120,125 @@ def _is_admin():
     """Check if current user is admin."""
     user = _current_user()
     return user and user.get("is_admin", False)
+
+
+def _inject_nav_badge(html: str) -> str:
+    """Replace {{SUPPORT_BADGE}} with unread count badge if any."""
+    uid = session.get("user_id")
+    if not uid:
+        return html.replace("{{SUPPORT_BADGE}}", "")
+    is_admin = session.get("is_admin", False)
+    count = get_unread_ticket_count(uid, is_admin)
+    if count > 0:
+        badge = f' <span style="background:#f87171;color:#fff;border-radius:50%;padding:1px 6px;font-size:10px;font-weight:700;">{count}</span>'
+    else:
+        badge = ""
+    return html.replace("{{SUPPORT_BADGE}}", badge)
+
+
+# ─── Sidebar Navigation ─────────────────────────────────────────────────────
+
+_SIDEBAR_CSS = """
+  .sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; background:#0a0a0a; border-right:1px solid #1a1a1a; display:flex; flex-direction:column; z-index:100; overflow-y:auto; transition:transform 0.3s ease; }
+  .sidebar-logo { padding:20px 24px; border-bottom:1px solid #1a1a1a; }
+  .sidebar-logo img { height:28px; }
+  .sidebar-section { padding:16px 12px 4px; }
+  .sidebar-label { font-size:10px; color:#525252; text-transform:uppercase; letter-spacing:1px; padding:0 12px; margin-bottom:4px; font-weight:600; }
+  .sidebar-nav { display:flex; flex-direction:column; }
+  .sidebar-nav a { display:flex; align-items:center; gap:10px; padding:9px 12px; color:#a3a3a3; text-decoration:none; font-size:13px; border-radius:6px; border-left:3px solid transparent; margin:1px 0; }
+  .sidebar-nav a:hover { color:#f5f5f5; background:#141414; }
+  .sidebar-nav a.active { color:#f5f5f5; background:#141414; border-left-color:#eab308; }
+  .sidebar-nav a svg { width:16px; height:16px; flex-shrink:0; opacity:0.5; }
+  .sidebar-nav a:hover svg, .sidebar-nav a.active svg { opacity:1; }
+  .sidebar-bottom { margin-top:auto; padding:12px; border-top:1px solid #1a1a1a; }
+  .sidebar-bottom a { display:flex; align-items:center; gap:10px; padding:9px 12px; color:#737373; text-decoration:none; font-size:13px; border-radius:6px; }
+  .sidebar-bottom a:hover { color:#f87171; background:#141414; }
+  .topbar { position:fixed; top:0; left:260px; right:0; height:48px; background:#0a0a0a; border-bottom:1px solid #1a1a1a; display:flex; align-items:center; justify-content:flex-end; padding:0 24px; z-index:99; }
+  .topbar .user-email { color:#737373; font-size:12px; }
+  .hamburger { display:none; background:none; border:none; color:#a3a3a3; cursor:pointer; padding:8px; margin-right:auto; }
+  .main-content { margin-left:260px; padding-top:48px; min-height:100vh; }
+  .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99; }
+  @media (max-width:768px) {
+    .sidebar { transform:translateX(-100%); }
+    .sidebar.open { transform:translateX(0); }
+    .topbar { left:0; }
+    .hamburger { display:block; }
+    .main-content { margin-left:0; }
+    .sidebar-overlay.open { display:block; z-index:99; }
+  }
+"""
+
+_SIDEBAR_ICONS = {
+    "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+    "database": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
+    "wallet": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="16" cy="14" r="1"/></svg>',
+    "billing": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 2v20l3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2Z"/><path d="M8 10h8M8 14h4"/></svg>',
+    "results": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    "getting-started": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    "support": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    "profile": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>',
+    "logout": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
+}
+
+_SIDEBAR_NAV_ITEMS = [
+    ("Research", [
+        ("search", "/", "Auction Search"),
+        ("database", "/database", "Database"),
+    ]),
+    ("Account", [
+        ("wallet", "/wallet", "Wallet"),
+        ("billing", "/billing", "Billing"),
+        ("results", "/results", "Results"),
+    ]),
+    ("Help", [
+        ("getting-started", "/getting-started", "Getting Started"),
+        ("support", "/support", "Support{{SUPPORT_BADGE}}"),
+    ]),
+    ("Settings", [
+        ("profile", "/profile", "Profile"),
+    ]),
+]
+
+
+def _build_sidebar_html(active):
+    """Build sidebar + topbar HTML. `active` = page key like 'wallet', 'search'."""
+    sections = ""
+    for group_label, items in _SIDEBAR_NAV_ITEMS:
+        links = ""
+        for key, href, label in items:
+            cls = ' class="active"' if key == active else ""
+            icon = _SIDEBAR_ICONS.get(key, "")
+            links += f'      <a href="{href}"{cls}>{icon} {label}</a>\n'
+        sections += (
+            f'  <div class="sidebar-section">\n'
+            f'    <div class="sidebar-label">{group_label}</div>\n'
+            f'    <nav class="sidebar-nav">\n{links}    </nav>\n'
+            f'  </div>\n'
+        )
+
+    return (
+        '<div class="sidebar-overlay" id="sidebarOverlay" onclick="document.getElementById(\'sidebar\').classList.remove(\'open\');this.classList.remove(\'open\');"></div>\n'
+        '<aside class="sidebar" id="sidebar">\n'
+        '  <div class="sidebar-logo"><a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:28px;"></a></div>\n'
+        f'{sections}'
+        '  <div class="sidebar-bottom">\n'
+        f'    <a href="/logout">{_SIDEBAR_ICONS["logout"]} Logout</a>\n'
+        '  </div>\n'
+        '</aside>\n'
+        '<div class="topbar">\n'
+        '  <button class="hamburger" onclick="document.getElementById(\'sidebar\').classList.toggle(\'open\');document.getElementById(\'sidebarOverlay\').classList.toggle(\'open\');">\n'
+        '    <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>\n'
+        '  </button>\n'
+        '  <span class="user-email">{{EMAIL}}</span>\n'
+        '</div>\n'
+    )
+
+
+def _inject_sidebar(html, active):
+    """Replace {{SIDEBAR_HTML}} placeholder with built sidebar, and {{SIDEBAR_CSS}} with CSS."""
+    html = html.replace("{{SIDEBAR_CSS}}", _SIDEBAR_CSS)
+    html = html.replace("{{SIDEBAR_HTML}}", _build_sidebar_html(active))
+    return html
 
 
 # ─── Research Worker (runs in background thread with its own event loop) ─────
@@ -509,16 +633,27 @@ def register_submit():
         return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Passwords do not match</p>')
     if len(password) < 6:
         return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Password must be at least 6 characters</p>')
+
+    # Check for duplicate email before creating
+    if get_user_by_email(email):
+        return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Email already registered</p>')
+
     try:
         user_id = create_user(email, password, phone=phone, company=company, promo_code=promo_code)
-        session["user_id"] = user_id
-        session["is_admin"] = False
-        is_trial = promo_code.strip().upper() == "26AUCTION26"
-        session["is_trial"] = is_trial
-        emails.send_welcome(email, is_trial=is_trial)
-        return redirect(url_for("wallet_page"))
     except Exception:
-        return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Email already registered</p>')
+        return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Registration failed. Please try again.</p>')
+
+    session["user_id"] = user_id
+    session["is_admin"] = False
+    is_trial = promo_code.strip().upper() == "26AUCTION26"
+    session["is_trial"] = is_trial
+
+    try:
+        emails.send_welcome(email, is_trial=is_trial)
+    except Exception:
+        pass
+
+    return redirect(url_for("wallet_page"))
 
 
 @app.route("/login", methods=["GET"])
@@ -630,8 +765,9 @@ def wallet_page():
     html = WALLET_HTML.replace("{{BALANCE}}", f"${balance/100:.2f}")
     html = html.replace("{{STRIPE_PK}}", STRIPE_PUBLISHABLE_KEY)
     html = html.replace("{{TXN_ROWS}}", txn_rows)
+    html = _inject_sidebar(html, "wallet")
     html = html.replace("{{EMAIL}}", user["email"] if user else "")
-    return html
+    return _inject_nav_badge(html)
 
 
 @app.route("/api/wallet/topup", methods=["POST"])
@@ -704,14 +840,16 @@ def profile_page():
     balance = get_balance(session["user_id"])
     summary = get_spending_summary(session["user_id"])
 
-    html = PROFILE_HTML.replace("{{EMAIL}}", user["email"] if user else "")
+    html = PROFILE_HTML
+    html = _inject_sidebar(html, "profile")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
     html = html.replace("{{CREATED_AT}}", user["created_at"] or "Unknown" if user else "Unknown")
     html = html.replace("{{ACCOUNT_TYPE}}", "Administrator" if user and user["is_admin"] else "Standard")
     html = html.replace("{{BALANCE}}", f"${balance/100:.2f}")
     html = html.replace("{{TOTAL_SPENT}}", f"${summary['total_spent']/100:.2f}")
     html = html.replace("{{TOTAL_TOPUPS}}", f"${summary['total_topups']/100:.2f}")
     html = html.replace("{{JOB_COUNT}}", str(summary["job_count"]))
-    return html
+    return _inject_nav_badge(html)
 
 
 @app.route("/profile/password", methods=["POST"])
@@ -784,7 +922,8 @@ def billing_page():
             f'<td style="font-family:monospace;font-size:11px;">{t["job_id"] or ""}</td></tr>'
         )
 
-    html = BILLING_HTML.replace("{{EMAIL}}", user["email"] if user else "")
+    html = _inject_sidebar(BILLING_HTML, "billing")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
     html = html.replace("{{BALANCE}}", f"${balance/100:.2f}")
     html = html.replace("{{TOTAL_SPENT}}", f"${summary['total_spent']/100:.2f}")
     html = html.replace("{{RESEARCH_FEES}}", f"${summary['research_fees']/100:.2f}")
@@ -793,7 +932,7 @@ def billing_page():
     html = html.replace("{{JOB_COUNT}}", str(summary["job_count"]))
     html = html.replace("{{JOB_ROWS}}", job_rows)
     html = html.replace("{{TXN_ROWS}}", txn_rows)
-    return html
+    return _inject_nav_badge(html)
 
 
 # ─── Routes: Results ─────────────────────────────────────────────────────────
@@ -842,9 +981,10 @@ def results_page():
     if not job_cards:
         job_cards = '<div class="empty-state"><p>No search results yet.</p><p>Run your first search from <a href="/search" style="color:#eab308">Auction Search</a>.</p></div>'
 
-    html = RESULTS_HTML.replace("{{EMAIL}}", user["email"] if user else "")
+    html = _inject_sidebar(RESULTS_HTML, "results")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
     html = html.replace("{{JOB_CARDS}}", job_cards)
-    return html
+    return _inject_nav_badge(html)
 
 
 # ─── Routes: Search ──────────────────────────────────────────────────────────
@@ -861,10 +1001,11 @@ def index():
     is_admin = user.get("is_admin", False)
     balance = get_balance(session["user_id"]) if not is_admin else 0
 
-    html = INDEX_HTML.replace("{{IS_ADMIN}}", "true" if is_admin else "false")
+    html = _inject_sidebar(INDEX_HTML, "search")
+    html = html.replace("{{IS_ADMIN}}", "true" if is_admin else "false")
     html = html.replace("{{BALANCE_CENTS}}", str(balance))
     html = html.replace("{{EMAIL}}", user["email"] if user else "")
-    return html
+    return _inject_nav_badge(html)
 
 
 @app.route("/api/search", methods=["POST"])
@@ -985,9 +1126,10 @@ def view_results(job_id):
 @login_required
 def database_page():
     user = _current_user()
-    html = DATABASE_HTML.replace("{{EMAIL}}", user["email"] if user else "")
+    html = _inject_sidebar(DATABASE_HTML, "database")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
     html = html.replace("{{IS_ADMIN}}", "true" if user and user.get("is_admin") else "false")
-    return html
+    return _inject_nav_badge(html)
 
 
 REGIONS = {
@@ -1154,6 +1296,169 @@ def irs_states():
         return jsonify({"error": str(e)}), 500
 
 
+# ─── Routes: Getting Started ─────────────────────────────────────────────────
+
+@app.route("/getting-started")
+@login_required
+def getting_started_page():
+    user = _current_user()
+    html = _inject_sidebar(GETTING_STARTED_HTML, "getting-started")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
+    return _inject_nav_badge(html)
+
+
+# ─── Routes: Support / Tickets ───────────────────────────────────────────────
+
+@app.route("/support")
+@login_required
+def support_page():
+    user = _current_user()
+    is_admin = user and user.get("is_admin", False)
+
+    if is_admin:
+        tickets = get_all_tickets()
+    else:
+        tickets = get_tickets_for_user(session["user_id"])
+
+    ticket_rows = ""
+    for t in tickets:
+        status = t["status"]
+        sc = {"open": "#4ade80", "pending": "#eab308", "urgent": "#f87171", "resolved": "#a3a3a3"}.get(status, "#a3a3a3")
+        unread_badge = f' <span style="background:#f87171;color:#fff;border-radius:50%;padding:1px 6px;font-size:10px;font-weight:700;">{t["unread"]}</span>' if t.get("unread", 0) > 0 else ""
+        user_col = f'<td>{html_escape(t.get("user_email", ""))}</td>' if is_admin else ""
+        ticket_rows += (
+            f'<tr>'
+            f'<td><a href="/support/{t["id"]}" style="color:#eab308;text-decoration:none;">#{t["id"]}</a></td>'
+            f'<td><a href="/support/{t["id"]}" style="color:#f5f5f5;text-decoration:none;">{html_escape(t["subject"])}{unread_badge}</a></td>'
+            f'{user_col}'
+            f'<td style="color:{sc};font-weight:600;">{status.upper()}</td>'
+            f'<td>{t["updated_at"]}</td>'
+            f'</tr>'
+        )
+
+    user_col_header = "<th>User</th>" if is_admin else ""
+    html = _inject_sidebar(SUPPORT_HTML, "support")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
+    html = html.replace("{{TICKET_ROWS}}", ticket_rows)
+    html = html.replace("{{USER_COL_HEADER}}", user_col_header)
+    return _inject_nav_badge(html)
+
+
+@app.route("/support/new", methods=["GET", "POST"])
+@login_required
+def support_new():
+    user = _current_user()
+
+    if request.method == "POST":
+        subject = request.form.get("subject", "").strip()
+        message = request.form.get("message", "").strip()
+        priority = request.form.get("priority", "normal").strip()
+
+        if not subject or not message:
+            html = _inject_sidebar(SUPPORT_NEW_HTML, "support")
+            html = html.replace("{{EMAIL}}", user["email"] if user else "")
+            html = html.replace("<!-- error -->", '<p style="color:#f87171;margin-bottom:16px;">Subject and message are required.</p>')
+            return _inject_nav_badge(html)
+
+        ticket_id = create_ticket(session["user_id"], subject, message, priority)
+
+        try:
+            emails.send_ticket_created(ticket_id, subject, user["email"], message)
+        except Exception:
+            pass
+
+        return redirect(url_for("support_ticket", ticket_id=ticket_id))
+
+    html = _inject_sidebar(SUPPORT_NEW_HTML, "support")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
+    html = html.replace("<!-- error -->", "")
+    return _inject_nav_badge(html)
+
+
+@app.route("/support/<int:ticket_id>", methods=["GET", "POST"])
+@login_required
+def support_ticket(ticket_id):
+    user = _current_user()
+    is_admin = user and user.get("is_admin", False)
+    ticket = get_ticket(ticket_id)
+
+    if not ticket:
+        return redirect(url_for("support_page"))
+
+    # Non-admin users can only view their own tickets
+    if not is_admin and ticket["user_id"] != session["user_id"]:
+        return redirect(url_for("support_page"))
+
+    if request.method == "POST":
+        reply = request.form.get("message", "").strip()
+        if reply:
+            add_ticket_message(ticket_id, session["user_id"], reply, is_admin=is_admin)
+            if is_admin:
+                try:
+                    emails.send_ticket_reply_to_user(ticket["user_email"], ticket_id, ticket["subject"], reply)
+                except Exception:
+                    pass
+            return redirect(url_for("support_ticket", ticket_id=ticket_id))
+
+    # Mark messages as read
+    if is_admin:
+        mark_messages_read_by_admin(ticket_id)
+    else:
+        mark_messages_read_by_user(ticket_id)
+
+    messages = get_ticket_messages(ticket_id)
+    msg_html = ""
+    for m in messages:
+        is_sender_admin = m["is_admin"]
+        align = "right" if is_sender_admin else "left"
+        bg = "#1a1500" if is_sender_admin else "#1a1a1a"
+        border_color = "#eab308" if is_sender_admin else "#333"
+        label = "Admin" if is_sender_admin else html_escape(m["sender_email"])
+        msg_html += (
+            f'<div style="display:flex;justify-content:flex-{align};margin-bottom:12px;">'
+            f'<div style="max-width:70%;background:{bg};border:1px solid {border_color};border-radius:12px;padding:12px 16px;">'
+            f'<div style="font-size:11px;color:#a3a3a3;margin-bottom:4px;">{label} &middot; {m["created_at"]}</div>'
+            f'<div style="font-size:14px;color:#e0e0e0;white-space:pre-wrap;">{html_escape(m["message"])}</div>'
+            f'</div></div>'
+        )
+
+    status = ticket["status"]
+    sc = {"open": "#4ade80", "pending": "#eab308", "urgent": "#f87171", "resolved": "#a3a3a3"}.get(status, "#a3a3a3")
+
+    status_form = ""
+    if is_admin:
+        status_options = ""
+        for s in ["open", "pending", "urgent", "resolved"]:
+            sel = ' selected' if s == status else ''
+            status_options += f'<option value="{s}"{sel}>{s.upper()}</option>'
+        status_form = (
+            f'<form method="POST" action="/support/{ticket_id}/status" style="display:flex;gap:8px;align-items:center;">'
+            f'<select name="status" style="padding:6px 10px;background:#000;border:1px solid #333;border-radius:6px;color:#f5f5f5;font-family:inherit;font-size:12px;">{status_options}</select>'
+            f'<button type="submit" style="padding:6px 14px;background:#262626;color:#a3a3a3;border:1px solid #333;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;">Update</button>'
+            f'</form>'
+        )
+
+    html = _inject_sidebar(SUPPORT_TICKET_HTML, "support")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
+    html = html.replace("{{TICKET_ID}}", str(ticket_id))
+    html = html.replace("{{SUBJECT}}", html_escape(ticket["subject"]))
+    html = html.replace("{{STATUS}}", status.upper())
+    html = html.replace("{{STATUS_COLOR}}", sc)
+    html = html.replace("{{MESSAGES}}", msg_html)
+    html = html.replace("{{STATUS_FORM}}", status_form)
+    return _inject_nav_badge(html)
+
+
+@app.route("/support/<int:ticket_id>/status", methods=["POST"])
+@login_required
+def support_update_status(ticket_id):
+    if not _is_admin():
+        return redirect(url_for("support_page"))
+    new_status = request.form.get("status", "")
+    update_ticket_status(ticket_id, new_status)
+    return redirect(url_for("support_ticket", ticket_id=ticket_id))
+
+
 # ─── HTML Templates ──────────────────────────────────────────────────────────
 
 _BASE_STYLE = """
@@ -1289,10 +1594,7 @@ WALLET_HTML = """<!DOCTYPE html>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
-  .header { background: #000000; border-bottom: 1px solid #262626; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .header nav { display: flex; gap: 16px; align-items: center; }
-  .header nav a { color: #a3a3a3; text-decoration: none; font-size: 13px; padding: 6px 12px; border-radius: 6px; }
-  .header nav a:hover, .header nav a.active { color: #f5f5f5; background: #1a1a1a; }
+  {{SIDEBAR_CSS}}
   .container { max-width: 800px; margin: 0 auto; padding: 24px; }
   .balance-card { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 24px; }
   .balance-card .amount { font-size: 48px; font-weight: 700; color: #4ade80; margin: 16px 0; }
@@ -1310,23 +1612,11 @@ WALLET_HTML = """<!DOCTYPE html>
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th { color: #a3a3a3; text-transform: uppercase; font-size: 10px; padding: 8px 6px; text-align: left; border-bottom: 1px solid #262626; }
   td { padding: 8px 6px; border-bottom: 1px solid #1a1a1a; color: #d4d4d4; }
-  .user-badge { color: #a3a3a3; font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="header">
-  <a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:32px;"></a>
-  <nav>
-    <a href="/">Auction Search</a>
-    <a href="/database">Database</a>
-    <a href="/wallet" class="active">Wallet</a>
-    <a href="/results">Results</a>
-    <a href="/billing">Billing</a>
-    <a href="/profile">Profile</a>
-    <span class="user-badge">{{EMAIL}}</span>
-    <a href="/logout">Logout</a>
-  </nav>
-</div>
+{{SIDEBAR_HTML}}
+<div class="main-content">
 <div class="container">
   <div class="balance-card">
     <div class="label">Wallet Balance</div>
@@ -1375,6 +1665,7 @@ async function topUp() {
   }
 }
 </script>
+</div>
 </body>
 </html>"""
 
@@ -1387,10 +1678,7 @@ PROFILE_HTML = f"""<!DOCTYPE html>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }}
-  .header {{ background: #000000; border-bottom: 1px solid #262626; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }}
-  .header nav {{ display: flex; gap: 16px; align-items: center; }}
-  .header nav a {{ color: #a3a3a3; text-decoration: none; font-size: 13px; padding: 6px 12px; border-radius: 6px; }}
-  .header nav a:hover, .header nav a.active {{ color: #f5f5f5; background: #1a1a1a; }}
+  {{{{SIDEBAR_CSS}}}}
   .container {{ max-width: 800px; margin: 0 auto; padding: 24px; }}
   .card {{ background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 24px; }}
   .card h3 {{ font-size: 16px; margin-bottom: 16px; color: #d4d4d4; }}
@@ -1411,22 +1699,11 @@ PROFILE_HTML = f"""<!DOCTYPE html>
   .stat-item {{ background: #000000; border-radius: 8px; padding: 16px; text-align: center; }}
   .stat-item .num {{ font-size: 24px; font-weight: 700; color: #eab308; }}
   .stat-item .lbl {{ font-size: 11px; color: #a3a3a3; text-transform: uppercase; margin-top: 4px; }}
-  .user-badge {{ color: #a3a3a3; font-size: 12px; }}
 </style>
 </head>
 <body>
-<div class="header">
-  <a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:32px;"></a>
-  <nav>
-    <a href="/">Auction Search</a>
-    <a href="/database">Database</a>
-    <a href="/wallet">Wallet</a>
-    <a href="/billing">Billing</a>
-    <a href="/profile" class="active">Profile</a>
-    <span class="user-badge">{{{{EMAIL}}}}</span>
-    <a href="/logout">Logout</a>
-  </nav>
-</div>
+{{{{SIDEBAR_HTML}}}}
+<div class="main-content">
 <div class="container">
   <div id="alerts"></div>
 
@@ -1468,6 +1745,7 @@ PROFILE_HTML = f"""<!DOCTYPE html>
   else if (params.get('success') === '1') alerts.innerHTML = '<div class="alert success">Password updated successfully.</div>';
 }})();
 </script>
+</div>
 </body>
 </html>"""
 
@@ -1480,10 +1758,7 @@ BILLING_HTML = """<!DOCTYPE html>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
-  .header { background: #000000; border-bottom: 1px solid #262626; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .header nav { display: flex; gap: 16px; align-items: center; }
-  .header nav a { color: #a3a3a3; text-decoration: none; font-size: 13px; padding: 6px 12px; border-radius: 6px; }
-  .header nav a:hover, .header nav a.active { color: #f5f5f5; background: #1a1a1a; }
+  {{SIDEBAR_CSS}}
   .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
   .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
   .summary-card { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 20px; text-align: center; }
@@ -1503,22 +1778,11 @@ BILLING_HTML = """<!DOCTYPE html>
   .tabs button.active { background: #262626; color: #f5f5f5; border-color: #eab308; }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
-  .user-badge { color: #a3a3a3; font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="header">
-  <a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:32px;"></a>
-  <nav>
-    <a href="/">Auction Search</a>
-    <a href="/database">Database</a>
-    <a href="/wallet">Wallet</a>
-    <a href="/billing" class="active">Billing</a>
-    <a href="/profile">Profile</a>
-    <span class="user-badge">{{EMAIL}}</span>
-    <a href="/logout">Logout</a>
-  </nav>
-</div>
+{{SIDEBAR_HTML}}
+<div class="main-content">
 <div class="container">
   <div class="summary-grid">
     <div class="summary-card">
@@ -1572,6 +1836,7 @@ function showTab(name) {
   event.target.classList.add('active');
 }
 </script>
+</div>
 </body>
 </html>"""
 
@@ -1584,11 +1849,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
-
-  .header { background: #000000; border-bottom: 1px solid #262626; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .header h1 { font-size: 20px; color: #eab308; }
-  .header .logout { color: #a3a3a3; text-decoration: none; font-size: 13px; }
-  .header .logout:hover { color: #f87171; }
+  {{SIDEBAR_CSS}}
 
   .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
@@ -1655,25 +1916,11 @@ INDEX_HTML = """<!DOCTYPE html>
   .json-viewer .key { color: #eab308; }
   .json-viewer .string { color: #4ade80; }
   .json-viewer .number { color: #fbbf24; }
-  .user-badge { color: #a3a3a3; font-size: 12px; }
 </style>
 </head>
 <body>
-
-<div class="header">
-  <a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:32px;"></a>
-  <nav style="display:flex;gap:16px;align-items:center;">
-    <a href="/" style="color:#f5f5f5;text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;background:#1a1a1a;">Auction Search</a>
-    <a href="/database" style="color:#a3a3a3;text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;">Database</a>
-    <a href="/wallet" style="color:#a3a3a3;text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;">Wallet</a>
-    <a href="/results" style="color:#a3a3a3;text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;">Results</a>
-    <a href="/billing" style="color:#a3a3a3;text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;">Billing</a>
-    <a href="/profile" style="color:#a3a3a3;text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;">Profile</a>
-    <span class="user-badge">{{EMAIL}}</span>
-    <a href="/logout" style="color:#a3a3a3;text-decoration:none;font-size:13px;">Logout</a>
-  </nav>
-</div>
-
+{{SIDEBAR_HTML}}
+<div class="main-content">
 <div class="container">
   <div class="balance-bar" id="balanceBar" style="display:none;">
     <span>Balance: <span class="bal" id="balDisplay">$0.00</span></span>
@@ -1985,6 +2232,7 @@ async function toggleJsonViewer() {
   }
 }
 </script>
+</div>
 </body>
 </html>"""
 
@@ -1997,11 +2245,7 @@ DATABASE_HTML = """<!DOCTYPE html>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
-  .header { background: #000000; border-bottom: 1px solid #262626; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .header h1 { font-size: 20px; color: #eab308; }
-  .header nav { display: flex; gap: 16px; align-items: center; }
-  .header nav a { color: #a3a3a3; text-decoration: none; font-size: 13px; padding: 6px 12px; border-radius: 6px; }
-  .header nav a:hover, .header nav a.active { color: #f5f5f5; background: #1a1a1a; }
+  {{SIDEBAR_CSS}}
   .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
 
   .filters { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
@@ -2053,23 +2297,11 @@ DATABASE_HTML = """<!DOCTYPE html>
   a.ws { color: #eab308; text-decoration: none; }
   a.ws:hover { text-decoration: underline; }
   .amount-select { min-width: 0; }
-  .user-badge { color: #a3a3a3; font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="header">
-  <a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:32px;"></a>
-  <nav>
-    <a href="/">Auction Search</a>
-    <a href="/database" class="active">Database</a>
-    <a href="/wallet">Wallet</a>
-    <a href="/results">Results</a>
-    <a href="/billing">Billing</a>
-    <a href="/profile">Profile</a>
-    <span class="user-badge">{{EMAIL}}</span>
-    <a href="/logout">Logout</a>
-  </nav>
-</div>
+{{SIDEBAR_HTML}}
+<div class="main-content">
 <div class="container">
   <div class="filters">
     <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -2409,6 +2641,7 @@ function toggleFilters(){
   }
 }
 </script>
+</div>
 </body>
 </html>"""
 
@@ -2422,10 +2655,7 @@ RESULTS_HTML = """<!DOCTYPE html>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
-  .header { background: #000000; border-bottom: 1px solid #262626; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .header nav { display: flex; gap: 16px; align-items: center; }
-  .header nav a { color: #a3a3a3; text-decoration: none; font-size: 13px; padding: 6px 12px; border-radius: 6px; }
-  .header nav a:hover, .header nav a.active { color: #f5f5f5; background: #1a1a1a; }
+  {{SIDEBAR_CSS}}
   .container { max-width: 900px; margin: 0 auto; padding: 24px; }
   h2 { font-size: 18px; color: #d4d4d4; margin-bottom: 8px; }
   .subtitle { font-size: 12px; color: #737373; margin-bottom: 24px; }
@@ -2445,27 +2675,234 @@ RESULTS_HTML = """<!DOCTYPE html>
   .dl-btn:hover { filter: brightness(0.85); }
   .empty-state { text-align: center; padding: 60px 24px; color: #737373; font-size: 14px; }
   .empty-state p { margin-bottom: 8px; }
-  .user-badge { color: #a3a3a3; font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="header">
-  <a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:32px;"></a>
-  <nav>
-    <a href="/">Auction Search</a>
-    <a href="/database">Database</a>
-    <a href="/wallet">Wallet</a>
-    <a href="/results" class="active">Results</a>
-    <a href="/billing">Billing</a>
-    <a href="/profile">Profile</a>
-    <span class="user-badge">{{EMAIL}}</span>
-    <a href="/logout">Logout</a>
-  </nav>
-</div>
+{{SIDEBAR_HTML}}
+<div class="main-content">
 <div class="container">
   <h2>Search Results</h2>
   <p class="subtitle">Your past search results are stored for 180 days. Download in CSV, JSON, or XLSX format.</p>
   {{JOB_CARDS}}
+</div>
+</div>
+</body>
+</html>"""
+
+GETTING_STARTED_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - Getting Started</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+  h2 { font-size: 20px; color: #eab308; margin-bottom: 8px; }
+  .subtitle { font-size: 13px; color: #a3a3a3; margin-bottom: 32px; }
+  .step { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 16px; display: flex; gap: 20px; align-items: flex-start; }
+  .step-num { min-width: 40px; height: 40px; background: #1a1500; border: 2px solid #eab308; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #eab308; flex-shrink: 0; }
+  .step-content h3 { font-size: 16px; margin-bottom: 8px; color: #f5f5f5; }
+  .step-content p { font-size: 13px; color: #a3a3a3; line-height: 1.7; }
+  .step-content a { color: #eab308; text-decoration: none; }
+  .step-content a:hover { text-decoration: underline; }
+  .tip { background: #1a1500; border: 1px solid #332d00; border-radius: 8px; padding: 16px; margin-top: 24px; }
+  .tip h4 { font-size: 13px; color: #eab308; margin-bottom: 6px; }
+  .tip p { font-size: 12px; color: #a3a3a3; line-height: 1.6; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h2>Getting Started with Auction Intel</h2>
+  <p class="subtitle">Follow these 4 steps to find nonprofit auction events and download verified leads.</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h3>Search the Nonprofit Database</h3>
+      <p>Go to the <a href="/database">Database</a> page to search over 276,000 nonprofits from IRS filings. Filter by <strong>state, city, region, event type</strong> (gala, auction, golf, etc.), and <strong>prospect tier</strong> (A+, A, B+, C). Use the financial filters to narrow by revenue, fundraising income, or event gross receipts.</p>
+      <p style="margin-top:8px;">Select the organizations you want to research and click <strong>"Send to Auction Finder"</strong> to add them to your search queue.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h3>Run AI-Powered Auction Research</h3>
+      <p>Go to <a href="/">Auction Search</a> where your selected nonprofits will be pre-loaded. You can also paste names or domains directly. Click <strong>"Search for Auctions"</strong> and watch results stream in real-time.</p>
+      <p style="margin-top:8px;">The AI uses 3 phases: quick scan, deep research (visiting actual event pages), and targeted follow-up for missing fields like contact email or auction type.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <h3>Understand Your Results</h3>
+      <p>Each lead includes up to <strong>16 fields</strong>: event title, date, URL, auction type, confidence score, contact name, email, role, address, phone, and evidence text. Leads are classified into tiers:</p>
+      <p style="margin-top:8px;"><strong style="color:#4ade80;">Full ($1.50)</strong> &mdash; all fields + verified URL &nbsp;|&nbsp; <strong style="color:#eab308;">Partial ($1.00)</strong> &mdash; event + auction type + email &nbsp;|&nbsp; <strong style="color:#fbbf24;">Semi ($0.75)</strong> &mdash; event + email &nbsp;|&nbsp; <strong style="color:#a3a3a3;">Bare ($0.50)</strong> &mdash; event + URL only</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <h3>Download & Use Your Leads</h3>
+      <p>Once your search completes, download results as <strong>CSV, JSON, or XLSX</strong> right from the search page. All results are also saved on the <a href="/results">Results</a> page for 180 days, so you can re-download anytime.</p>
+      <p style="margin-top:8px;">View your charges on the <a href="/billing">Billing</a> page, and top up your balance on the <a href="/wallet">Wallet</a> page ($250 &ndash; $9,999 via Stripe).</p>
+    </div>
+  </div>
+
+  <div class="tip">
+    <h4>Pro Tips</h4>
+    <p>Use the <strong>financial filters</strong> on the Database page to find high-value nonprofits (e.g., Total Revenue > $1M, Fundraising Income > $100K). These organizations are more likely to hold large auction events with bigger budgets.</p>
+    <p style="margin-top:6px;">Need help? Visit <a href="/support" style="color:#eab308;text-decoration:none;">Support</a> to open a ticket.</p>
+  </div>
+</div>
+</div>
+</body>
+</html>"""
+
+SUPPORT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - Support</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+  h2 { font-size: 20px; color: #d4d4d4; margin-bottom: 8px; }
+  .subtitle { font-size: 12px; color: #737373; margin-bottom: 24px; }
+  .new-btn { display: inline-block; padding: 10px 20px; background: #ffd900; color: #000; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; margin-bottom: 24px; }
+  .new-btn:hover { background: #ca8a04; }
+  .section { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { color: #a3a3a3; text-transform: uppercase; font-size: 10px; padding: 8px 6px; text-align: left; border-bottom: 1px solid #262626; }
+  td { padding: 10px 6px; border-bottom: 1px solid #1a1a1a; color: #d4d4d4; }
+  tr:hover td { background: #1a1a1a; }
+  .empty { text-align: center; padding: 40px; color: #737373; font-size: 13px; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h2>Support Tickets</h2>
+  <p class="subtitle">Submit a ticket and we'll get back to you as soon as possible.</p>
+  <a href="/support/new" class="new-btn">New Ticket</a>
+  <div class="section">
+    <table>
+      <thead><tr><th>#</th><th>Subject</th>{{USER_COL_HEADER}}<th>Status</th><th>Last Updated</th></tr></thead>
+      <tbody>{{TICKET_ROWS}}</tbody>
+    </table>
+  </div>
+</div>
+</div>
+</body>
+</html>"""
+
+SUPPORT_NEW_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - New Support Ticket</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width: 700px; margin: 0 auto; padding: 24px; }
+  h2 { font-size: 20px; color: #d4d4d4; margin-bottom: 24px; }
+  .card { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; }
+  label { font-size: 12px; color: #a3a3a3; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  input, select, textarea { width: 100%; padding: 10px 14px; background: #000; border: 1px solid #333; border-radius: 8px; color: #f5f5f5; font-family: inherit; font-size: 14px; outline: none; margin-bottom: 16px; }
+  input:focus, select:focus, textarea:focus { border-color: #eab308; }
+  textarea { height: 160px; resize: vertical; }
+  button { padding: 12px 24px; background: #ffd900; color: #000; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  button:hover { background: #ca8a04; }
+  .back { color: #a3a3a3; text-decoration: none; font-size: 13px; display: inline-block; margin-bottom: 16px; }
+  .back:hover { color: #eab308; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <a href="/support" class="back">&larr; Back to tickets</a>
+  <h2>New Support Ticket</h2>
+  <!-- error -->
+  <div class="card">
+    <form method="POST">
+      <label>Subject</label>
+      <input type="text" name="subject" placeholder="Brief description of your issue" required>
+      <label>Priority</label>
+      <select name="priority">
+        <option value="low">Low</option>
+        <option value="normal" selected>Normal</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
+      </select>
+      <label>Message</label>
+      <textarea name="message" placeholder="Describe your issue in detail..." required></textarea>
+      <button type="submit">Submit Ticket</button>
+    </form>
+  </div>
+</div>
+</div>
+</body>
+</html>"""
+
+SUPPORT_TICKET_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - Ticket #{{TICKET_ID}}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+  .ticket-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .ticket-header h2 { font-size: 18px; color: #d4d4d4; }
+  .messages { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 20px; max-height: 500px; overflow-y: auto; }
+  .reply-box { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; }
+  .reply-box textarea { width: 100%; height: 100px; padding: 10px 14px; background: #000; border: 1px solid #333; border-radius: 8px; color: #f5f5f5; font-family: inherit; font-size: 14px; outline: none; resize: vertical; margin-bottom: 12px; }
+  .reply-box textarea:focus { border-color: #eab308; }
+  .reply-box button { padding: 10px 20px; background: #ffd900; color: #000; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .reply-box button:hover { background: #ca8a04; }
+  .back { color: #a3a3a3; text-decoration: none; font-size: 13px; display: inline-block; margin-bottom: 16px; }
+  .back:hover { color: #eab308; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <a href="/support" class="back">&larr; Back to tickets</a>
+  <div class="ticket-header">
+    <h2>Ticket #{{TICKET_ID}}: {{SUBJECT}}</h2>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <span style="color:{{STATUS_COLOR}};font-weight:700;font-size:13px;">{{STATUS}}</span>
+      {{STATUS_FORM}}
+    </div>
+  </div>
+  <div class="messages">
+    {{MESSAGES}}
+  </div>
+  <div class="reply-box">
+    <form method="POST">
+      <textarea name="message" placeholder="Type your reply..." required></textarea>
+      <button type="submit">Send Reply</button>
+    </form>
+  </div>
+</div>
 </div>
 </body>
 </html>"""
@@ -2572,6 +3009,69 @@ LANDING_HTML = """<!DOCTYPE html>
 
   /* Footer */
   .footer { padding: 40px; border-top: 1px solid #1a1a1a; text-align: center; font-size: 13px; color: #525252; }
+
+  /* Hamburger — hidden on desktop */
+  .hamburger { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+  .hamburger span { display: block; width: 24px; height: 2px; background: #f5f5f5; margin: 5px 0; border-radius: 2px; transition: 0.3s; }
+
+  /* ── Mobile ─────────────────────────────────────── */
+  @media (max-width: 768px) {
+    /* Nav */
+    .topnav { padding: 12px 20px; }
+    .hamburger { display: block; }
+    .topnav .nav-links { display: none; flex-direction: column; position: absolute; top: 100%; left: 0; right: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(12px); padding: 16px 20px; gap: 0; border-bottom: 1px solid #1a1a1a; }
+    .topnav .nav-links.open { display: flex; }
+    .topnav .nav-links a { padding: 12px 0; border-bottom: 1px solid #1a1a1a; font-size: 16px; }
+    .topnav .nav-links a:last-child { border-bottom: none; }
+    .topnav .btn-login, .topnav .btn-cta { text-align: center; margin-top: 4px; }
+
+    /* Hero */
+    .hero { padding: 100px 20px 60px; }
+    .hero h1 { font-size: 32px; }
+    .hero .subtitle { font-size: 16px; margin-bottom: 28px; }
+    .hero .cta-row { flex-direction: column; gap: 12px; }
+    .hero .cta-row a { width: 100%; text-align: center; }
+    .hero .trust { font-size: 12px; }
+
+    /* Stats */
+    .stats-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 32px 20px; }
+    .stats-bar .stat .num { font-size: 28px; }
+
+    /* Sections */
+    section { padding: 60px 20px; }
+    .section-header { margin-bottom: 36px; }
+    .section-header h2 { font-size: 28px; }
+    .section-header p { font-size: 15px; }
+
+    /* Features */
+    .features-grid { grid-template-columns: 1fr; gap: 16px; }
+    .feature-card { padding: 24px; }
+
+    /* Steps */
+    .steps { grid-template-columns: 1fr; gap: 24px; }
+
+    /* Trial banner (inline styles — override with !important) */
+    section[style*="padding:60px"] { padding: 40px 20px !important; }
+    section[style*="padding:60px"] h2 { font-size: 26px !important; }
+    section[style*="padding:60px"] a[style*="padding:16px 40px"] { display: block !important; padding: 14px 20px !important; }
+
+    /* Pricing */
+    .pricing-grid { grid-template-columns: 1fr; gap: 16px; }
+    .price-card { padding: 28px; }
+
+    /* FAQ */
+    .faq-list { max-width: 100%; }
+    .faq-q { font-size: 15px; }
+
+    /* Final CTA */
+    .final-cta { padding: 60px 20px; }
+    .final-cta h2 { font-size: 28px; }
+    .final-cta p { font-size: 15px; }
+    .final-cta .btn-primary { display: block; width: 100%; text-align: center; }
+
+    /* Footer */
+    .footer { padding: 32px 20px; }
+  }
 </style>
 </head>
 <body>
@@ -2580,6 +3080,9 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="logo">
     <img src="/static/logo_dark.png" alt="Auction Intel">
   </div>
+  <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#how-it-works">How It Works</a>

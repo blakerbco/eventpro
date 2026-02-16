@@ -92,6 +92,27 @@ def init_db():
             completed_at TEXT,
             expires_at TEXT DEFAULT (datetime('now', '+6 months'))
         );
+
+        CREATE TABLE IF NOT EXISTS tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id),
+            subject TEXT NOT NULL,
+            status TEXT DEFAULT 'open',
+            priority TEXT DEFAULT 'normal',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS ticket_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id INTEGER REFERENCES tickets(id),
+            sender_id INTEGER REFERENCES users(id),
+            is_admin INTEGER DEFAULT 0,
+            message TEXT NOT NULL,
+            read_by_user INTEGER DEFAULT 0,
+            read_by_admin INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
 
@@ -465,3 +486,137 @@ def consume_reset_token(token: str):
     conn = _get_conn()
     conn.execute("UPDATE password_reset_tokens SET used = 1 WHERE token = ?", (token,))
     conn.commit()
+
+
+# ─── Support Tickets ──────────────────────────────────────────────────────────
+
+_VALID_STATUSES = {"open", "pending", "urgent", "resolved"}
+_VALID_PRIORITIES = {"low", "normal", "high", "urgent"}
+
+
+def create_ticket(user_id: int, subject: str, message: str, priority: str = "normal") -> int:
+    """Create a ticket with its first message. Returns ticket_id."""
+    if priority not in _VALID_PRIORITIES:
+        priority = "normal"
+    conn = _get_conn()
+    cur = conn.execute(
+        "INSERT INTO tickets (user_id, subject, priority) VALUES (?, ?, ?)",
+        (user_id, subject, priority),
+    )
+    ticket_id = cur.lastrowid
+    conn.execute(
+        "INSERT INTO ticket_messages (ticket_id, sender_id, is_admin, message, read_by_user, read_by_admin) "
+        "VALUES (?, ?, 0, ?, 1, 0)",
+        (ticket_id, user_id, message),
+    )
+    conn.commit()
+    return ticket_id
+
+
+def get_ticket(ticket_id: int) -> Optional[Dict[str, Any]]:
+    """Get a single ticket by id."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT t.*, u.email as user_email FROM tickets t JOIN users u ON t.user_id = u.id WHERE t.id = ?",
+        (ticket_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def get_tickets_for_user(user_id: int) -> list:
+    """Get all tickets for a specific user."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT t.*, (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.read_by_user = 0 AND tm.is_admin = 1) as unread "
+        "FROM tickets t WHERE t.user_id = ? ORDER BY t.updated_at DESC",
+        (user_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_tickets() -> list:
+    """Get all tickets (admin view)."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT t.*, u.email as user_email, "
+        "(SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.read_by_admin = 0 AND tm.is_admin = 0) as unread "
+        "FROM tickets t JOIN users u ON t.user_id = u.id ORDER BY "
+        "CASE t.status WHEN 'urgent' THEN 0 WHEN 'open' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, t.updated_at DESC",
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_ticket_messages(ticket_id: int) -> list:
+    """Get all messages for a ticket."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT tm.*, u.email as sender_email FROM ticket_messages tm "
+        "JOIN users u ON tm.sender_id = u.id WHERE tm.ticket_id = ? ORDER BY tm.created_at ASC",
+        (ticket_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_ticket_message(ticket_id: int, sender_id: int, message: str, is_admin: bool = False) -> int:
+    """Add a reply to a ticket. Returns message_id."""
+    conn = _get_conn()
+    cur = conn.execute(
+        "INSERT INTO ticket_messages (ticket_id, sender_id, is_admin, message, read_by_user, read_by_admin) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (ticket_id, sender_id, 1 if is_admin else 0, message,
+         1 if not is_admin else 0, 1 if is_admin else 0),
+    )
+    conn.execute("UPDATE tickets SET updated_at = datetime('now') WHERE id = ?", (ticket_id,))
+    conn.commit()
+    return cur.lastrowid
+
+
+def update_ticket_status(ticket_id: int, status: str):
+    """Update ticket status. Validates against whitelist."""
+    if status not in _VALID_STATUSES:
+        return
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?",
+        (status, ticket_id),
+    )
+    conn.commit()
+
+
+def mark_messages_read_by_user(ticket_id: int):
+    """Mark all admin messages as read by the user."""
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE ticket_messages SET read_by_user = 1 WHERE ticket_id = ? AND is_admin = 1",
+        (ticket_id,),
+    )
+    conn.commit()
+
+
+def mark_messages_read_by_admin(ticket_id: int):
+    """Mark all user messages as read by admin."""
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE ticket_messages SET read_by_admin = 1 WHERE ticket_id = ? AND is_admin = 0",
+        (ticket_id,),
+    )
+    conn.commit()
+
+
+def get_unread_ticket_count(user_id: int, is_admin: bool = False) -> int:
+    """Get count of tickets with unread messages for nav badge."""
+    conn = _get_conn()
+    if is_admin:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT t.id) FROM tickets t "
+            "JOIN ticket_messages tm ON tm.ticket_id = t.id "
+            "WHERE tm.is_admin = 0 AND tm.read_by_admin = 0",
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT t.id) FROM tickets t "
+            "JOIN ticket_messages tm ON tm.ticket_id = t.id "
+            "WHERE t.user_id = ? AND tm.is_admin = 1 AND tm.read_by_user = 0",
+            (user_id,),
+        ).fetchone()
+    return row[0] if row else 0

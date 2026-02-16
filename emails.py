@@ -294,3 +294,45 @@ def send_results_expiring_72_hours(email: str, job_id: str):
 
 def send_results_expiring_24_hours(email: str, job_id: str):
     send_results_expiring(email, job_id, "24 hours", "24 Hours")
+
+
+# ─── Support Ticket Emails ────────────────────────────────────────────────────
+
+def send_ticket_created(ticket_id: int, subject: str, user_email: str, message: str):
+    """Notify admin when a new support ticket is created."""
+    body = (
+        _p(f"A new support ticket has been submitted by <strong>{user_email}</strong>.")
+        + _p(f"<strong>Subject:</strong> {subject}")
+        + _p(f"<strong>Message:</strong><br>{message}")
+    )
+    _send(
+        "admin@auctionintel.us",
+        f"New Support Ticket #{ticket_id}: {subject}",
+        _base_template(
+            "New Support Ticket",
+            f"Ticket #{ticket_id}",
+            body,
+            cta_text="View Ticket",
+            cta_url=f"{DOMAIN}/support/{ticket_id}",
+        ),
+    )
+
+
+def send_ticket_reply_to_user(user_email: str, ticket_id: int, subject: str, reply_message: str):
+    """Notify user when admin replies to their ticket."""
+    body = (
+        _p(f"You have a new reply on your support ticket <strong>#{ticket_id}</strong>.")
+        + _p(f"<strong>Subject:</strong> {subject}")
+        + _p(f"<strong>Reply:</strong><br>{reply_message}")
+    )
+    _send(
+        user_email,
+        f"Reply on Ticket #{ticket_id}: {subject}",
+        _base_template(
+            "Support Ticket Reply",
+            "New Reply on Your Ticket",
+            body,
+            cta_text="View Conversation",
+            cta_url=f"{DOMAIN}/support/{ticket_id}",
+        ),
+    )
