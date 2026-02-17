@@ -129,6 +129,7 @@ def _enrich_from_irs(results: List[Dict[str, Any]]) -> None:
         cur = conn.cursor()
         for r in needs:
             name = r["nonprofit_name"].strip()
+            # Try exact match first, then wildcard (handles "Inc", "Foundation", etc.)
             cur.execute(
                 'SELECT "PhysicalAddress", "PhysicalCity", "PhysicalState", '
                 '"PhysicalZIP", "BusinessOfficerPhone" '
@@ -137,7 +138,18 @@ def _enrich_from_irs(results: List[Dict[str, Any]]) -> None:
             )
             row = cur.fetchone()
             if not row:
+                # Try with wildcard suffix (e.g., "New Moms" -> "New Moms%")
+                cur.execute(
+                    'SELECT "PhysicalAddress", "PhysicalCity", "PhysicalState", '
+                    '"PhysicalZIP", "BusinessOfficerPhone" '
+                    'FROM tax_year_2019_search WHERE "OrganizationName" ILIKE %s LIMIT 1',
+                    (name + '%',)
+                )
+                row = cur.fetchone()
+            if not row:
+                print(f"[IRS ENRICH] No match for: {name}")
                 continue
+            print(f"[IRS ENRICH] Matched: {name}")
             addr, city, state, zipcode, phone = row
             if not r.get("organization_address") and addr:
                 parts = [p for p in [addr, city, f"{state} {zipcode}" if state else zipcode] if p]
