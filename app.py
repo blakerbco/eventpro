@@ -211,6 +211,7 @@ _SIDEBAR_CSS = """
   .sidebar-nav a:hover svg, .sidebar-nav a.active svg { opacity:1; }
   .sidebar-bottom { margin-top:auto; padding:12px; border-top:1px solid #1a1a1a; }
   .sidebar-bottom a { display:flex; align-items:center; gap:10px; padding:9px 12px; color:#737373; text-decoration:none; font-size:13px; border-radius:6px; }
+  .sidebar-bottom a svg { width:14px; height:14px; flex-shrink:0; }
   .sidebar-bottom a:hover { color:#f87171; background:#141414; }
   .topbar { position:fixed; top:0; left:260px; right:0; height:48px; background:#0a0a0a; border-bottom:1px solid #1a1a1a; display:flex; align-items:center; justify-content:flex-end; padding:0 24px; z-index:99; }
   .topbar .user-email { color:#737373; font-size:12px; }
@@ -241,8 +242,8 @@ _SIDEBAR_ICONS = {
 
 _SIDEBAR_NAV_ITEMS = [
     ("Research", [
+        ("database", "/database", "Search Database"),
         ("search", "/", "Auction Search"),
-        ("database", "/database", "Database"),
     ]),
     ("Account", [
         ("wallet", "/wallet", "Wallet"),
