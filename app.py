@@ -3,11 +3,11 @@
 AUCTIONFINDER — Web Interface
 
 User-authenticated web UI with wallet-based billing for the Nonprofit
-Auction Event Finder. Uses Gemini + Google Search for research, Stripe
+Auction Event Finder. Uses Claude + Web Search for research, Stripe
 for wallet top-ups, and SSE for real-time progress streaming.
 
 Usage:
-    set GEMINI3PRO_API_KEY=...
+    set ANTHROPIC_API_KEY=...
     set STRIPE_SECRET_KEY=sk_test_...
     set STRIPE_PUBLISHABLE_KEY=pk_test_...
     python app.py
@@ -36,8 +36,7 @@ from flask import (
     Flask, request, Response, jsonify, session,
     redirect, url_for, send_file,
 )
-from google import genai
-from google.genai import types as gemini_types
+import anthropic
 import stripe
 import openpyxl
 import psycopg2
@@ -45,12 +44,12 @@ import psycopg2
 # ─── Import bot config & prompts ─────────────────────────────────────────────
 
 from bot import (
-    BATCH_SIZE, MAX_PARALLEL_BATCHES, MAX_NONPROFITS, GEMINI_MODEL,
+    BATCH_SIZE, MAX_PARALLEL_BATCHES, MAX_NONPROFITS, CLAUDE_MODEL,
     DELAY_BETWEEN_BATCHES, ALLOWLISTED_PLATFORMS,
     CSV_COLUMNS, SYSTEM_PROMPT, build_user_prompt, parse_input,
     _error_result, extract_json, classify_lead_tier, _has_valid_url,
     _quick_scan, _deep_research, _targeted_followup,
-    _quick_scan_to_full, _missing_billable_fields, _gemini_call,
+    _quick_scan_to_full, _missing_billable_fields, _claude_call,
 )
 
 from db import (
@@ -68,6 +67,7 @@ from db import (
     get_unread_ticket_count,
     purchase_exclusive_lead, is_lead_exclusive, get_user_exclusive_leads,
     EXCLUSIVE_LEAD_PRICE_CENTS,
+    cache_get, cache_put,
 )
 import emails
 from html import escape as html_escape
@@ -321,7 +321,7 @@ def _inject_sidebar(html, active):
 # ─── Research Worker (runs in background thread with its own event loop) ─────
 
 async def _research_nonprofit_web(
-    client: genai.Client,
+    client: anthropic.Anthropic,
     nonprofit: str,
     semaphore: asyncio.Semaphore,
     index: int,
@@ -351,6 +351,46 @@ async def _research_nonprofit_web(
             })
             return result
         progress_q.put({"type": "processing", "index": index, "total": total, "nonprofit": nonprofit})
+
+        # ── Cache check — skip API calls if we already have this result ──
+        cached = cache_get(nonprofit)
+        if cached:
+            cached["_source"] = "cache"
+            cached["_api_calls"] = 0
+            status = cached.get("status", "uncertain")
+            tier, price = classify_lead_tier(cached)
+            title = cached.get("event_title", "")
+
+            # Still charge fees for cached results (user is getting the data)
+            if user_id and not is_admin and status in ("found", "3rdpty_found") and price > 0:
+                fee = get_research_fee_cents(total)
+                total_charge = fee + price
+                if is_trial and price <= 0:
+                    pass  # trial, dead lead, free
+                elif get_balance(user_id) >= total_charge:
+                    charge_research_fee(user_id, 1, job_id, fee)
+                    charge_lead_fee(user_id, tier, price, job_id, nonprofit)
+                    progress_q.put({"type": "balance", "balance": get_balance(user_id)})
+                else:
+                    if balance_stop:
+                        balance_stop.set()
+                    cached["_balance_exhausted"] = True
+                    progress_q.put({"type": "balance_warning", "message": "Insufficient balance — stopping job."})
+                    tier, price = "not_billable", 0
+            elif user_id and not is_admin and not is_trial:
+                fee = get_research_fee_cents(total)
+                if get_balance(user_id) >= fee:
+                    charge_research_fee(user_id, 1, job_id, fee)
+                    progress_q.put({"type": "balance", "balance": get_balance(user_id)})
+
+            progress_q.put({
+                "type": "result", "index": index, "total": total,
+                "nonprofit": nonprofit, "status": status,
+                "event_title": title, "confidence": cached.get("confidence_score", 0),
+                "tier": tier, "tier_price": price,
+            })
+            return cached
+
         api_calls = 0
         text = ""
 
@@ -365,7 +405,7 @@ async def _research_nonprofit_web(
                 result["_api_calls"] = api_calls
                 result["_phase"] = "quick_scan"
                 result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-                result["_source"] = "gemini"
+                result["_source"] = "claude"
 
                 # Charge research fee (trial users: free on dead leads)
                 if user_id and not is_admin and not is_trial:
@@ -383,6 +423,7 @@ async def _research_nonprofit_web(
                     "nonprofit": nonprofit, "status": "not_found",
                     "event_title": "", "confidence": 0, "tier": "not_billable", "tier_price": 0,
                 })
+                cache_put(nonprofit, result)
                 return result
 
             # Quick positive — only early-stop if ALL fields are filled
@@ -402,7 +443,7 @@ async def _research_nonprofit_web(
                     full_from_scan["_api_calls"] = api_calls
                     full_from_scan["_phase"] = "quick_scan"
                     full_from_scan["_processed_at"] = datetime.now(timezone.utc).isoformat()
-                    full_from_scan["_source"] = "gemini"
+                    full_from_scan["_source"] = "claude"
 
                     if user_id and not is_admin:
                         fee = get_research_fee_cents(total)
@@ -426,13 +467,14 @@ async def _research_nonprofit_web(
                         "confidence": scan.get("confidence", 0),
                         "tier": tier, "tier_price": price,
                     })
+                    cache_put(nonprofit, full_from_scan)
                     return full_from_scan
 
             # ── Phase 2: Deep Research ──
             api_calls += 1
             result = await _deep_research(client, nonprofit)
             result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-            result["_source"] = "gemini"
+            result["_source"] = "claude"
 
             status = result.get("status", "uncertain")
 
@@ -455,6 +497,7 @@ async def _research_nonprofit_web(
                     "nonprofit": nonprofit, "status": "not_found",
                     "event_title": "", "confidence": 0, "tier": "not_billable", "tier_price": 0,
                 })
+                cache_put(nonprofit, result)
                 return result
 
             # Check tier
@@ -527,6 +570,7 @@ async def _research_nonprofit_web(
                 "confidence": result.get("confidence_score", 0),
                 "tier": tier, "tier_price": price,
             })
+            cache_put(nonprofit, result)
             return result
 
         except json.JSONDecodeError:
@@ -542,13 +586,16 @@ async def _research_nonprofit_web(
                 if get_balance(user_id) >= fee:
                     charge_research_fee(user_id, 1, job_id, fee)
                     progress_q.put({"type": "balance", "balance": get_balance(user_id)})
-            return _error_result(nonprofit, "Failed to parse response as JSON", text[:500] if text else "")
+            err = _error_result(nonprofit, "Failed to parse response as JSON", text[:500] if text else "")
+            cache_put(nonprofit, err)
+            return err
 
         except Exception as e:
+            err_msg = str(e)
             progress_q.put({
                 "type": "result", "index": index, "total": total,
                 "nonprofit": nonprofit, "status": "error",
-                "event_title": str(e)[:80], "confidence": 0,
+                "event_title": err_msg[:80], "confidence": 0,
                 "tier": "not_billable", "tier_price": 0,
             })
             if user_id and not is_admin and not is_trial:
@@ -556,7 +603,11 @@ async def _research_nonprofit_web(
                 if get_balance(user_id) >= fee:
                     charge_research_fee(user_id, 1, job_id, fee)
                     progress_q.put({"type": "balance", "balance": get_balance(user_id)})
-            return _error_result(nonprofit, str(e))
+            err = _error_result(nonprofit, err_msg)
+            # Don't cache rate limit errors — those should be retried immediately
+            if "429" not in err_msg and "RESOURCE_EXHAUSTED" not in err_msg:
+                cache_put(nonprofit, err)
+            return err
 
 
 async def _run_job(
@@ -568,7 +619,7 @@ async def _run_job(
     if len(nonprofits) > MAX_NONPROFITS:
         nonprofits = nonprofits[:MAX_NONPROFITS]
 
-    client = genai.Client(api_key=os.environ.get("GEMINI3PRO_API_KEY"))
+    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     batches = [nonprofits[i:i + BATCH_SIZE] for i in range(0, len(nonprofits), BATCH_SIZE)]
     total_batches = len(batches)
     semaphore = asyncio.Semaphore(BATCH_SIZE * MAX_PARALLEL_BATCHES)
@@ -612,6 +663,14 @@ async def _run_job(
         results = await asyncio.gather(*batch_tasks)
         all_results.extend(results)
 
+        # Checkpoint: save results to disk after every batch group
+        checkpoint_file = os.path.join(RESULTS_DIR, f"{job_id}_checkpoint.csv")
+        with open(checkpoint_file, "w", newline="", encoding="utf-8") as cpf:
+            cpw = csv.DictWriter(cpf, fieldnames=CSV_COLUMNS, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+            cpw.writeheader()
+            for cr in all_results:
+                cpw.writerow({col: cr.get(col, "") for col in CSV_COLUMNS})
+
         completed = min(i + MAX_PARALLEL_BATCHES, total_batches)
         progress_q.put({
             "type": "batch_done",
@@ -619,6 +678,7 @@ async def _run_job(
             "total_batches": total_batches,
             "processed": len(all_results),
             "total": len(nonprofits),
+            "checkpoint": f"{job_id}_checkpoint.csv",
         })
 
         if completed < total_batches:
@@ -685,7 +745,7 @@ async def _run_job(
         "meta": {
             "total_nonprofits": len(all_results),
             "processing_time_seconds": round(elapsed, 2),
-            "model": GEMINI_MODEL,
+            "model": CLAUDE_MODEL,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "summary": {
@@ -711,6 +771,11 @@ async def _run_job(
         max_len = max((len(str(cell.value or "")) for cell in col_cells), default=10)
         ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 2, 50)
     wb.save(xlsx_file)
+
+    # Remove checkpoint file now that final files are saved
+    checkpoint_file = os.path.join(RESULTS_DIR, f"{job_id}_checkpoint.csv")
+    if os.path.exists(checkpoint_file):
+        os.remove(checkpoint_file)
 
     # Final event
     complete_event = {
@@ -1765,6 +1830,16 @@ REGISTER_HTML = f"""<!DOCTYPE html>
   <button type="submit">Create Account</button>
   <p class="link">Already have an account? <a href="/login">Log in</a></p>
 </form>
+<script>
+(function() {{
+  var params = new URLSearchParams(window.location.search);
+  var promo = params.get('promo');
+  if (promo) {{
+    var input = document.querySelector('input[name="promo_code"]');
+    if (input) input.value = promo.toUpperCase();
+  }}
+}})();
+</script>
 </body>
 </html>"""
 
@@ -3776,8 +3851,8 @@ LANDING_HTML = """<!DOCTYPE html>
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    if not os.environ.get("GEMINI3PRO_API_KEY"):
-        print("ERROR: GEMINI3PRO_API_KEY environment variable is not set.", file=sys.stderr)
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("ERROR: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
         sys.exit(1)
 
     # Initialize SQLite database

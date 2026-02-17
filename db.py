@@ -142,6 +142,16 @@ def init_db():
             event_url TEXT NOT NULL,
             purchased_at TIMESTAMP DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS research_cache (
+            id SERIAL PRIMARY KEY,
+            cache_key TEXT UNIQUE NOT NULL,
+            result_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'uncertain',
+            event_title TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT NOW(),
+            expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days')
+        );
     """)
     conn.commit()
 
@@ -149,6 +159,15 @@ def init_db():
     try:
         cur.execute(
             "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_intent_id TEXT"
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    # Migration: add expires_at to research_cache if missing
+    try:
+        cur.execute(
+            "ALTER TABLE research_cache ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days')"
         )
         conn.commit()
     except Exception:
@@ -868,3 +887,117 @@ def get_user_exclusive_leads(user_id: int) -> list:
     result = _fetchall(cur)
     cur.close()
     return result
+
+
+# ─── Research Cache ──────────────────────────────────────────────────────────
+
+import json as _json
+import re as _re
+
+
+def _cache_key(nonprofit: str) -> str:
+    """Normalize nonprofit name/domain to a stable cache key."""
+    return nonprofit.strip().lower()
+
+
+def _parse_event_date(date_str: str) -> Optional[datetime]:
+    """Try to parse M/D/YYYY event date. Returns datetime or None."""
+    if not date_str or not isinstance(date_str, str):
+        return None
+    date_str = date_str.strip()
+    # Match M/D/YYYY or MM/DD/YYYY
+    m = _re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", date_str)
+    if m:
+        try:
+            return datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)), tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _compute_expiry(result: Dict[str, Any]) -> datetime:
+    """Compute cache expiry based on result status and event date.
+    - found/3rdpty_found with event_date: expires day after event_date
+    - not_found: 30 days
+    - error/uncertain: 7 days
+    """
+    status = result.get("status", "uncertain")
+    now = datetime.now(timezone.utc)
+
+    if status in ("found", "3rdpty_found"):
+        event_dt = _parse_event_date(result.get("event_date", ""))
+        if event_dt:
+            # Expire the day after the event
+            return event_dt + timedelta(days=1)
+        # Found but no parseable date — keep 90 days
+        return now + timedelta(days=90)
+
+    if status == "not_found":
+        return now + timedelta(days=30)
+
+    # error, uncertain, anything else — retry in 7 days
+    return now + timedelta(days=7)
+
+
+def cache_get(nonprofit: str) -> Optional[Dict[str, Any]]:
+    """Look up a cached research result. Returns the result dict or None if missing/expired."""
+    key = _cache_key(nonprofit)
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT result_json, expires_at FROM research_cache WHERE cache_key = %s",
+        (key,),
+    )
+    row = _fetchone(cur)
+    cur.close()
+    if not row:
+        return None
+
+    # Check expiry
+    expires = row["expires_at"]
+    if expires:
+        if isinstance(expires, str):
+            try:
+                expires = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            except ValueError:
+                expires = None
+        elif expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires and datetime.now(timezone.utc) > expires:
+            # Expired — delete and return None
+            conn2 = _get_conn()
+            cur2 = conn2.cursor()
+            cur2.execute("DELETE FROM research_cache WHERE cache_key = %s", (key,))
+            conn2.commit()
+            cur2.close()
+            return None
+
+    try:
+        return _json.loads(row["result_json"])
+    except (_json.JSONDecodeError, TypeError):
+        return None
+
+
+def cache_put(nonprofit: str, result: Dict[str, Any]):
+    """Save a research result to the cache. Overwrites any existing entry.
+    Expiry is computed automatically based on status and event_date."""
+    key = _cache_key(nonprofit)
+    result_json = _json.dumps(result, ensure_ascii=False)
+    status = result.get("status", "uncertain")
+    event_title = result.get("event_title", "")
+    expires_at = _compute_expiry(result)
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO research_cache (cache_key, result_json, status, event_title, expires_at)
+           VALUES (%s, %s, %s, %s, %s)
+           ON CONFLICT (cache_key) DO UPDATE SET
+               result_json = EXCLUDED.result_json,
+               status = EXCLUDED.status,
+               event_title = EXCLUDED.event_title,
+               expires_at = EXCLUDED.expires_at,
+               created_at = NOW()""",
+        (key, result_json, status, event_title, expires_at),
+    )
+    conn.commit()
+    cur.close()

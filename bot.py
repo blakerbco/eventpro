@@ -3,7 +3,7 @@
 AUCTIONFINDER — Nonprofit Auction Event Finder Bot
 
 Takes nonprofit domains/names as input (comma or newline separated),
-searches for upcoming auction events using Gemini with Google Search grounding,
+searches for upcoming auction events using Claude with web search grounding,
 and outputs structured CSV + JSON results.
 
 Usage:
@@ -25,12 +25,11 @@ from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from google import genai
-from google.genai import types as gemini_types
+import anthropic
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-pro"
+CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
 BATCH_SIZE = 5          # 5 nonprofits per batch
 MAX_PARALLEL_BATCHES = 2  # 2 parallel batches
@@ -403,49 +402,51 @@ Respond with ONLY valid JSON (no markdown):
 
 # ─── 3-Phase Research Functions ──────────────────────────────────────────────
 
-def _gemini_call(client: genai.Client, prompt: str):
-    """Synchronous Gemini call with Google Search grounding."""
-    return client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=gemini_types.GenerateContentConfig(
-            tools=[gemini_types.Tool(google_search=gemini_types.GoogleSearch())],
-            temperature=0.2,
-        ),
+def _claude_call(client: anthropic.Anthropic, prompt: str) -> str:
+    """Synchronous Claude call with web search grounding."""
+    response = client.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+        temperature=0.2,
     )
+    # Extract text from response content blocks
+    text_parts = []
+    for block in response.content:
+        if hasattr(block, "text"):
+            text_parts.append(block.text)
+    return "\n".join(text_parts)
 
 
-async def _quick_scan(client: genai.Client, nonprofit: str) -> Dict[str, Any]:
-    """Phase 1: Quick scan — 1 Gemini call, lightweight prompt."""
+async def _quick_scan(client: anthropic.Anthropic, nonprofit: str) -> Dict[str, Any]:
+    """Phase 1: Quick scan — 1 Claude call, lightweight prompt."""
     prompt = QUICK_SCAN_PROMPT.format(nonprofit=nonprofit)
-    response = await asyncio.to_thread(_gemini_call, client, prompt)
-    text = response.text or ""
+    text = await asyncio.to_thread(_claude_call, client, prompt)
     return extract_json(text)
 
 
-async def _deep_research(client: genai.Client, nonprofit: str) -> Dict[str, Any]:
-    """Phase 2: Deep research — 1 Gemini call with full SYSTEM_PROMPT."""
+async def _deep_research(client: anthropic.Anthropic, nonprofit: str) -> Dict[str, Any]:
+    """Phase 2: Deep research — 1 Claude call with full SYSTEM_PROMPT."""
     prompt = f"""{SYSTEM_PROMPT}
 
 Research this nonprofit and find upcoming auction events: "{nonprofit}"
 
 Remember: ONLY return valid JSON, no other text."""
-    response = await asyncio.to_thread(_gemini_call, client, prompt)
-    text = response.text or ""
+    text = await asyncio.to_thread(_claude_call, client, prompt)
     return extract_json(text)
 
 
 async def _targeted_followup(
-    client: genai.Client, nonprofit: str, event_title: str,
+    client: anthropic.Anthropic, nonprofit: str, event_title: str,
     event_date: str, missing_field: str,
 ) -> Dict[str, Any]:
-    """Phase 3: Targeted follow-up — 1 Gemini call for a single missing field."""
+    """Phase 3: Targeted follow-up — 1 Claude call for a single missing field."""
     prompt = TARGETED_PROMPT.format(
         missing_field=missing_field, nonprofit=nonprofit,
         event_title=event_title, event_date=event_date,
     )
-    response = await asyncio.to_thread(_gemini_call, client, prompt)
-    text = response.text or ""
+    text = await asyncio.to_thread(_claude_call, client, prompt)
     return extract_json(text)
 
 
@@ -497,7 +498,7 @@ def _missing_billable_fields(result: Dict[str, Any]) -> List[str]:
 # ─── API Calls ────────────────────────────────────────────────────────────────
 
 async def research_nonprofit(
-    client: genai.Client,
+    client: anthropic.Anthropic,
     nonprofit: str,
     semaphore: asyncio.Semaphore,
     index: int,
@@ -505,6 +506,15 @@ async def research_nonprofit(
 ) -> Dict[str, Any]:
     """Research a single nonprofit using 3-phase early-stop strategy."""
     async with semaphore:
+        # ── Cache check ──
+        from db import cache_get, cache_put
+        cached = cache_get(nonprofit)
+        if cached:
+            print(f"  [{index}/{total}] CACHED: {nonprofit} -> {cached.get('event_title', '') or 'not_found'}", file=sys.stderr)
+            cached["_source"] = "cache"
+            cached["_api_calls"] = 0
+            return cached
+
         print(f"  [{index}/{total}] Researching: {nonprofit}", file=sys.stderr)
         api_calls = 0
         text = ""
@@ -520,7 +530,8 @@ async def research_nonprofit(
                 result["_api_calls"] = api_calls
                 result["_phase"] = "quick_scan"
                 result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-                result["_source"] = "gemini"
+                result["_source"] = "claude"
+                cache_put(nonprofit, result)
                 return result
 
             # Quick positive — only early-stop if ALL fields are filled
@@ -541,7 +552,8 @@ async def research_nonprofit(
                     full_from_scan["_api_calls"] = api_calls
                     full_from_scan["_phase"] = "quick_scan"
                     full_from_scan["_processed_at"] = datetime.now(timezone.utc).isoformat()
-                    full_from_scan["_source"] = "gemini"
+                    full_from_scan["_source"] = "claude"
+                    cache_put(nonprofit, full_from_scan)
                     return full_from_scan
 
             # ── Phase 2: Deep Research ──
@@ -549,7 +561,7 @@ async def research_nonprofit(
             print(f"  [{index}/{total}] Phase 2 (deep): {nonprofit}", file=sys.stderr)
             result = await _deep_research(client, nonprofit)
             result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-            result["_source"] = "gemini"
+            result["_source"] = "claude"
 
             status = result.get("status", "uncertain")
 
@@ -558,6 +570,7 @@ async def research_nonprofit(
                 print(f"  [{index}/{total}] NOT_FOUND (deep): {nonprofit}", file=sys.stderr)
                 result["_api_calls"] = api_calls
                 result["_phase"] = "deep_research"
+                cache_put(nonprofit, result)
                 return result
 
             # Check if billable
@@ -570,6 +583,7 @@ async def research_nonprofit(
                 print(f"  [{index}/{total}] {status.upper()} ({tier}): {nonprofit} -> {title}", file=sys.stderr)
                 result["_api_calls"] = api_calls
                 result["_phase"] = "deep_research"
+                cache_put(nonprofit, result)
                 return result
 
             # ── Phase 3: Targeted Follow-up (chase up to 3 missing fields) ──
@@ -599,15 +613,23 @@ async def research_nonprofit(
             print(f"  [{index}/{total}] {status.upper()} ({tier}): {nonprofit} -> {title}", file=sys.stderr)
             result["_api_calls"] = api_calls
             result["_phase"] = f"phase_{api_calls}"
+            cache_put(nonprofit, result)
             return result
 
         except json.JSONDecodeError:
             print(f"  [{index}/{total}] ERROR (JSON parse): {nonprofit}", file=sys.stderr)
-            return _error_result(nonprofit, "Failed to parse response as JSON", text[:500] if text else "")
+            err = _error_result(nonprofit, "Failed to parse response as JSON", text[:500] if text else "")
+            cache_put(nonprofit, err)
+            return err
 
         except Exception as e:
-            print(f"  [{index}/{total}] ERROR: {nonprofit} — {e}", file=sys.stderr)
-            return _error_result(nonprofit, str(e))
+            err_msg = str(e)
+            print(f"  [{index}/{total}] ERROR: {nonprofit} — {err_msg}", file=sys.stderr)
+            # Don't cache rate limit errors — those should be retried immediately
+            err = _error_result(nonprofit, err_msg)
+            if "429" not in err_msg and "RESOURCE_EXHAUSTED" not in err_msg:
+                cache_put(nonprofit, err)
+            return err
 
 
 def _error_result(nonprofit: str, error: str, raw: str = "") -> Dict[str, Any]:
@@ -626,7 +648,7 @@ def _error_result(nonprofit: str, error: str, raw: str = "") -> Dict[str, Any]:
 # ─── Batch Processing ────────────────────────────────────────────────────────
 
 async def process_batch(
-    client: genai.Client,
+    client: anthropic.Anthropic,
     batch: List[str],
     batch_num: int,
     total_batches: int,
@@ -661,7 +683,7 @@ async def run(nonprofits: List[str]) -> List[Dict[str, Any]]:
         print(f"Warning: Truncating to {MAX_NONPROFITS} nonprofits (received {len(nonprofits)})", file=sys.stderr)
         nonprofits = nonprofits[:MAX_NONPROFITS]
 
-    client = genai.Client(api_key=os.environ.get("GEMINI3PRO_API_KEY"))
+    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
     # Create batches
     batches = [nonprofits[i:i + BATCH_SIZE] for i in range(0, len(nonprofits), BATCH_SIZE)]
@@ -669,7 +691,7 @@ async def run(nonprofits: List[str]) -> List[Dict[str, Any]]:
 
     print(f"Processing {len(nonprofits)} nonprofits in {total_batches} batch(es)", file=sys.stderr)
     print(f"Batch size: {BATCH_SIZE} | Max parallel batches: {MAX_PARALLEL_BATCHES}", file=sys.stderr)
-    print(f"Model: {GEMINI_MODEL} (Gemini + Google Search)", file=sys.stderr)
+    print(f"Model: {CLAUDE_MODEL} (Claude + Web Search)", file=sys.stderr)
 
     all_results: List[Dict[str, Any]] = []
 
@@ -737,7 +759,7 @@ def write_json(results: List[Dict[str, Any]], filepath: str, elapsed: float) -> 
         "meta": {
             "total_nonprofits": len(results),
             "processing_time_seconds": round(elapsed, 2),
-            "model": GEMINI_MODEL,
+            "model": CLAUDE_MODEL,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "summary": {
@@ -756,9 +778,9 @@ def write_json(results: List[Dict[str, Any]], filepath: str, elapsed: float) -> 
 
 def main():
     # Check for API key
-    if not os.environ.get("GEMINI3PRO_API_KEY"):
-        print("ERROR: GEMINI3PRO_API_KEY environment variable is not set.", file=sys.stderr)
-        print("Set it with: set GEMINI3PRO_API_KEY=...", file=sys.stderr)
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("ERROR: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
+        print("Set it with: set ANTHROPIC_API_KEY=...", file=sys.stderr)
         sys.exit(1)
 
     # Parse arguments
@@ -784,7 +806,7 @@ def main():
     else:
         print("=" * 60, file=sys.stderr)
         print("  AUCTIONFINDER — Nonprofit Auction Event Finder", file=sys.stderr)
-        print("  Powered by Gemini + Google Search", file=sys.stderr)
+        print("  Powered by Claude + Web Search", file=sys.stderr)
         print("=" * 60, file=sys.stderr)
         print("Enter nonprofit domains or names (comma or newline separated).", file=sys.stderr)
         print("Press Ctrl+Z then Enter (Windows) or Ctrl+D (Unix) when done:\n", file=sys.stderr)
