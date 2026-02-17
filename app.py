@@ -712,7 +712,8 @@ def register_submit():
 
     try:
         user_id = create_user(email, password, phone=phone, company=company, promo_code=promo_code)
-    except Exception:
+    except Exception as e:
+        print(f"[REGISTER ERROR] {type(e).__name__}: {e}")
         return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Registration failed. Please try again.</p>')
 
     session["user_id"] = user_id
@@ -3272,7 +3273,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="section-header">
     <span class="tag">How It Works</span>
     <h2>How it works</h2>
-    <p>Stop manually researching one organization at a time. Auction Intel runs research in batches and returns verified, outreach-ready leads.</p>
+    <p>Stop manually researching one organization at a time.<br>Auction Intel runs research in batches and returns verified, outreach-ready leads.</p>
   </div>
   <div class="steps">
     <div class="step">
@@ -3303,7 +3304,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="section-header">
     <span class="tag">Features</span>
     <h2>Built to close more consignments</h2>
-    <p>Spend less time researching and more time closing. Auction Intel delivers verified opportunities at scale&mdash;with proof.</p>
+    <p>Spend less time researching and more time closing.<br>Auction Intel delivers verified opportunities at scale&mdash;with proof.</p>
   </div>
   <div class="features-grid">
     <div class="feature-card">
@@ -3343,7 +3344,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <section style="padding:60px 40px;text-align:center;background:linear-gradient(180deg,#1a1500 0%,#000 100%);border-bottom:1px solid #1a1a1a;">
   <div style="max-width:600px;margin:0 auto;">
     <div style="display:inline-block;padding:6px 20px;background:#eab30822;border:1px solid #eab30844;border-radius:24px;font-size:13px;color:#eab308;font-weight:700;margin-bottom:20px;">LIMITED TIME OFFER</div>
-    <h2 style="font-size:28px;font-weight:800;margin-bottom:12px;">150 free searches included</h2>
+    <h2 style="font-size:28px;font-weight:800;margin-bottom:12px;">Research your first <span style="color:#4ade80;">150 nonprofits</span> on us</h2>
     <p style="font-size:17px;color:#a3a3a3;margin-bottom:8px;">Up to $50 in value. No credit card required.</p>
     <p style="font-size:15px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial</p>
     <a href="/register" style="display:inline-block;padding:16px 40px;background:#ffd900;color:#000;border-radius:10px;font-size:17px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
@@ -3356,7 +3357,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="section-header">
     <span class="tag">Pricing</span>
     <h2>Simple, transparent pricing</h2>
-    <p>All tiers require a verified event page link. Wallet-based billing&mdash;no subscriptions, no commitments.</p>
+    <p>All tiers require a verified event page link.<br>Wallet-based billing&mdash;no subscriptions, no commitments.</p>
   </div>
   <div class="pricing-grid">
     <div class="price-card highlight">
@@ -3426,6 +3427,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="section-header">
     <span class="tag">FAQ</span>
     <h2>FAQ</h2>
+    <p>Quick answers to common questions.<br>Can't find what you need? Open a support ticket.</p>
   </div>
   <div class="faq-list">
     <div class="faq-item">
@@ -3478,7 +3480,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <!-- Final CTA -->
 <div class="final-cta">
   <h2>Start finding auction leads today</h2>
-  <p>Join auction professionals who use Auction Intel to discover nonprofit events before the competition.</p>
+  <p>Join auction professionals who use Auction Intel to discover<br>nonprofit events before the competition.</p>
   <a href="/register" class="btn-primary">Create Your Free Account</a>
 </div>
 
