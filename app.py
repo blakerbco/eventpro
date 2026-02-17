@@ -2939,9 +2939,9 @@ LANDING_HTML = """<!DOCTYPE html>
 
   /* Hero */
   .hero { padding: 160px 40px 100px; text-align: center; background: radial-gradient(ellipse at 50% 0%, #1a1500 0%, #000000 70%); }
-  .hero h1 { font-size: 56px; font-weight: 800; line-height: 1.1; max-width: 800px; margin: 0 auto 24px; letter-spacing: -1px; }
+  .hero h1 { font-size: 56px; font-weight: 800; line-height: 1.1; max-width: 900px; margin: 0 auto 24px; letter-spacing: -1px; }
   .hero h1 .gold { color: #eab308; }
-  .hero .subtitle { font-size: 20px; color: #a3a3a3; max-width: 640px; margin: 0 auto 40px; line-height: 1.6; }
+  .hero .subtitle { font-size: 18px; color: #a3a3a3; max-width: 720px; margin: 0 auto 40px; line-height: 1.7; }
   .hero .cta-row { display: flex; gap: 16px; justify-content: center; align-items: center; }
   .hero .btn-primary { padding: 16px 36px; background: #ffd900; color: #000; border-radius: 10px; font-size: 17px; font-weight: 700; display: inline-block; }
   .hero .btn-primary:hover { background: #eab308; transform: translateY(-1px); }
@@ -2959,7 +2959,7 @@ LANDING_HTML = """<!DOCTYPE html>
   /* Sections */
   section { padding: 100px 40px; }
   section.alt { background: #0a0a0a; }
-  .section-header { text-align: center; max-width: 640px; margin: 0 auto 60px; }
+  .section-header { text-align: center; max-width: 700px; margin: 0 auto 60px; }
   .section-header .tag { display: inline-block; padding: 4px 14px; background: #1a1500; border: 1px solid #332d00; border-radius: 20px; font-size: 12px; color: #eab308; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
   .section-header h2 { font-size: 40px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px; }
   .section-header p { font-size: 17px; color: #a3a3a3; line-height: 1.6; }
@@ -2978,13 +2978,15 @@ LANDING_HTML = """<!DOCTYPE html>
   .step .step-num { width: 48px; height: 48px; border: 2px solid #eab308; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: #eab308; margin: 0 auto 16px; }
   .step h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
   .step p { font-size: 14px; color: #a3a3a3; line-height: 1.5; }
+  .step .phases { text-align: left; margin-top: 8px; font-size: 13px; color: #737373; line-height: 1.6; }
+  .step .phases strong { color: #a3a3a3; }
 
   /* Pricing */
-  .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 800px; margin: 0 auto; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
   .price-card { background: #111111; border: 1px solid #1a1a1a; border-radius: 16px; padding: 36px; }
   .price-card.highlight { border-color: #eab308; position: relative; }
-  .price-card.highlight::before { content: "MOST POPULAR"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #eab308; color: #000; font-size: 11px; font-weight: 700; padding: 4px 16px; border-radius: 20px; letter-spacing: 1px; }
-  .price-card h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .price-card.highlight::before { content: "MOST COMPLETE"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #eab308; color: #000; font-size: 11px; font-weight: 700; padding: 4px 16px; border-radius: 20px; letter-spacing: 1px; }
+  .price-card h3 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
   .price-card .price-tag { font-size: 14px; color: #a3a3a3; margin-bottom: 20px; }
   .price-card .price-tag b { font-size: 36px; color: #f5f5f5; font-weight: 800; }
   .price-card ul { list-style: none; }
@@ -2995,6 +2997,9 @@ LANDING_HTML = """<!DOCTYPE html>
   .price-card .signup-btn:hover { background: #eab308; }
   .price-card.std .signup-btn { background: #1a1a1a; color: #f5f5f5; border: 1px solid #333; }
   .price-card.std .signup-btn:hover { border-color: #eab308; color: #eab308; }
+  .pricing-note { text-align: center; margin-top: 32px; font-size: 15px; color: #a3a3a3; }
+  .pricing-note strong { color: #eab308; }
+  .pricing-bonus { text-align: center; margin-top: 16px; font-size: 14px; color: #737373; }
 
   /* FAQ */
   .faq-list { max-width: 720px; margin: 0 auto; }
@@ -3022,7 +3027,6 @@ LANDING_HTML = """<!DOCTYPE html>
 
   /* ── Mobile ─────────────────────────────────────── */
   @media (max-width: 768px) {
-    /* Nav */
     .topnav { padding: 12px 20px; }
     .hamburger { display: block; }
     .topnav .nav-links { display: none; flex-direction: column; position: absolute; top: 100%; left: 0; right: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(12px); padding: 16px 20px; gap: 0; border-bottom: 1px solid #1a1a1a; }
@@ -3030,52 +3034,32 @@ LANDING_HTML = """<!DOCTYPE html>
     .topnav .nav-links a { padding: 12px 0; border-bottom: 1px solid #1a1a1a; font-size: 16px; }
     .topnav .nav-links a:last-child { border-bottom: none; }
     .topnav .btn-login, .topnav .btn-cta { text-align: center; margin-top: 4px; }
-
-    /* Hero */
     .hero { padding: 100px 20px 60px; }
     .hero h1 { font-size: 32px; }
     .hero .subtitle { font-size: 16px; margin-bottom: 28px; }
     .hero .cta-row { flex-direction: column; gap: 12px; }
     .hero .cta-row a { width: 100%; text-align: center; }
     .hero .trust { font-size: 12px; }
-
-    /* Stats */
     .stats-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 32px 20px; }
     .stats-bar .stat .num { font-size: 28px; }
-
-    /* Sections */
     section { padding: 60px 20px; }
     .section-header { margin-bottom: 36px; }
     .section-header h2 { font-size: 28px; }
     .section-header p { font-size: 15px; }
-
-    /* Features */
     .features-grid { grid-template-columns: 1fr; gap: 16px; }
     .feature-card { padding: 24px; }
-
-    /* Steps */
     .steps { grid-template-columns: 1fr; gap: 24px; }
-
-    /* Trial banner (inline styles — override with !important) */
     section[style*="padding:60px"] { padding: 40px 20px !important; }
     section[style*="padding:60px"] h2 { font-size: 26px !important; }
     section[style*="padding:60px"] a[style*="padding:16px 40px"] { display: block !important; padding: 14px 20px !important; }
-
-    /* Pricing */
     .pricing-grid { grid-template-columns: 1fr; gap: 16px; }
     .price-card { padding: 28px; }
-
-    /* FAQ */
     .faq-list { max-width: 100%; }
     .faq-q { font-size: 15px; }
-
-    /* Final CTA */
     .final-cta { padding: 60px 20px; }
     .final-cta h2 { font-size: 28px; }
     .final-cta p { font-size: 15px; }
     .final-cta .btn-primary { display: block; width: 100%; text-align: center; }
-
-    /* Footer */
     .footer { padding: 32px 20px; }
   }
 </style>
@@ -3090,8 +3074,8 @@ LANDING_HTML = """<!DOCTYPE html>
     <span></span><span></span><span></span>
   </button>
   <div class="nav-links">
-    <a href="#features">Features</a>
     <a href="#how-it-works">How It Works</a>
+    <a href="#features">Features</a>
     <a href="#pricing">Pricing</a>
     <a href="#faq">FAQ</a>
     <a href="/login" class="btn-login">Log In</a>
@@ -3101,91 +3085,95 @@ LANDING_HTML = """<!DOCTYPE html>
 
 <!-- Hero -->
 <div class="hero">
-  <h1>Find <span class="gold">Nonprofit Auction Events</span> Before Your Competition</h1>
-  <p class="subtitle">AI-powered research that scans the entire web to find upcoming galas, silent auctions, and fundraisers. Get verified leads with event URLs, dates, contacts, and auction details in minutes, not weeks.</p>
+  <h1>Find <span class="gold">nonprofit auction events.</span> Verified. Exportable. Ready to contact.</h1>
+  <p class="subtitle">Auction Finder scans the web to find upcoming galas, banquets, benefits, golf outings, and balls that feature a live auction, silent auction, or both. Get verified leads with a verified event page link, the upcoming event date, event-level contacts (email/phone when available) plus organization mailing address when available, the auction type, and more.</p>
   <div class="cta-row">
     <a href="/register" class="btn-primary">Get Started Free</a>
     <a href="#how-it-works" class="btn-secondary">See How It Works</a>
   </div>
-  <p class="trust">Powered by Google Gemini AI with real-time web grounding <span>&bull;</span> Results verified against actual event pages</p>
+  <p class="trust">LLM-enhanced real-time web grounding <span>&bull;</span> Results verified against actual event pages</p>
 </div>
 
 <!-- Stats -->
 <div class="stats-bar">
-  <div class="stat"><div class="num">276K+</div><div class="lbl">Nonprofits in Database</div></div>
-  <div class="stat"><div class="num">16</div><div class="lbl">Data Fields Per Lead</div></div>
-  <div class="stat"><div class="num">3-Phase</div><div class="lbl">AI Verification</div></div>
-  <div class="stat"><div class="num">180 Days</div><div class="lbl">Result Storage</div></div>
+  <div class="stat"><div class="num">300K+</div><div class="lbl">Nonprofits in Database</div></div>
+  <div class="stat"><div class="num">Up to 1,000</div><div class="lbl">Nonprofit Domains Per Search</div></div>
+  <div class="stat"><div class="num">40+</div><div class="lbl">Filters for Targeted Searches</div></div>
+  <div class="stat"><div class="num">7-Day</div><div class="lbl">Free Trial</div></div>
 </div>
+
+<!-- How It Works -->
+<section class="alt" id="how-it-works">
+  <div class="section-header">
+    <span class="tag">How It Works</span>
+    <h2>Discover Complete Nonprofit Auction Leads in 4 Steps</h2>
+    <p>Our app does the heavy lifting so you can spend less time researching and prospecting&mdash;and more time closing deals.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>Search the Database</h3>
+      <p>Use our premium nonprofit database to filter 300K+ organizations by location, revenue, and event type.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>Send to the Research Engine</h3>
+      <p>Select organizations and send them to Auction Finder. We scan each nonprofit's website, trusted third-party event platforms, and the broader web.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>3-Phase Verification</h3>
+      <div class="phases">
+        <strong>Phase 1:</strong> Quick scan<br>
+        <strong>Phase 2:</strong> Deep research with full page visits<br>
+        <strong>Phase 3:</strong> Targeted follow-up to fill missing fields
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <h3>Download &amp; Close</h3>
+      <p>Export verified leads as CSV / JSON / XLSX and start reaching out.</p>
+    </div>
+  </div>
+</section>
 
 <!-- Features -->
 <section id="features">
   <div class="section-header">
     <span class="tag">Features</span>
     <h2>Everything You Need to Win More Auction Consignments</h2>
-    <p>Stop manually Googling nonprofits one by one. Our AI research engine handles thousands of organizations in a single run and delivers verified, actionable leads.</p>
+    <p>Stop spending your time manually researching. Our research engine handles hundreds of organizations in a single run and delivers verified, actionable leads.</p>
   </div>
   <div class="features-grid">
     <div class="feature-card">
       <div class="icon">&#x1F50D;</div>
-      <h3>AI-Powered Deep Research</h3>
-      <p>3-phase verification visits actual event pages, not just search snippets. Every lead includes the real event URL as proof the auction exists.</p>
+      <h3>Deep Research</h3>
+      <p>3-phase verification visits actual event pages&mdash;not just search snippets. Every lead includes a verified event page link sourced from the event page.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F3E6;</div>
-      <h3>IRS Nonprofit Database</h3>
-      <p>Search 276,000+ nonprofits by state, revenue, event type, and prospect tier. Filter by gala, auction, golf, dinner, and 20+ event categories.</p>
+      <h3>Premium Nonprofit Database</h3>
+      <p>Search 300,000+ nonprofits by state, revenue, and event type. Filter by gala, auction, golf, dinner, and 20+ event categories.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x26A1;</div>
       <h3>Batch Processing</h3>
-      <p>Research up to 1,000 nonprofits per search. Results stream in real-time so you can watch progress as each organization is researched.</p>
+      <p>Research up to 1,000 nonprofits per search. Results stream in real time so you can track progress as each organization is researched.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F4CA;</div>
       <h3>16-Field Rich Leads</h3>
-      <p>Every lead includes event title, date, URL, auction type, confidence score, contact name, email, address, phone, and evidence text from the source page.</p>
+      <p>Each lead can include event title, date, event page link, auction type, confidence score, contact name, email, address, phone, and evidence text from the source page. Bonus fields (when available): organization mailing address, main phone, and additional organization details.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F4E5;</div>
       <h3>Export Anywhere</h3>
-      <p>Download results as CSV, JSON, or XLSX. Results are stored for 180 days so you can come back and re-download anytime.</p>
+      <p>Download results as CSV, JSON, or XLSX. Results are stored for 180 days so you can re-download anytime.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F6E1;</div>
-      <h3>Quality Tiers & Billing</h3>
-      <p>Only pay for verified leads. Our tiered system (Full, Partial, Semi, Bare) means you pay based on how complete each lead is. No URL, no charge.</p>
-    </div>
-  </div>
-</section>
-
-<!-- How It Works -->
-<section class="alt" id="how-it-works">
-  <div class="section-header">
-    <span class="tag">How It Works</span>
-    <h2>From Prospect List to Auction Leads in 4 Steps</h2>
-    <p>Our AI does the heavy lifting so you can focus on closing deals.</p>
-  </div>
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <h3>Search the Database</h3>
-      <p>Use our IRS nonprofit database to filter 276K+ organizations by location, revenue, event type, and prospect tier.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <h3>Send to AI Research</h3>
-      <p>Select organizations and send them to the Auction Finder. Our AI scans their websites, event platforms, and the web.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <h3>3-Phase Verification</h3>
-      <p>Phase 1: Quick scan. Phase 2: Deep research with full page visits. Phase 3: Targeted follow-up for missing fields.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <h3>Download & Close</h3>
-      <p>Get verified leads with event URLs, dates, contacts, and auction details. Export as CSV/JSON/XLSX and start reaching out.</p>
+      <h3>Quality Tiers &amp; Billing</h3>
+      <p>Only pay for verified leads. Pricing is based on how complete each lead is. No verified event page link = no lead charge.</p>
     </div>
   </div>
 </section>
@@ -3206,35 +3194,58 @@ LANDING_HTML = """<!DOCTYPE html>
 <section id="pricing">
   <div class="section-header">
     <span class="tag">Pricing</span>
-    <h2>Pay Only for What You Find</h2>
-    <p>Wallet-based billing. No subscriptions, no commitments. Top up your wallet and only pay for researched nonprofits and verified leads.</p>
+    <h2>Pay Based on Lead Completeness</h2>
+    <p>All tiers require a verified event page link. Wallet-based billing&mdash;no subscriptions, no commitments.</p>
   </div>
   <div class="pricing-grid">
-    <div class="price-card std">
-      <h3>Research Fee</h3>
-      <div class="price-tag"><b>$0.08</b> / nonprofit</div>
-      <ul>
-        <li>Charged per nonprofit researched</li>
-        <li>$0.07 at 10,000+ volume</li>
-        <li>$0.06 at 50,000+ volume</li>
-        <li>Covers all 3 AI research phases</li>
-        <li>Charged whether or not a lead is found</li>
-      </ul>
-      <a href="/register" class="signup-btn">Create Account</a>
-    </div>
     <div class="price-card highlight">
-      <h3>Lead Fees</h3>
-      <div class="price-tag">From <b>$0.50</b> / lead</div>
+      <h3>Verified Contact</h3>
+      <div class="price-tag"><b>$1.50</b> / lead</div>
       <ul>
-        <li><b>Full Lead</b> &mdash; $1.50 (all fields + URL)</li>
-        <li><b>Partial Lead</b> &mdash; $1.00 (event + contact email)</li>
-        <li><b>Semi Lead</b> &mdash; $0.75 (event + email, no auction type)</li>
-        <li><b>Bare Lead</b> &mdash; $0.50 (event + URL only)</li>
-        <li>No URL = No charge</li>
+        <li>Event title &amp; event date</li>
+        <li>Verified event page link</li>
+        <li>Auction type (live/silent/both)</li>
+        <li>Contact name &amp; contact email</li>
       </ul>
       <a href="/register" class="signup-btn">Get Started</a>
     </div>
+    <div class="price-card std">
+      <h3>Verified Email</h3>
+      <div class="price-tag"><b>$1.00</b> / lead</div>
+      <ul>
+        <li>Event title &amp; event date</li>
+        <li>Verified event page link</li>
+        <li>Auction type (live/silent/both)</li>
+        <li>Contact email (no contact name)</li>
+      </ul>
+      <a href="/register" class="signup-btn">Create Account</a>
+    </div>
+    <div class="price-card std">
+      <h3>Email Only</h3>
+      <div class="price-tag"><b>$0.75</b> / lead</div>
+      <ul>
+        <li>Event title &amp; event date</li>
+        <li>Verified event page link</li>
+        <li>Contact email</li>
+        <li>Auction type missing</li>
+      </ul>
+      <a href="/register" class="signup-btn">Create Account</a>
+    </div>
+    <div class="price-card std">
+      <h3>Event Only</h3>
+      <div class="price-tag"><b>$0.50</b> / lead</div>
+      <ul>
+        <li>Event title &amp; event date</li>
+        <li>Verified event page link</li>
+        <li>Event page link only</li>
+        <li>No contact info</li>
+      </ul>
+      <a href="/register" class="signup-btn">Create Account</a>
+    </div>
   </div>
+  <p class="pricing-note"><strong>No verified event page link = no lead charge.</strong></p>
+  <p class="pricing-note" style="margin-top:12px;">Research fee: <strong>$0.08</strong>/nonprofit ($0.07 at 10K+, $0.06 at 50K+) &mdash; charged whether or not a lead is found.</p>
+  <p class="pricing-bonus">Bonus fields (included when available, no extra charge): organization mailing address and main phone.</p>
 </section>
 
 <!-- FAQ -->
@@ -3246,23 +3257,23 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="faq-list">
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What types of events does Auction Intel find? <span class="arrow">+</span></div>
-      <div class="faq-a">We find any nonprofit fundraising event that includes an auction component: silent auctions, live auctions, galas with paddle raises, charity dinners with auction items, golf tournaments with silent auctions, art shows, casino nights, and more. If the event has bidding, we find it.</div>
+      <div class="faq-a">We find nonprofit fundraising events with an auction component: silent auctions, live auctions, galas with paddle raises, charity dinners with auction items, golf tournaments with silent auctions, art shows, casino nights, and more. If the event has bidding, we find it.</div>
     </div>
     <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does the AI verify that an event actually exists? <span class="arrow">+</span></div>
-      <div class="faq-a">Our 3-phase research pipeline does not rely on search snippets alone. The AI visits the actual event page, reads the full page text, extracts evidence quotes proving the auction exists, and returns the direct URL. Every billable lead must have a verified event URL &mdash; no URL, no charge.</div>
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does the research engine verify that an event actually exists? <span class="arrow">+</span></div>
+      <div class="faq-a">Our 3-phase research pipeline does not rely on search snippets alone. The research engine visits the actual event page, reads the full page text, extracts evidence quotes showing an auction component, and returns the direct event page link. Every billable lead must include a verified event page link&mdash;no link, no charge.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What if a nonprofit doesn't have an upcoming auction? <span class="arrow">+</span></div>
-      <div class="faq-a">You still pay the research fee ($0.08 per nonprofit) because the AI performed the web research. However, you are NOT charged a lead fee for nonprofits where no auction was found. The research fee covers the AI compute cost regardless of outcome.</div>
+      <div class="faq-a">You still pay the research fee ($0.08 per nonprofit) because the research engine performed the web research. However, you are not charged a lead fee when no auction was found. The research fee covers the compute cost regardless of outcome.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How do I add funds to my account? <span class="arrow">+</span></div>
       <div class="faq-a">We use Stripe for secure payments. Go to the Wallet page, enter an amount between $250 and $9,999, and complete checkout. Your balance updates instantly. All funds are non-refundable but never expire.</div>
     </div>
     <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's included in the IRS nonprofit database? <span class="arrow">+</span></div>
-      <div class="faq-a">Our database contains 276,000+ nonprofits extracted from IRS filings. Each record includes organization name, website, address, revenue figures, fundraising income/expenses, event names, event keywords, and prospect tier ratings. You can filter by any of these fields before sending organizations to the AI research engine.</div>
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's included in the premium nonprofit database? <span class="arrow">+</span></div>
+      <div class="faq-a">Our database contains 300,000+ nonprofit organizations in the United States. Each record includes organization name, website, address, revenue figures, fundraising income/expenses, and event keywords. You can filter by these fields before sending organizations to the research engine.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How long are results stored? <span class="arrow">+</span></div>
@@ -3270,11 +3281,15 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Can I research nonprofits not in the database? <span class="arrow">+</span></div>
-      <div class="faq-a">Yes. The database is just one way to build your prospect list. You can also paste nonprofit names or domain URLs directly into the Auction Search page. The AI will research any organization you give it, whether it's in our database or not.</div>
+      <div class="faq-a">Yes. The database is just one way to build your prospect list. You can also paste nonprofit names or domain URLs directly into the Auction Search page. The engine can research any organization you provide, whether it's in our database or not.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's the difference between lead tiers? <span class="arrow">+</span></div>
-      <div class="faq-a"><b>Full ($1.50)</b>: Event title, date, URL, auction type, contact name, and verified contact email. <b>Partial ($1.00)</b>: Event + auction type + contact email but no contact name. <b>Semi ($0.75)</b>: Event + contact email but no auction type. <b>Bare ($0.50)</b>: Event title, date, and URL only. All tiers require a verified event URL.</div>
+      <div class="faq-a">Leads are priced by completeness, and all tiers require a verified event page link: <b>Verified Contact ($1.50)</b>: Event + auction type + contact name + contact email. <b>Verified Email ($1.00)</b>: Event + auction type + contact email (name missing). <b>Email Only ($0.75)</b>: Event + contact email (auction type missing). <b>Event Only ($0.50)</b>: Event title/date + event page link only. No verified event page link = no lead charge.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is mailing address included? <span class="arrow">+</span></div>
+      <div class="faq-a">Mailing address is included when available (no extra charge). Some nonprofits use PO Boxes or have incomplete public address data.</div>
     </div>
   </div>
 </section>
