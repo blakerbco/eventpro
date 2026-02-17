@@ -103,6 +103,40 @@ def get_irs_db():
     return psycopg2.connect(DB_CONN_STRING)
 
 
+def _enrich_from_irs(results: List[Dict[str, Any]]) -> None:
+    """Fill missing address/phone on lead results from the IRS nonprofit database."""
+    # Collect names that need enrichment
+    needs = [r for r in results if r.get("nonprofit_name") and (
+        not r.get("organization_address") or not r.get("organization_phone_maps")
+    )]
+    if not needs:
+        return
+    try:
+        conn = get_irs_db()
+        cur = conn.cursor()
+        for r in needs:
+            name = r["nonprofit_name"].strip()
+            cur.execute(
+                'SELECT "PhysicalAddress", "PhysicalCity", "PhysicalState", '
+                '"PhysicalZIP", "BusinessOfficerPhone" '
+                'FROM tax_year_2019_search WHERE "OrganizationName" ILIKE %s LIMIT 1',
+                (name,)
+            )
+            row = cur.fetchone()
+            if not row:
+                continue
+            addr, city, state, zipcode, phone = row
+            if not r.get("organization_address") and addr:
+                parts = [p for p in [addr, city, f"{state} {zipcode}" if state else zipcode] if p]
+                r["organization_address"] = ", ".join(parts)
+            if not r.get("organization_phone_maps") and phone:
+                r["organization_phone_maps"] = phone
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[IRS ENRICH] Warning: {e}")
+
+
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 
 def login_required(f):
@@ -492,6 +526,9 @@ async def _run_job(
             await asyncio.sleep(DELAY_BETWEEN_BATCHES)
 
     elapsed = time.time() - start
+
+    # Enrich missing address/phone from IRS database
+    _enrich_from_irs(all_results)
 
     # Compute billing summary
     fee_cents = get_research_fee_cents(len(nonprofits))
@@ -3087,27 +3124,26 @@ LANDING_HTML = """<!DOCTYPE html>
   /* Sections */
   section { padding: 100px 40px; }
   section.alt { background: #0a0a0a; }
-  .section-header { text-align: center; max-width: 700px; margin: 0 auto 60px; }
+  .section-header { text-align: center; max-width: 800px; margin: 0 auto 60px; }
   .section-header .tag { display: inline-block; padding: 4px 14px; background: #1a1500; border: 1px solid #332d00; border-radius: 20px; font-size: 12px; color: #eab308; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
-  .section-header h2 { font-size: 32px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px; }
-  .section-header p { font-size: 17px; color: #a3a3a3; line-height: 1.6; }
+  .section-header h2 { font-size: 28px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.3px; }
+  .section-header p { font-size: 16px; color: #a3a3a3; line-height: 1.6; }
 
   /* Features grid */
-  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1100px; margin: 0 auto; }
-  .feature-card { background: #111111; border: 1px solid #1a1a1a; border-radius: 16px; padding: 32px; }
-  .feature-card:hover { border-color: #262626; }
+  .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
+  .feature-card { background: #111111; border: 1px solid #1a1a1a; border-radius: 16px; padding: 32px; transition: border-color 0.2s; }
+  .feature-card:hover { border-color: #332d00; }
   .feature-card .icon { width: 48px; height: 48px; background: #1a1500; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 20px; }
   .feature-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
   .feature-card p { font-size: 15px; color: #a3a3a3; line-height: 1.6; }
 
   /* How it works */
-  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; max-width: 1100px; margin: 0 auto; }
-  .step { text-align: center; }
-  .step .step-num { width: 48px; height: 48px; border: 2px solid #eab308; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: #eab308; margin: 0 auto 16px; }
-  .step h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
-  .step p { font-size: 15px; color: #a3a3a3; line-height: 1.5; }
-  .step .phases { text-align: left; margin-top: 8px; font-size: 14px; color: #737373; line-height: 1.6; }
-  .step .phases strong { color: #a3a3a3; }
+  .steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
+  .step { background: #111111; border: 1px solid #1a1a1a; border-radius: 16px; padding: 32px; text-align: left; transition: border-color 0.2s; position: relative; }
+  .step:hover { border-color: #332d00; }
+  .step .step-num { width: 44px; height: 44px; background: #1a1500; border: 2px solid #eab308; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #eab308; margin-bottom: 16px; }
+  .step h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: #f5f5f5; }
+  .step p { font-size: 15px; color: #a3a3a3; line-height: 1.6; margin: 0; }
 
   /* Pricing */
   .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
@@ -3141,7 +3177,7 @@ LANDING_HTML = """<!DOCTYPE html>
 
   /* CTA */
   .final-cta { text-align: center; padding: 100px 40px; background: radial-gradient(ellipse at 50% 100%, #1a1500 0%, #000000 70%); }
-  .final-cta h2 { font-size: 34px; font-weight: 700; margin-bottom: 16px; }
+  .final-cta h2 { font-size: 28px; font-weight: 700; margin-bottom: 16px; }
   .final-cta p { font-size: 17px; color: #a3a3a3; margin-bottom: 36px; max-width: 500px; margin-left: auto; margin-right: auto; }
   .final-cta .btn-primary { padding: 16px 40px; background: #ffd900; color: #000; border-radius: 10px; font-size: 17px; font-weight: 700; display: inline-block; }
   .final-cta .btn-primary:hover { background: #eab308; }
@@ -3173,7 +3209,7 @@ LANDING_HTML = """<!DOCTYPE html>
     .stats-bar .stat .num { font-size: 28px; }
     section { padding: 60px 20px; }
     .section-header { margin-bottom: 36px; }
-    .section-header h2 { font-size: 24px; }
+    .section-header h2 { font-size: 22px; }
     .section-header p { font-size: 15px; }
     .features-grid { grid-template-columns: 1fr; gap: 16px; }
     .feature-card { padding: 24px; }
@@ -3235,33 +3271,29 @@ LANDING_HTML = """<!DOCTYPE html>
 <section class="alt" id="how-it-works">
   <div class="section-header">
     <span class="tag">How It Works</span>
-    <h2>Discover Complete Nonprofit Auction Leads in 4 Steps</h2>
-    <p>Our app does the heavy lifting so you can spend less time researching and prospecting&mdash;and more time closing deals.</p>
+    <h2>How it works</h2>
+    <p>Stop manually researching one organization at a time. Auction Intel runs research in batches and returns verified, outreach-ready leads.</p>
   </div>
   <div class="steps">
     <div class="step">
       <div class="step-num">1</div>
-      <h3>Search the Database</h3>
-      <p>Use our premium nonprofit database to filter 300K+ organizations by location, revenue, and event type.</p>
+      <h3>Build your list</h3>
+      <p>Filter nonprofits by location, revenue range, and event category&mdash;or paste your own domains.</p>
     </div>
     <div class="step">
       <div class="step-num">2</div>
-      <h3>Send to the Research Engine</h3>
-      <p>Select organizations and send them to Auction Finder. We scan each nonprofit's website, trusted third-party event platforms, and the broader web.</p>
+      <h3>Run Auction Finder</h3>
+      <p>We scan nonprofit websites, trusted event platforms, and the broader web to locate upcoming events with auction activity.</p>
     </div>
     <div class="step">
       <div class="step-num">3</div>
-      <h3>3-Phase Verification</h3>
-      <div class="phases">
-        <strong>Phase 1:</strong> Quick scan<br>
-        <strong>Phase 2:</strong> Deep research with full page visits<br>
-        <strong>Phase 3:</strong> Targeted follow-up to fill missing fields
-      </div>
+      <h3>Verify the event page</h3>
+      <p>Every billable lead must include a real event page URL plus supporting evidence pulled from that page.</p>
     </div>
     <div class="step">
       <div class="step-num">4</div>
-      <h3>Download &amp; Close</h3>
-      <p>Export verified leads as CSV / JSON / XLSX and start reaching out.</p>
+      <h3>Export &amp; start outreach</h3>
+      <p>Download results as CSV / XLSX / JSON and start contacting the right people.</p>
     </div>
   </div>
 </section>
@@ -3270,39 +3302,39 @@ LANDING_HTML = """<!DOCTYPE html>
 <section id="features">
   <div class="section-header">
     <span class="tag">Features</span>
-    <h2>Everything You Need to Win More Auction Consignments</h2>
-    <p>Stop spending your time manually researching. Our research engine handles hundreds of organizations in a single run and delivers verified, actionable leads.</p>
+    <h2>Built to close more consignments</h2>
+    <p>Spend less time researching and more time closing. Auction Intel delivers verified opportunities at scale&mdash;with proof.</p>
   </div>
   <div class="features-grid">
     <div class="feature-card">
       <div class="icon">&#x1F50D;</div>
-      <h3>Deep Research</h3>
-      <p>3-phase verification visits actual event pages&mdash;not just search snippets. Every lead includes a verified event page link sourced from the event page.</p>
+      <h3>Deep Verification (not snippets)</h3>
+      <p>A multi-phase process checks the actual event page and pulls evidence text. If there's no verified event page URL, it's not a billable lead.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F3E6;</div>
       <h3>Premium Nonprofit Database</h3>
-      <p>Search 300,000+ nonprofits by state, revenue, and event type. Filter by gala, auction, golf, dinner, and 20+ event categories.</p>
+      <p>Search 300K+ nonprofits by state, revenue range, and event category&mdash;including gala, auction, golf, dinner, and 20+ more.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x26A1;</div>
-      <h3>Batch Processing</h3>
-      <p>Research up to 1,000 nonprofits per search. Results stream in real time so you can track progress as each organization is researched.</p>
+      <h3>Batch Research at Scale</h3>
+      <p>Run up to 1,000 organizations per search and watch results stream in as each organization is processed.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F4CA;</div>
-      <h3>16-Field Rich Leads</h3>
-      <p>Each lead can include event title, date, event page link, auction type, confidence score, contact name, email, address, phone, and evidence text from the source page. Bonus fields (when available): organization mailing address, main phone, and additional organization details.</p>
+      <h3>Rich Lead Records</h3>
+      <p>Each lead can include event title, date, event page URL, auction type, confidence score, contact name, email, phone, and supporting evidence from the source page.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F4E5;</div>
-      <h3>Export Anywhere</h3>
-      <p>Download results as CSV, JSON, or XLSX. Results are stored for 180 days so you can re-download anytime.</p>
+      <h3>Export Anywhere + 180-Day Storage</h3>
+      <p>Download CSV/JSON/XLSX anytime. Results stay available for 180 days for re-download.</p>
     </div>
     <div class="feature-card">
       <div class="icon">&#x1F6E1;</div>
-      <h3>Quality Tiers &amp; Billing</h3>
-      <p>Only pay for verified leads. Pricing is based on how complete each lead is. No verified event page link = no lead charge.</p>
+      <h3>Verified Tiers + Fair Billing</h3>
+      <p>You only pay for leads with a verified event page link. Pricing is tiered by completeness so you never overpay.</p>
     </div>
   </div>
 </section>
@@ -3311,7 +3343,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <section style="padding:60px 40px;text-align:center;background:linear-gradient(180deg,#1a1500 0%,#000 100%);border-bottom:1px solid #1a1a1a;">
   <div style="max-width:600px;margin:0 auto;">
     <div style="display:inline-block;padding:6px 20px;background:#eab30822;border:1px solid #eab30844;border-radius:24px;font-size:13px;color:#eab308;font-weight:700;margin-bottom:20px;">LIMITED TIME OFFER</div>
-    <h2 style="font-size:36px;font-weight:800;margin-bottom:12px;">Free Trial: <span style="color:#4ade80;">150 Nonprofit Searches</span> Included</h2>
+    <h2 style="font-size:28px;font-weight:800;margin-bottom:12px;">150 free searches included</h2>
     <p style="font-size:17px;color:#a3a3a3;margin-bottom:8px;">Up to $50 in value. No credit card required.</p>
     <p style="font-size:15px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial</p>
     <a href="/register" style="display:inline-block;padding:16px 40px;background:#ffd900;color:#000;border-radius:10px;font-size:17px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
@@ -3323,7 +3355,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <section id="pricing">
   <div class="section-header">
     <span class="tag">Pricing</span>
-    <h2>Pay Based on Lead Completeness</h2>
+    <h2>Simple, transparent pricing</h2>
     <p>All tiers require a verified event page link. Wallet-based billing&mdash;no subscriptions, no commitments.</p>
   </div>
   <div class="pricing-grid">
@@ -3393,7 +3425,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <section class="alt" id="faq">
   <div class="section-header">
     <span class="tag">FAQ</span>
-    <h2>Frequently Asked Questions</h2>
+    <h2>FAQ</h2>
   </div>
   <div class="faq-list">
     <div class="faq-item">
@@ -3445,7 +3477,7 @@ LANDING_HTML = """<!DOCTYPE html>
 
 <!-- Final CTA -->
 <div class="final-cta">
-  <h2>Ready to Find Your Next Auction Consignment?</h2>
+  <h2>Start finding auction leads today</h2>
   <p>Join auction professionals who use Auction Intel to discover nonprofit events before the competition.</p>
   <a href="/register" class="btn-primary">Create Your Free Account</a>
 </div>
