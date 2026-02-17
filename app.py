@@ -3052,12 +3052,12 @@ LANDING_HTML = """<!DOCTYPE html>
   .topnav .nav-links a:hover { color: #f5f5f5; }
   .topnav .btn-login { padding: 8px 20px; border: 1px solid #333; border-radius: 8px; font-size: 14px; color: #f5f5f5; }
   .topnav .btn-login:hover { border-color: #eab308; color: #eab308; }
-  .topnav .btn-cta { padding: 8px 20px; background: #ffd900; color: #000; border-radius: 8px; font-size: 14px; font-weight: 600; }
+  .topnav .btn-cta { padding: 8px 20px; background: #ffd900; color: #000 !important; border-radius: 8px; font-size: 14px; font-weight: 600; }
   .topnav .btn-cta:hover { background: #eab308; }
 
   /* Hero */
   .hero { padding: 160px 40px 100px; text-align: center; background: radial-gradient(ellipse at 50% 0%, #1a1500 0%, #000000 70%); }
-  .hero h1 { font-size: 56px; font-weight: 800; line-height: 1.1; max-width: 900px; margin: 0 auto 24px; letter-spacing: -1px; }
+  .hero h1 { font-size: 44px; font-weight: 800; line-height: 1.15; max-width: 900px; margin: 0 auto 24px; letter-spacing: -0.5px; }
   .hero h1 .gold { color: #eab308; }
   .hero .subtitle { font-size: 18px; color: #a3a3a3; max-width: 720px; margin: 0 auto 40px; line-height: 1.7; }
   .hero .cta-row { display: flex; gap: 16px; justify-content: center; align-items: center; }
@@ -3079,7 +3079,7 @@ LANDING_HTML = """<!DOCTYPE html>
   section.alt { background: #0a0a0a; }
   .section-header { text-align: center; max-width: 700px; margin: 0 auto 60px; }
   .section-header .tag { display: inline-block; padding: 4px 14px; background: #1a1500; border: 1px solid #332d00; border-radius: 20px; font-size: 12px; color: #eab308; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
-  .section-header h2 { font-size: 40px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px; }
+  .section-header h2 { font-size: 32px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px; }
   .section-header p { font-size: 17px; color: #a3a3a3; line-height: 1.6; }
 
   /* Features grid */
@@ -3153,7 +3153,7 @@ LANDING_HTML = """<!DOCTYPE html>
     .topnav .nav-links a:last-child { border-bottom: none; }
     .topnav .btn-login, .topnav .btn-cta { text-align: center; margin-top: 4px; }
     .hero { padding: 100px 20px 60px; }
-    .hero h1 { font-size: 32px; }
+    .hero h1 { font-size: 28px; }
     .hero .subtitle { font-size: 16px; margin-bottom: 28px; }
     .hero .cta-row { flex-direction: column; gap: 12px; }
     .hero .cta-row a { width: 100%; text-align: center; }
@@ -3162,7 +3162,7 @@ LANDING_HTML = """<!DOCTYPE html>
     .stats-bar .stat .num { font-size: 28px; }
     section { padding: 60px 20px; }
     .section-header { margin-bottom: 36px; }
-    .section-header h2 { font-size: 28px; }
+    .section-header h2 { font-size: 24px; }
     .section-header p { font-size: 15px; }
     .features-grid { grid-template-columns: 1fr; gap: 16px; }
     .feature-card { padding: 24px; }
