@@ -960,47 +960,56 @@ def wallet_topup():
     user_id = session["user_id"]
 
     try:
-        checkout_session = stripe.checkout.Session.create(
-            line_items=[{
-                "price_data": {
-                    "currency": "usd",
-                    "unit_amount": amount_cents,
-                    "product_data": {"name": "AUCTIONFINDER Wallet Top-Up"},
-                },
-                "quantity": 1,
-            }],
-            mode="payment",
-            success_url=f"{DOMAIN}/wallet/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{DOMAIN}/wallet",
+        intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency="usd",
             metadata={"user_id": str(user_id)},
+            description="AUCTIONFINDER Wallet Top-Up",
         )
-        return jsonify({"url": checkout_session.url})
+        return jsonify({"client_secret": intent.client_secret})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/wallet/success")
-@login_required
-def wallet_success():
-    session_id = request.args.get("session_id")
-    if not session_id:
-        return redirect(url_for("wallet_page"))
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
-    try:
-        checkout_session = stripe.checkout.Session.retrieve(session_id)
-        if checkout_session.payment_status == "paid":
-            user_id = int(checkout_session.metadata.get("user_id", 0))
-            if user_id == session["user_id"]:
-                amount_cents = checkout_session.amount_total
-                add_funds(user_id, amount_cents, f"Stripe payment: {session_id[:20]}")
+
+@app.route("/api/stripe-webhook", methods=["POST"])
+def stripe_webhook():
+    payload = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature", "")
+
+    if STRIPE_WEBHOOK_SECRET:
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        except (ValueError, stripe.error.SignatureVerificationError):
+            return "Invalid signature", 400
+    else:
+        try:
+            event = stripe.Event.construct_from(json.loads(payload), stripe.api_key)
+        except Exception:
+            return "Invalid payload", 400
+
+    if event["type"] == "payment_intent.succeeded":
+        intent = event["data"]["object"]
+        user_id = int(intent["metadata"].get("user_id", 0))
+        amount_cents = intent["amount"]
+        intent_id = intent["id"]
+
+        if user_id:
+            credited = add_funds(user_id, amount_cents,
+                                 f"Stripe payment: {intent_id[:20]}",
+                                 stripe_intent_id=intent_id)
+            if credited:
                 user = get_user(user_id)
                 if user:
                     new_balance = get_balance(user_id)
                     emails.send_funds_receipt(user["email"], amount_cents, new_balance)
-    except Exception:
-        pass
+                print(f"[STRIPE] Credited ${amount_cents/100:.2f} to user {user_id} (intent: {intent_id})")
+            else:
+                print(f"[STRIPE] Duplicate intent {intent_id}, skipping")
 
-    return redirect(url_for("wallet_page"))
+    return "ok", 200
 
 
 # ─── Routes: Profile ─────────────────────────────────────────────────────────
@@ -1838,6 +1847,7 @@ WALLET_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AUCTIONFINDER - Wallet</title>
+<script src="https://js.stripe.com/v3/"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -1848,12 +1858,18 @@ WALLET_HTML = """<!DOCTYPE html>
   .balance-card .label { color: #a3a3a3; font-size: 14px; text-transform: uppercase; }
   .topup-section { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
   .topup-section h3 { font-size: 16px; margin-bottom: 12px; color: #d4d4d4; }
-  .topup-row { display: flex; gap: 12px; align-items: center; }
-  .topup-row input { flex: 1; padding: 12px; background: #000000; border: 1px solid #333; border-radius: 8px; color: #f5f5f5; font-size: 16px; font-family: inherit; outline: none; }
-  .topup-row input:focus { border-color: #eab308; }
-  .topup-row button { padding: 12px 24px; background: #ffd900; color: #000; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
-  .topup-row button:hover { background: #ca8a04; }
-  .topup-hint { color: #737373; font-size: 12px; margin-top: 8px; }
+  .amount-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+  .amount-row input { flex: 1; padding: 12px; background: #000000; border: 1px solid #333; border-radius: 8px; color: #f5f5f5; font-size: 16px; font-family: inherit; outline: none; }
+  .amount-row input:focus { border-color: #eab308; }
+  .topup-hint { color: #737373; font-size: 12px; margin-bottom: 16px; }
+  #payment-element { margin-bottom: 16px; }
+  #payment-message { color: #f87171; font-size: 13px; margin-bottom: 12px; display: none; }
+  #payment-success { color: #4ade80; font-size: 13px; margin-bottom: 12px; display: none; }
+  .pay-btn { width: 100%; padding: 14px 24px; background: #ffd900; color: #000; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .pay-btn:hover { background: #ca8a04; }
+  .pay-btn:disabled { background: #555; color: #999; cursor: not-allowed; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #000; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .txn-section { background: #111111; border: 1px solid #262626; border-radius: 12px; padding: 24px; }
   .txn-section h3 { font-size: 16px; margin-bottom: 12px; color: #d4d4d4; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -1867,16 +1883,19 @@ WALLET_HTML = """<!DOCTYPE html>
 <div class="container">
   <div class="balance-card">
     <div class="label">Wallet Balance</div>
-    <div class="amount">{{BALANCE}}</div>
+    <div class="amount" id="balanceDisplay">{{BALANCE}}</div>
   </div>
 
   <div class="topup-section">
     <h3>Add Funds</h3>
-    <div class="topup-row">
+    <div class="amount-row">
       <input type="number" id="topupAmount" placeholder="Amount in USD" min="250" max="9999" step="1" value="500">
-      <button onclick="topUp()">Add Funds via Stripe</button>
     </div>
     <p class="topup-hint">Minimum $250, maximum $9,999 per top-up</p>
+    <div id="payment-element"></div>
+    <div id="payment-message"></div>
+    <div id="payment-success"></div>
+    <button id="payBtn" class="pay-btn" onclick="handlePayment()">Add Funds</button>
   </div>
 
   <div class="txn-section">
@@ -1889,27 +1908,122 @@ WALLET_HTML = """<!DOCTYPE html>
 </div>
 
 <script>
-async function topUp() {
-  const amount = document.getElementById('topupAmount').value;
-  if (!amount || amount < 250 || amount > 9999) {
-    alert('Amount must be between $250 and $9,999');
-    return;
+const stripe = Stripe('{{STRIPE_PK}}');
+const appearance = {
+  theme: 'night',
+  variables: {
+    colorPrimary: '#eab308',
+    colorBackground: '#111111',
+    colorText: '#f5f5f5',
+    colorDanger: '#f87171',
+    fontFamily: "'SF Mono', 'Consolas', monospace",
+    borderRadius: '8px',
   }
+};
+
+let elements = null;
+let clientSecret = null;
+let processing = false;
+
+async function initPayment() {
+  const amount = parseFloat(document.getElementById('topupAmount').value);
+  if (!amount || amount < 250 || amount > 9999) {
+    showError('Amount must be between $250 and $9,999');
+    return false;
+  }
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Preparing payment...';
+  hideMessages();
+
   try {
     const res = await fetch('/api/wallet/topup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: parseFloat(amount) }),
+      body: JSON.stringify({ amount }),
     });
     const data = await res.json();
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      alert(data.error || 'Failed to create checkout session');
+    if (data.error) {
+      showError(data.error);
+      btn.disabled = false;
+      btn.textContent = 'Add Funds';
+      return false;
     }
+    clientSecret = data.client_secret;
+    elements = stripe.elements({ appearance, clientSecret });
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#payment-element');
+    btn.disabled = false;
+    btn.textContent = 'Pay $' + amount.toLocaleString();
+    return true;
   } catch (err) {
-    alert('Error: ' + err.message);
+    showError('Error: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Add Funds';
+    return false;
   }
+}
+
+async function handlePayment() {
+  if (processing) return;
+  if (!clientSecret) {
+    const ok = await initPayment();
+    if (!ok) return;
+    // After mounting, user fills in card — next click confirms
+    return;
+  }
+  processing = true;
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Processing payment...';
+  hideMessages();
+
+  const { error } = await stripe.confirmPayment({
+    elements,
+    confirmParams: { return_url: window.location.origin + '/wallet' },
+    redirect: 'if_required',
+  });
+
+  if (error) {
+    showError(error.message);
+    btn.disabled = false;
+    btn.textContent = 'Retry Payment';
+    processing = false;
+  } else {
+    showSuccess('Payment successful! Updating balance...');
+    btn.disabled = true;
+    btn.textContent = 'Payment Complete';
+    // Give webhook a moment to process, then reload
+    setTimeout(() => window.location.reload(), 2500);
+  }
+}
+
+// Re-init when amount changes
+document.getElementById('topupAmount').addEventListener('change', function() {
+  if (elements) {
+    document.getElementById('payment-element').innerHTML = '';
+    elements = null;
+    clientSecret = null;
+    processing = false;
+    document.getElementById('payBtn').textContent = 'Add Funds';
+    document.getElementById('payBtn').disabled = false;
+    hideMessages();
+  }
+});
+
+function showError(msg) {
+  const el = document.getElementById('payment-message');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function showSuccess(msg) {
+  const el = document.getElementById('payment-success');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideMessages() {
+  document.getElementById('payment-message').style.display = 'none';
+  document.getElementById('payment-success').style.display = 'none';
 }
 </script>
 </div>

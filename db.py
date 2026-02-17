@@ -84,6 +84,7 @@ def init_db():
             amount_cents INTEGER NOT NULL,
             description TEXT,
             job_id TEXT,
+            stripe_intent_id TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         );
 
@@ -143,6 +144,15 @@ def init_db():
         );
     """)
     conn.commit()
+
+    # Migration: add stripe_intent_id column if missing
+    try:
+        cur.execute(
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_intent_id TEXT"
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
 
     # Remove stale fallback admin account if real admin is configured
     admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "").strip().lower()
@@ -380,20 +390,31 @@ def get_balance(user_id: int) -> int:
     return row["balance_cents"] if row else 0
 
 
-def add_funds(user_id: int, amount_cents: int, description: str = "Stripe top-up"):
-    """Credit wallet from a Stripe payment."""
+def add_funds(user_id: int, amount_cents: int, description: str = "Stripe top-up",
+              stripe_intent_id: str = None) -> bool:
+    """Credit wallet from a Stripe payment. Returns False if duplicate intent."""
     conn = _get_conn()
     cur = conn.cursor()
+    if stripe_intent_id:
+        cur.execute(
+            "SELECT id FROM transactions WHERE stripe_intent_id = %s",
+            (stripe_intent_id,),
+        )
+        if _fetchone(cur):
+            cur.close()
+            return False
     cur.execute(
         "UPDATE wallets SET balance_cents = balance_cents + %s WHERE user_id = %s",
         (amount_cents, user_id),
     )
     cur.execute(
-        "INSERT INTO transactions (user_id, type, amount_cents, description) VALUES (%s, 'topup', %s, %s)",
-        (user_id, amount_cents, description),
+        "INSERT INTO transactions (user_id, type, amount_cents, description, stripe_intent_id) "
+        "VALUES (%s, 'topup', %s, %s, %s)",
+        (user_id, amount_cents, description, stripe_intent_id),
     )
     conn.commit()
     cur.close()
+    return True
 
 
 def charge_research_fee(user_id: int, count: int, job_id: str, fee_cents_each: int = 8):
