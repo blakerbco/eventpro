@@ -82,13 +82,16 @@ def _make_session_permanent():
     session.permanent = True
 
 RESULTS_DIR = os.environ.get("RESULTS_DIR", "results")
-DB_CONN_STRING = os.environ.get(
-    "IRS_DB_CONNECTION",
-    "postgresql://localhost/irs"
+DB_CONN_STRING = (
+    os.environ.get("IRS_DB_CONNECTION")
+    or os.environ.get("DATABASE_URL")
+    or os.environ.get("DATABASE_PRIVATE_URL")
+    or "postgresql://localhost/irs"
 )
-_masked = DB_CONN_STRING[:25] + "..." if len(DB_CONN_STRING) > 25 else DB_CONN_STRING
-print(f"[IRS DB] Connection string: {_masked}")
-print(f"[IRS DB] IRS_DB_CONNECTION env set: {'yes' if os.environ.get('IRS_DB_CONNECTION') else 'NO — using fallback'}")
+_src = "IRS_DB_CONNECTION" if os.environ.get("IRS_DB_CONNECTION") else \
+       "DATABASE_URL" if os.environ.get("DATABASE_URL") else \
+       "DATABASE_PRIVATE_URL" if os.environ.get("DATABASE_PRIVATE_URL") else "FALLBACK"
+print(f"[IRS DB] Using: {_src} -> {DB_CONN_STRING[:30]}...")
 
 # Stripe config
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
