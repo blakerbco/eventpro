@@ -181,7 +181,11 @@ def _inject_nav_badge(html: str) -> str:
 # ─── Sidebar Navigation ─────────────────────────────────────────────────────
 
 _SIDEBAR_CSS = """
-  .sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; background:#0a0a0a; border-right:1px solid #1a1a1a; display:flex; flex-direction:column; z-index:100; overflow-y:auto; transition:transform 0.3s ease; }
+  .sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; background:#0a0a0a; border-right:1px solid #1a1a1a; display:flex; flex-direction:column; z-index:100; overflow-y:auto; transition:transform 0.3s ease; scrollbar-width:thin; scrollbar-color:#eab308 #000; }
+  .sidebar::-webkit-scrollbar { width:8px; }
+  .sidebar::-webkit-scrollbar-track { background:#000; }
+  .sidebar::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
+  .sidebar::-webkit-scrollbar-thumb:hover { background:#ffd900; }
   .sidebar-logo { padding:20px 24px; border-bottom:1px solid #1a1a1a; }
   .sidebar-logo img { height:44px; }
   .sidebar-section { padding:16px 12px 4px; }
@@ -2895,17 +2899,18 @@ GETTING_STARTED_HTML = """<!DOCTYPE html>
     <div class="step-num">1</div>
     <div class="step-content">
       <h3>Search the Nonprofit Database</h3>
-      <p>Go to the <a href="/database">Database</a> page to search over 276,000 nonprofits from IRS filings. Filter by <strong>state, city, region, event type</strong> (gala, auction, golf, etc.), and <strong>prospect tier</strong> (A+, A, B+, C). Use the financial filters to narrow by revenue, fundraising income, or event gross receipts.</p>
+      <p>Go to the <a href="/database">Database</a> page to search over 300,000 nonprofits. Filter by <strong>state, city, region, event type</strong> (gala, auction, golf, etc.), and <strong>prospect tier</strong> (A+, A, B+, C). Use the financial filters to narrow by revenue, fundraising income, or event gross receipts.</p>
       <p style="margin-top:8px;">Select the organizations you want to research and click <strong>"Send to Auction Finder"</strong> to add them to your search queue.</p>
+      <p style="margin-top:8px;color:#737373;font-size:13px;"><strong style="color:#eab308;">Search tip:</strong> If you are not getting the number of results you require, simply edit or remove a filter.</p>
     </div>
   </div>
 
   <div class="step">
     <div class="step-num">2</div>
     <div class="step-content">
-      <h3>Run AI-Powered Auction Research</h3>
+      <h3>Run Powerful Research Engine</h3>
       <p>Go to <a href="/">Auction Search</a> where your selected nonprofits will be pre-loaded. You can also paste names or domains directly. Click <strong>"Search for Auctions"</strong> and watch results stream in real-time.</p>
-      <p style="margin-top:8px;">The AI uses 3 phases: quick scan, deep research (visiting actual event pages), and targeted follow-up for missing fields like contact email or auction type.</p>
+      <p style="margin-top:8px;">The engine uses 3 phases: quick scan, deep research (visiting actual event pages), and targeted follow-up for missing fields like contact email or auction type.</p>
     </div>
   </div>
 
@@ -3156,7 +3161,7 @@ LANDING_HTML = """<!DOCTYPE html>
   .price-card .price-tag b { font-size: 36px; color: #f5f5f5; font-weight: 800; }
   .price-card ul { list-style: none; }
   .price-card ul li { padding: 8px 0; font-size: 15px; color: #d4d4d4; border-bottom: 1px solid #1a1a1a; }
-  .price-card ul li::before { content: "\\2713"; color: #4ade80; margin-right: 10px; font-weight: 700; }
+  .price-card ul li::before { content: "\\2713"; color: #8b5cf6; margin-right: 10px; font-weight: 700; }
   .price-card ul li:last-child { border-bottom: none; }
   .price-card .signup-btn { display: block; text-align: center; margin-top: 24px; padding: 14px; background: #ffd900; color: #000; border-radius: 10px; font-size: 15px; font-weight: 700; }
   .price-card .signup-btn:hover { background: #eab308; }
@@ -3184,7 +3189,16 @@ LANDING_HTML = """<!DOCTYPE html>
   .final-cta .btn-primary:hover { background: #eab308; }
 
   /* Footer */
-  .footer { padding: 40px; border-top: 1px solid #1a1a1a; text-align: center; font-size: 13px; color: #525252; }
+  .footer { padding: 60px 40px 40px; border-top: 1px solid #1a1a1a; }
+  .footer-inner { max-width: 900px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-start; gap: 40px; }
+  .footer-brand { max-width: 400px; }
+  .footer-brand .footer-logo { font-size: 16px; font-weight: 700; color: #f5f5f5; margin-bottom: 10px; }
+  .footer-brand p { font-size: 13px; color: #737373; line-height: 1.6; }
+  .footer-contact { text-align: right; }
+  .footer-contact .label { font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
+  .footer-contact a { display: block; font-size: 13px; color: #a3a3a3; margin-bottom: 4px; }
+  .footer-contact a:hover { color: #eab308; }
+  .footer-copy { text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #1a1a1a; font-size: 12px; color: #525252; }
 
   /* Hamburger — hidden on desktop */
   .hamburger { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
@@ -3226,7 +3240,9 @@ LANDING_HTML = """<!DOCTYPE html>
     .final-cta h2 { font-size: 28px; }
     .final-cta p { font-size: 15px; }
     .final-cta .btn-primary { display: block; width: 100%; text-align: center; }
-    .footer { padding: 32px 20px; }
+    .footer { padding: 40px 20px 32px; }
+    .footer-inner { flex-direction: column; gap: 24px; }
+    .footer-contact { text-align: left; }
   }
 </style>
 </head>
@@ -3341,14 +3357,14 @@ LANDING_HTML = """<!DOCTYPE html>
 </section>
 
 <!-- Trial Banner -->
-<section style="padding:80px 40px;text-align:center;background:linear-gradient(180deg,#0a1a0a 0%,#000 100%);border-top:1px solid #1a2a1a;border-bottom:1px solid #1a2a1a;">
+<section style="padding:80px 40px;text-align:center;background:linear-gradient(180deg,#0d0a1a 0%,#000 100%);border-top:1px solid #1a1a2a;border-bottom:1px solid #1a1a2a;">
   <div style="max-width:560px;margin:0 auto;">
-    <div style="display:inline-block;padding:6px 20px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);border-radius:24px;font-size:12px;color:#4ade80;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:28px;">Free Trial</div>
-    <div style="font-size:72px;font-weight:900;color:#4ade80;line-height:1;margin-bottom:4px;">150</div>
+    <div style="display:inline-block;padding:6px 20px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);border-radius:24px;font-size:12px;color:#8b5cf6;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:28px;">Free Trial</div>
+    <div style="font-size:72px;font-weight:900;color:#8b5cf6;line-height:1;margin-bottom:4px;">150</div>
     <div style="font-size:22px;font-weight:700;color:#f5f5f5;margin-bottom:24px;">nonprofit researches&mdash;on&nbsp;us</div>
     <p style="font-size:15px;color:#a3a3a3;margin-bottom:6px;">Up to $50 in value. No credit card required.</p>
     <p style="font-size:14px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial.</p>
-    <a href="/register" style="display:inline-block;padding:14px 36px;background:#4ade80;color:#000;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
+    <a href="/register" style="display:inline-block;padding:14px 36px;background:#8b5cf6;color:#fff;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
     <p style="font-size:12px;color:#525252;margin-top:16px;">7-day trial &middot; No auto-charge &middot; Cancel anytime</p>
   </div>
 </section>
@@ -3486,7 +3502,18 @@ LANDING_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="footer">
-  &copy; 2026 Auction Intel. All rights reserved.
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo">Auction Intel</div>
+      <p>Event-driven sales intelligence with verified nonprofit fundraising leads. Timing precision that turns research into revenue.</p>
+    </div>
+    <div class="footer-contact">
+      <div class="label">Contact</div>
+      <a href="mailto:support@auctionintel.us">support@auctionintel.us</a>
+      <a href="tel:3037194851">303-719-4851</a>
+    </div>
+  </div>
+  <div class="footer-copy">&copy; 2026 Auction Intel. All rights reserved.</div>
 </div>
 
 </body>

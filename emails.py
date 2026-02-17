@@ -19,10 +19,10 @@ def _base_template(title: str, heading: str, body_html: str, cta_text: str = "",
     cta_block = ""
     if cta_text and cta_url:
         cta_block = f"""
-            <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+            <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 24px 0;">
                 <tr>
-                    <td align="center" style="border-radius: 4px;" bgcolor="#FFD700">
-                        <a href="{cta_url}" target="_blank" style="font-size: 16px; font-family: Arial, sans-serif; color: #000000; text-decoration: none; border-radius: 4px; padding: 12px 25px; border: 1px solid #FFD700; display: inline-block; font-weight: bold;">{cta_text}</a>
+                    <td align="center" style="border-radius: 6px;" bgcolor="#FFD700">
+                        <a href="{cta_url}" target="_blank" style="font-size: 14px; font-family: Arial, sans-serif; color: #000000; text-decoration: none; border-radius: 6px; padding: 10px 20px; display: inline-block; font-weight: bold;">{cta_text}</a>
                     </td>
                 </tr>
             </table>"""
@@ -56,13 +56,16 @@ def _base_template(title: str, heading: str, body_html: str, cta_text: str = "",
                     <tr>
                         <td style="padding: 30px 20px; text-align: center; background-color: #222222; border-radius: 0 0 8px 8px;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; line-height: 20px; color: #888888; font-family: Arial, sans-serif;">
-                                &copy; 2025 Auction Intel. All rights reserved.
+                                &copy; 2026 Auction Intel. All rights reserved.
                             </p>
-                            <p style="margin: 0; font-size: 12px; line-height: 20px; color: #666666; font-family: Arial, sans-serif;">
+                            <p style="margin: 0 0 10px 0; font-size: 12px; line-height: 20px; color: #666666; font-family: Arial, sans-serif;">
                                 7050 W 120th Ave Suite 50B<br>
                                 Broomfield, CO 80020
                             </p>
-                            <p style="margin: 20px 0 0 0; font-size: 12px; line-height: 20px; color: #666666; font-family: Arial, sans-serif;">
+                            <p style="margin: 0 0 10px 0; font-size: 12px; line-height: 20px; color: #888888; font-family: Arial, sans-serif;">
+                                Support: <a href="mailto:support@auctionintel.us" style="color: #FFD700; text-decoration: none;">support@auctionintel.us</a> &middot; 303-719-4851
+                            </p>
+                            <p style="margin: 10px 0 0 0; font-size: 11px; line-height: 18px; color: #555555; font-family: Arial, sans-serif;">
                                 This is an automated message, please do not reply directly to this email.
                             </p>
                         </td>
