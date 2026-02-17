@@ -3211,7 +3211,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="price-card std">
       <h3>Verified Email</h3>
-      <div class="price-tag"><b>$1.00</b> / lead</div>
+      <div class="price-tag"><b>$1.25</b> / lead</div>
       <ul>
         <li>Event title &amp; event date</li>
         <li>Verified event page link</li>
@@ -3222,7 +3222,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="price-card std">
       <h3>Email Only</h3>
-      <div class="price-tag"><b>$0.75</b> / lead</div>
+      <div class="price-tag"><b>$1.00</b> / lead</div>
       <ul>
         <li>Event title &amp; event date</li>
         <li>Verified event page link</li>
@@ -3233,7 +3233,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="price-card std">
       <h3>Event Only</h3>
-      <div class="price-tag"><b>$0.50</b> / lead</div>
+      <div class="price-tag"><b>$0.75</b> / lead</div>
       <ul>
         <li>Event title &amp; event date</li>
         <li>Verified event page link</li>
@@ -3285,7 +3285,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's the difference between lead tiers? <span class="arrow">+</span></div>
-      <div class="faq-a">Leads are priced by completeness, and all tiers require a verified event page link: <b>Verified Contact ($1.50)</b>: Event + auction type + contact name + contact email. <b>Verified Email ($1.00)</b>: Event + auction type + contact email (name missing). <b>Email Only ($0.75)</b>: Event + contact email (auction type missing). <b>Event Only ($0.50)</b>: Event title/date + event page link only. No verified event page link = no lead charge.</div>
+      <div class="faq-a">Leads are priced by completeness, and all tiers require a verified event page link: <b>Verified Contact ($1.50)</b>: Event + auction type + contact name + contact email. <b>Verified Email ($1.25)</b>: Event + auction type + contact email (name missing). <b>Email Only ($1.00)</b>: Event + contact email (auction type missing). <b>Event Only ($0.75)</b>: Event title/date + event page link only. No verified event page link = no lead charge.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is mailing address included? <span class="arrow">+</span></div>
