@@ -2257,8 +2257,8 @@ async function startSearch() {
             const btnRow = document.createElement('div');
             btnRow.style.cssText = 'margin:-4px 0 6px 48px;';
             const eBtn = document.createElement('button');
-            eBtn.textContent = 'Make Exclusive';
-            eBtn.title = 'Remove this event lead from future sales to other customers — $2.50';
+            eBtn.textContent = 'Lock Lead';
+            eBtn.title = 'Lock this lead so it stops being sold to new customers — $2.50';
             eBtn.style.cssText = 'background:#1a1500;color:#eab308;border:1px solid #332d00;border-radius:4px;padding:2px 10px;font-size:11px;cursor:pointer;font-family:inherit;';
             eBtn.onclick = function() { makeExclusive(eBtn, data.nonprofit, data.event_title, data.event_url); };
             btnRow.appendChild(eBtn);
@@ -2371,7 +2371,7 @@ async function toggleJsonViewer() {
 }
 
 async function makeExclusive(btn, nonprofit, title, url) {
-  if (!confirm('Make this event lead exclusive for $2.50? It will be removed from future sales to other customers.\\n\\nExclusivity applies to this specific event lead (not the entire organization).')) return;
+  if (!confirm('Lock this lead for $2.50? It will stop being sold to new customers going forward.\\n\\nApplies to this specific event lead (not the entire organization). Previous buyers retain access.')) return;
   btn.disabled = true;
   btn.textContent = 'Processing...';
   try {
@@ -2382,7 +2382,7 @@ async function makeExclusive(btn, nonprofit, title, url) {
     });
     const data = await res.json();
     if (data.success) {
-      btn.textContent = 'Exclusive';
+      btn.textContent = 'Locked';
       btn.style.background = '#4ade80';
       btn.style.color = '#000';
       btn.style.cursor = 'default';
@@ -2390,11 +2390,11 @@ async function makeExclusive(btn, nonprofit, title, url) {
         balanceCents = data.balance;
         balDisplay.textContent = '$' + (balanceCents / 100).toFixed(2);
       }
-      log('Exclusive lead purchased: ' + title, 'info');
+      log('Lead locked: ' + title, 'info');
     } else {
       alert(data.error || 'Failed to purchase exclusive lead');
       btn.disabled = false;
-      btn.textContent = 'Make Exclusive';
+      btn.textContent = 'Lock Lead';
     }
   } catch (err) {
     alert('Request failed: ' + err.message);
@@ -3341,14 +3341,15 @@ LANDING_HTML = """<!DOCTYPE html>
 </section>
 
 <!-- Trial Banner -->
-<section style="padding:60px 40px;text-align:center;background:linear-gradient(180deg,#1a1500 0%,#000 100%);border-bottom:1px solid #1a1a1a;">
-  <div style="max-width:600px;margin:0 auto;">
-    <div style="display:inline-block;padding:6px 20px;background:#eab30822;border:1px solid #eab30844;border-radius:24px;font-size:13px;color:#eab308;font-weight:700;margin-bottom:20px;">LIMITED TIME OFFER</div>
-    <h2 style="font-size:28px;font-weight:800;margin-bottom:12px;">Research your first <span style="color:#4ade80;">150 nonprofits</span> on us</h2>
-    <p style="font-size:17px;color:#a3a3a3;margin-bottom:8px;">Up to $50 in value. No credit card required.</p>
-    <p style="font-size:15px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial</p>
-    <a href="/register" style="display:inline-block;padding:16px 40px;background:#ffd900;color:#000;border-radius:10px;font-size:17px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
-    <p style="font-size:12px;color:#525252;margin-top:16px;">7-day trial. No auto-charge. Cancel anytime.</p>
+<section style="padding:80px 40px;text-align:center;background:linear-gradient(180deg,#0a1a0a 0%,#000 100%);border-top:1px solid #1a2a1a;border-bottom:1px solid #1a2a1a;">
+  <div style="max-width:560px;margin:0 auto;">
+    <div style="display:inline-block;padding:6px 20px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);border-radius:24px;font-size:12px;color:#4ade80;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:28px;">Free Trial</div>
+    <div style="font-size:72px;font-weight:900;color:#4ade80;line-height:1;margin-bottom:4px;">150</div>
+    <div style="font-size:22px;font-weight:700;color:#f5f5f5;margin-bottom:24px;">nonprofit researches&mdash;on&nbsp;us</div>
+    <p style="font-size:15px;color:#a3a3a3;margin-bottom:6px;">Up to $50 in value. No credit card required.</p>
+    <p style="font-size:14px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial.</p>
+    <a href="/register" style="display:inline-block;padding:14px 36px;background:#4ade80;color:#000;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
+    <p style="font-size:12px;color:#525252;margin-top:16px;">7-day trial &middot; No auto-charge &middot; Cancel anytime</p>
   </div>
 </section>
 
@@ -3410,15 +3411,15 @@ LANDING_HTML = """<!DOCTYPE html>
 
   <!-- Complete Contacts Only callout -->
   <div style="max-width:900px;margin:40px auto 0;background:#111;border:1px solid #1a1a1a;border-radius:16px;padding:32px;text-align:left;">
-    <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Only Want Contact-Ready Leads?</h3>
-    <p style="font-size:15px;color:#a3a3a3;line-height:1.6;">Turn on <strong style="color:#eab308;">"Complete Contacts Only"</strong> before running a search. When enabled, your results will only include leads with a verified contact name, contact email, auction type, and event page link&mdash;everything you need to reach out immediately. You'll get fewer leads per search, but every one of them is ready to use.</p>
+    <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Only Want Complete Contacts?</h3>
+    <p style="font-size:15px;color:#a3a3a3;line-height:1.6;">Turn on <strong style="color:#eab308;">"Complete Contacts Only"</strong> before running a search. When enabled, your results will only include leads with a verified contact name, contact email, auction type, and event page link.</p>
   </div>
 
   <!-- Exclusive Event Lead callout -->
   <div style="max-width:900px;margin:24px auto 0;background:#111;border:1px solid #332d00;border-radius:16px;padding:32px;text-align:left;">
-    <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Exclusive Event Lead &mdash; <span style="color:#eab308;">$2.50</span></h3>
-    <p style="font-size:15px;color:#a3a3a3;line-height:1.6;">Want to be the only one with a specific lead? Mark any event lead as exclusive for $2.50 and it will be permanently removed from future sales to other customers. This is the total price&mdash;it replaces the standard lead tier fee. Available on any billable lead tier.</p>
-    <p style="font-size:13px;color:#737373;margin-top:12px;">Exclusivity applies to the specific event lead purchased (not the entire organization).</p>
+    <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Priority Lead Lock &mdash; <span style="color:#eab308;">$2.50</span></h3>
+    <p style="font-size:15px;color:#a3a3a3;line-height:1.6;">Lock any event lead so it stops being sold to new customers going forward. For $2.50, the lead is pulled from future search results&mdash;giving you a head start over the competition. This is the total price and replaces the standard lead tier fee.</p>
+    <p style="font-size:13px;color:#737373;margin-top:12px;">Applies to the specific event lead (not the entire organization). Previous buyers retain access.</p>
   </div>
 </section>
 
@@ -3471,8 +3472,8 @@ LANDING_HTML = """<!DOCTYPE html>
       <div class="faq-a">It's a toggle you can enable before running a search. When turned on, only Complete Contact leads are included in your results&mdash;each one includes event title, event date, verified event page link, auction type, contact name, and contact email. You'll get fewer results, but every lead is contact-ready. Leads that don't meet this standard are excluded from your export and not billed.</div>
     </div>
     <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is an Exclusive Event Lead? <span class="arrow">+</span></div>
-      <div class="faq-a">For $2.50 per lead, you can mark any event lead as exclusive. Once purchased, that specific event lead is permanently removed from future sales to other customers. This is a flat fee that replaces the standard lead tier price. Exclusivity applies to the specific event lead (not the entire organization).</div>
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is a Priority Lead Lock? <span class="arrow">+</span></div>
+      <div class="faq-a">For $2.50 per lead, you can lock any event lead so it stops being sold to new customers going forward. This gives you a competitive advantage by limiting who else can access that lead. The $2.50 is a flat fee that replaces the standard lead tier price. Previous buyers retain access. Applies to the specific event lead, not the entire organization.</div>
     </div>
   </div>
 </section>
