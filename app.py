@@ -68,6 +68,7 @@ from db import (
     purchase_exclusive_lead, is_lead_exclusive, get_user_exclusive_leads,
     EXCLUSIVE_LEAD_PRICE_CENTS,
     cache_get, cache_put,
+    save_result_file, get_result_file,
 )
 import emails
 from html import escape as html_escape
@@ -772,6 +773,17 @@ async def _run_job(
         ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 2, 50)
     wb.save(xlsx_file)
 
+    # Store result files in database (survives Railway redeploys)
+    try:
+        with open(csv_file, "rb") as f:
+            save_result_file(job_id, "csv", f.read())
+        with open(json_file, "rb") as f:
+            save_result_file(job_id, "json", f.read())
+        with open(xlsx_file, "rb") as f:
+            save_result_file(job_id, "xlsx", f.read())
+    except Exception as e:
+        print(f"[WARN] Failed to save result files to DB: {e}", file=sys.stderr)
+
     # Remove checkpoint file now that final files are saved
     checkpoint_file = os.path.join(RESULTS_DIR, f"{job_id}_checkpoint.csv")
     if os.path.exists(checkpoint_file):
@@ -1379,14 +1391,31 @@ def download_result(job_id, fmt):
     if fmt not in ("csv", "json", "xlsx"):
         return Response("Invalid format", status=400)
 
+    # Try disk first, then fall back to database (survives Railway redeploys)
     filepath = os.path.join(RESULTS_DIR, f"{job_id}.{fmt}")
-    if not os.path.exists(filepath):
+    if os.path.exists(filepath):
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=f"auction_results_{job_id}.{fmt}",
+        )
+
+    # File not on disk — try database
+    content = get_result_file(job_id, fmt)
+    if content is None:
         return Response("File not found", status=404)
 
-    return send_file(
-        filepath,
-        as_attachment=True,
-        download_name=f"auction_results_{job_id}.{fmt}",
+    mime_types = {
+        "csv": "text/csv",
+        "json": "application/json",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+    return Response(
+        content,
+        mimetype=mime_types.get(fmt, "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'attachment; filename="auction_results_{job_id}.{fmt}"'
+        },
     )
 
 

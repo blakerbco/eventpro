@@ -152,6 +152,15 @@ def init_db():
             created_at TIMESTAMP DEFAULT NOW(),
             expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days')
         );
+
+        CREATE TABLE IF NOT EXISTS result_files (
+            id SERIAL PRIMARY KEY,
+            job_id TEXT NOT NULL,
+            format TEXT NOT NULL,
+            content BYTEA NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(job_id, format)
+        );
     """)
     conn.commit()
 
@@ -579,14 +588,14 @@ def cleanup_expired_jobs():
 
 
 def cleanup_stale_running_jobs():
-    """Mark any 'running' jobs older than 30 minutes as failed.
-    Called on server startup to clear zombie jobs from crashed/restarted servers."""
+    """Mark ALL 'running' jobs as failed on server startup.
+    If the server just started, no jobs can actually be running — they're all zombies."""
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
         """UPDATE search_jobs SET status='error', results_summary='Server restarted — job interrupted',
            completed_at=NOW()
-           WHERE status='running' AND created_at < NOW() - INTERVAL '30 minutes'""",
+           WHERE status='running'""",
     )
     cleaned = cur.rowcount
     conn.commit()
@@ -594,6 +603,41 @@ def cleanup_stale_running_jobs():
     if cleaned:
         print(f"[DB] Cleaned up {cleaned} stale running job(s)", flush=True)
     return cleaned
+
+
+# ─── Result File Storage (persists across deploys) ───────────────────────────
+
+def save_result_file(job_id: str, fmt: str, content: bytes):
+    """Store a result file (csv/json/xlsx) in the database."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO result_files (job_id, format, content)
+           VALUES (%s, %s, %s)
+           ON CONFLICT (job_id, format) DO UPDATE SET content = EXCLUDED.content""",
+        (job_id, fmt, content),
+    )
+    conn.commit()
+    cur.close()
+
+
+def get_result_file(job_id: str, fmt: str) -> Optional[bytes]:
+    """Retrieve a result file from the database. Returns bytes or None."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT content FROM result_files WHERE job_id = %s AND format = %s",
+        (job_id, fmt),
+    )
+    row = _fetchone(cur)
+    cur.close()
+    if row:
+        content = row["content"]
+        # psycopg2 returns memoryview for BYTEA; convert to bytes
+        if isinstance(content, memoryview):
+            return bytes(content)
+        return content
+    return None
 
 
 # ─── Password Reset Tokens ───────────────────────────────────────────────────
