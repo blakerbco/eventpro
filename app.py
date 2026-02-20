@@ -67,7 +67,7 @@ from db import (
     get_unread_ticket_count,
     purchase_exclusive_lead, is_lead_exclusive, get_user_exclusive_leads,
     EXCLUSIVE_LEAD_PRICE_CENTS,
-    cache_get, cache_put,
+    cache_get, cache_put, flush_uncertain_cache,
     save_result_file, get_result_file,
 )
 import emails
@@ -3891,6 +3891,7 @@ if __name__ == "__main__":
     # Clean up zombie "running" jobs from previous server instance
     cleanup_stale_running_jobs()
     cleanup_expired_jobs()
+    flush_uncertain_cache()
 
     port = int(os.environ.get("PORT", 5000))
     print(f"AUCTIONFINDER Web UI starting on http://localhost:{port}", file=sys.stderr)

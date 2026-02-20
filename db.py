@@ -997,8 +997,25 @@ def _compute_expiry(result: Dict[str, Any]) -> datetime:
     if status == "not_found":
         return now + timedelta(days=30)
 
-    # error, uncertain, anything else — retry in 7 days
-    return now + timedelta(days=7)
+    # error — retry in 7 days
+    if status == "error":
+        return now + timedelta(days=7)
+
+    # uncertain — retry in 1 hour (usually means API issue, not real data)
+    return now + timedelta(hours=1)
+
+
+def flush_uncertain_cache():
+    """Delete all 'uncertain' cache entries. Called on startup to clear bad API results."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM research_cache WHERE status = 'uncertain'")
+    flushed = cur.rowcount
+    conn.commit()
+    cur.close()
+    if flushed:
+        print(f"[DB] Flushed {flushed} uncertain cache entries", flush=True)
+    return flushed
 
 
 def cache_get(nonprofit: str) -> Optional[Dict[str, Any]]:
