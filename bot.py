@@ -77,143 +77,50 @@ CSV_COLUMNS = [
 
 # ─── Prompt ───────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are an expert nonprofit auction event researcher. Your job is to find upcoming auction/gala/fundraiser events that include an auction component (silent auction, live auction, or both) for a given nonprofit organization.
+SYSTEM_PROMPT = """You are a nonprofit event researcher. Search the web thoroughly for each nonprofit to find upcoming fundraising events, especially galas, auctions, or similar benefit events.
 
-## Research Methodology
+Look for:
+1. The official nonprofit name
+2. Upcoming fundraising events (galas, auctions, benefit dinners, etc.) in 2026 or later
+3. Whether the event includes a silent auction, live auction, or both
+4. Event dates, URLs, and descriptions
+5. Contact information (name, email, role) for the events/development team
+6. Organization address and phone number
 
-Follow these steps IN ORDER for each nonprofit:
+Prioritize events that include auctions (silent or live). Galas and benefit dinners very often include auction components — check carefully. Also check """ + ", ".join(ALLOWLISTED_PLATFORMS) + """ for events.
 
-1. **Official Domain Search**: If a domain or URL is provided, search the official website for event pages. Look for URLs containing these HIGH-PRIORITY keywords:
-   - "/gala" — DEAD GIVEAWAY of an auction event
-   - "/auction", "/silent-auction", "/live-auction"
-   - "/raffle" — raffle pages VERY OFTEN also include a silent auction component, ALWAYS check the full page text
-   - "/benefit", "/ball", "/soiree", "/banquet"
-   - "/fundraiser", "/fundraising", "/fund-a-need"
-   - "/events", "/special-events", "/upcoming-events", "/calendar"
-   - "/support", "/giving", "/donate", "/sponsorship"
-   - "/dinner", "/luncheon", "/brunch", "/celebration"
-   - "/tournament", "/golf" — golf tournaments often include silent auctions
-   IMPORTANT: When you find ANY of these URL patterns, you MUST visit that page and scan the FULL text for auction indicators. A page titled "Gun/Meat Raffle" may also contain a silent auction — READ THE WHOLE PAGE.
+Rules:
+- ONLY events from 2026 or later — ignore all past events
+- "status" = "found" if qualifying event found, "3rdpty_found" if on a third-party platform, "not_found" if nothing found
+- confidence_score 0.0-1.0 reflecting accuracy
+- Use empty string "" for fields you can't find
+- Always include real URLs, never fabricated ones
+- evidence_date = raw date text from the site; evidence_auction = direct quote proving auction component
+- contact_role = their actual job title, not a generic label
+- Do not use generic footer emails — only emails from staff/team/contact pages
 
-2. **On-Page Auction Detection**: Once you find an event page, scan the FULL page text for these auction indicators:
+You MUST respond with a JSON code block:
 
-   LIVE AUCTION indicators (if ANY of these appear, the event has a LIVE auction):
-   "live auction", "auctioneer", "paddle raise", "raise the paddle", "bid calling", "bidding wars",
-   "live bidding begins at", "auction block", "spotters", "ringmen", "table sponsorship", "reserved tables",
-   "fund-a-need", "fund a need", "fund the need", "special appeal", "paddle up", "cash call",
-   "raise your paddle", "live lot", "live lots", "grand auction", "gavel", "hammer price", "live bidding",
-   "item opens live", "bid spotter", "floor bidder", "from the stage", "live appeal", "auctioneer-led",
-   "call bid", "live auction begins", "live auction starts", "live auctioneer"
-
-   SILENT AUCTION indicators (if ANY of these appear, the event has a SILENT auction):
-   "silent auction", "mobile bidding", "bid from your phone", "text to bid", "browse items at your leisure",
-   "proxy bidding", "auto-bid", "outbid notification", "silent auction items",
-   "virtual auction", "online auction", "browse auction items"
-
-   CLASSIFICATION RULES:
-   - If ONLY live indicators found → auction_type = "live"
-   - If ONLY silent indicators found → auction_type = "silent"
-   - If BOTH live AND silent indicators found → auction_type = "Live and Silent"
-   - Copy the exact matching text into evidence_auction field as proof
-
-   Also look for GiveSmart/Handbid/OneCause/BiddingForGood links on the page — these confirm auction component (usually silent)
-
-3. **Third-Party Platform Search**: Search these allowlisted auction/event platforms for events by this nonprofit:
-   """ + ", ".join(ALLOWLISTED_PLATFORMS) + """
-
-4. **General Web Search** (do ALL of these searches — don't skip any):
-   - "[nonprofit name] gala 2026"
-   - "[nonprofit name] auction 2026"
-   - "[nonprofit name] fundraiser 2026"
-   - "[nonprofit name] silent auction 2026"
-   - "[nonprofit name] benefit dinner 2026"
-   - "[nonprofit name] events 2026"
-   If the input is a domain (e.g. mercyhousingct.org), also try: "site:mercyhousingct.org gala" and "site:mercyhousingct.org auction"
-
-5. **Contact Information**: Find a contact person for the event AND their job title:
-   - First check the event page itself for contact info
-   - Then check the org's /about, /staff, /team, /leadership, /our-team, /contact, /directory, /news, /blog pages
-   - NEVER use email addresses found in the website footer — those are sitewide generic emails, not event contacts. Only use emails found on the actual event page, staff page, or contact directory.
-   - For job title, the org's own website is the MOST TRUSTED source — search their site first
-   - Search Google for "[contact name] [org name]" — org website results often show their title in snippets
-   - Only use LinkedIn as a LAST RESORT if the org site doesn't show the title: search "[contact name] [org name] title"
-   - contact_role must be their ACTUAL job title (e.g. "Engagement Specialist", "Director of Development"), not a generic label
-   - Also find the organization's physical address and phone number (check footer, contact page, or Google Maps)
-
-## CRITICAL DATE REQUIREMENT
-- Today's date is February 2026.
-- ONLY return events dated 2026 or later (2026, 2027, etc.)
-- NEVER return past events from 2025 or earlier — those are NOT valid results
-- If the only events you find are from 2025 or earlier, classify as "not_found"
-- If a page shows both past and future events, ONLY report the future ones
-
-## What Qualifies as a Match
-- The event MUST have an auction component: silent auction, live auction, paddle raise, raffle with auction, or similar
-- The event MUST be dated 2026 or later — no past events
-- Evidence of the auction must be found in actual text on the page
-
-## Classification
-- "found" — auction event confirmed on the nonprofit's official domain
-- "3rdpty_found" — auction event found on a third-party platform
-- "not_found" — no upcoming auction events discovered anywhere
-- "uncertain" — ambiguous results needing human review
-
-## Required Output
-
-You MUST respond with ONLY valid JSON (no markdown fences, no extra text) in this exact structure:
-
+```json
 {
   "nonprofit_name": "Full Organization Name",
   "event_title": "Full Event Title",
-  "evidence_date": "Raw text snippet from the website proving the date",
-  "auction_type": "silent, live, or Live and Silent",
-  "event_date": "MM/DD/YYYY",
-  "event_url": "https://direct-url-to-event-page",
+  "evidence_date": "Raw text from site showing the date",
+  "auction_type": "silent|live|Live and Silent|unknown",
+  "event_date": "M/D/YYYY",
+  "event_url": "https://url-to-event-page",
   "confidence_score": 0.95,
-  "evidence_auction": "Raw text snippet from the website proving auction component exists",
+  "evidence_auction": "Raw text proving auction component exists",
   "contact_name": "First Last",
   "contact_email": "email@domain.org",
-  "contact_role": "events or sponsorship or development",
+  "contact_role": "Actual job title",
   "organization_address": "Full street address, City, ST ZIP",
   "organization_phone_maps": "phone number",
   "contact_source_url": "URL where contact info was found",
-  "event_summary": "1-2 sentence summary explaining what was found and how it was confirmed",
-  "status": "found or 3rdpty_found or not_found or uncertain"
+  "event_summary": "2-3 sentence summary of what was found",
+  "status": "found|3rdpty_found|not_found"
 }
-
-## Few-Shot Examples
-
-### Example 1 (live and silent auction):
-Input: "National Museum of Mexican Art"
-Output:
-{"nonprofit_name": "National Museum of Mexican Art", "event_title": "Gala de Arte: Agua Sagrada", "evidence_date": "Gala de Arte:  Agua Sagrada\\n\\nMay 1, 2026, 6:00 11:00 pm Aon Grand Ballroom at Navy Pier", "auction_type": "Live and Silent", "event_date": "5/1/2026", "event_url": "https://nationalmuseumofmexicanart.org/events/galadearte", "confidence_score": 0.98, "evidence_auction": "The Gala de Arte promises an unforgettable evening. In addition to networking with fellow supporters, youll enjoy a silent auction, live auction, exquisite cuisine, live music, and dancing.", "contact_name": "Barbara Engelskirchen", "contact_email": "barbara@nationalmuseumofmexicanart.org", "contact_role": "sponsorship", "organization_address": "1852 W 19th Street, Chicago, IL 60608", "organization_phone_maps": "(312) 738-1503", "contact_source_url": "https://nationalmuseumofmexicanart.org/events/galadearte", "event_summary": "The National Museum of Mexican Arts official Events page lists \\"Gala de Arte: Agua Sagrada\\" on May 1, 2026 at the Aon Grand Ballroom at Navy Pier in Chicago. The event description clearly states that attendees will enjoy a silent auction and live auction, confirming a 2026 gala auction on the official domain.", "status": "found"}
-
-### Example 2 (silent auction):
-Input: "Radio Milwaukee"
-Output:
-{"nonprofit_name": "Radio Milwaukee", "event_title": "SoundBites 2026 from Radio Milwaukee", "evidence_date": "06:00 PM - 10:00 PM on Thu, 5 Mar 2026", "auction_type": "silent", "event_date": "3/5/2026", "event_url": "https://radiomilwaukee.org/community-calendar/event/soundbites-16-01-2025-10-34-53", "confidence_score": 0.96, "evidence_auction": "General admission\\n\\u2022 Snacks and treats ...\\n\\u2022 Premium whiskey tasting ...\\n\\u2022 Silent auction with items ranging from arts and entertainment to food and beverages\\n\\u2022 Gift-card pull from local restaurants", "contact_name": "Jeremy Zuleger", "contact_email": "jeremy@radiomilwaukee.org", "contact_role": "sponsorship", "organization_address": "220 E Pittsburgh Ave, Milwaukee, WI 53204", "organization_phone_maps": "414-892-8900", "contact_source_url": "https://radiomilwaukee.org/community-calendar/event/soundbites-16-01-2025-10-34-53", "event_summary": "Radio Milwaukees official site lists SoundBites 2026, its signature fundraising soir\\u00e9e at the Harley-Davidson Museum on Thursday, March 5, 2026. The event description explicitly includes a silent auction with items and states that all proceeds benefit Radio Milwaukee, making it a confirmed upcoming auction fundraiser.", "status": "found"}
-
-### Example 3 (not found — use this format when no auction event is found):
-Input: "Some Unknown Nonprofit"
-Output:
-{"nonprofit_name": "Some Unknown Nonprofit", "event_title": "", "evidence_date": "", "auction_type": "", "event_date": "", "event_url": "", "confidence_score": 0.0, "evidence_auction": "", "contact_name": "", "contact_email": "", "contact_role": "", "organization_address": "", "organization_phone_maps": "", "contact_source_url": "", "event_summary": "No upcoming auction events found after searching the official domain, third-party platforms, and general web search.", "status": "not_found"}
-
-## CRITICAL RULES
-- Return ONLY the JSON object, no markdown code fences, no explanation before or after
-- evidence_date and evidence_auction must be ACTUAL text copied from the source pages — NEVER leave these blank when event_date or auction_type is filled in. You saw the text on the page — copy it verbatim.
-- event_date must be in M/D/YYYY format (no leading zeros required)
-- confidence_score must be a number between 0.0 and 1.0
-- If multiple auction events exist, return the EARLIEST upcoming one (2026 or later)
-- If no auction event is found, return the not_found template with empty strings
-- ONLY events from 2026 or later are valid — IGNORE all 2025 or earlier events
-- Search thoroughly: check the actual event page URL, look for "Save the Date" text, check for dates like "September 17, 2026" that may be buried in the page content
-- Look for paddle raise, fund-a-need, raise the paddle — these count as auction components
-
-## URL QUALITY RULES — MANDATORY
-- NEVER fabricate or guess URLs — every URL you return must be a real page you actually visited
-- NEVER construct search/query URLs like "/search?query=..." — those are NOT valid
-- event_url: If the event has a dedicated auction page (e.g. /auction, /silent-auction, /gala-auction), use THAT instead of a generic page like /annual-dinner or /events. The most specific auction-related URL wins.
-- contact_source_url: MUST be the real URL where you found the contact name/email. If you found contact info, you found it somewhere — record that URL. NEVER leave this blank when contact_name or contact_email is filled in."""
+```"""
 
 
 def extract_json(text: str) -> dict:
@@ -339,59 +246,49 @@ def classify_lead_tier(result: Dict[str, Any]) -> tuple:
 
 # ─── Quick Scan Prompt ────────────────────────────────────────────────────────
 
-QUICK_SCAN_PROMPT = """You are a nonprofit auction event researcher. Find upcoming auction/gala/fundraiser events (2026 or later) with an auction component (silent auction, live auction, paddle raise, etc.) for this nonprofit:
+QUICK_SCAN_PROMPT = """Search the web thoroughly for the nonprofit at "{nonprofit}" and find information about their upcoming fundraising events, especially galas, auctions, or similar benefit events.
 
-"{nonprofit}"
+Look for:
+1. The official nonprofit name
+2. Upcoming fundraising events (galas, auctions, benefit dinners, etc.) in 2026 or later
+3. Whether the event includes a silent auction, live auction, or both
+4. Event dates, URLs, and descriptions
+5. Contact information (name, email, role) for the events/development team
+6. Organization address and phone number
 
-## MANDATORY SEARCH STRATEGY — Do ALL of these searches:
+Prioritize events that include auctions (silent or live). Galas and benefit dinners very often include auction components — check carefully.
 
-**Step 1: Search the org's own website** (MOST IMPORTANT)
-- Search: "{nonprofit} gala 2026"
-- Search: "{nonprofit} auction 2026"
-- Search: "{nonprofit} fundraiser 2026"
-- Search: "{nonprofit} events 2026"
+You MUST respond with ONLY a JSON code block in this exact format — no other text before or after:
 
-**Step 2: Check the actual event/gala page you found**
-- Once you find an event listing, search for that specific event page to read its full details
-- Look for: "silent auction", "live auction", "paddle raise", "fund-a-need", "mobile bidding"
-- Also look for event platform links: GiveSmart, OneCause, Handbid, BiddingForGood, Eventbrite
-
-**Step 3: Find contact info**
-- Search: "{nonprofit} staff" or "{nonprofit} team" or "{nonprofit} contact"
-- Look for Development Director, Event Coordinator, Executive Director
-- NEVER use generic footer emails — only emails from staff/team/contact pages
-- For job title: the org's own site is the MOST TRUSTED source
-
-**Step 4: Find org address + phone**
-- Search: "{nonprofit} address phone" or check Google Maps
-
-## KEY RULES
-- ONLY events from 2026 or later — IGNORE all 2025 or earlier events
-- Galas, benefits, balls, soirees — these VERY OFTEN include silent or live auctions. If a gala page mentions "auction" anywhere, it counts.
-- event_url must be a REAL page — NEVER fabricate URLs
-- evidence_date: copy the RAW date text from the page (e.g. "Saturday, April 10, 2026 | 6:00 PM")
-- evidence_auction: copy the RAW text proving auction exists (e.g. "silent auction and live auction")
-- NEVER leave evidence fields blank when event_date or auction_type is filled
-
-Respond with ONLY valid JSON (no markdown, no extra text):
+```json
 {{
-  "has_event": true/false,
-  "confidence": 0.0 to 1.0,
-  "nonprofit_name": "Full Name",
-  "event_title": "Event Title or empty string",
-  "event_date": "M/D/YYYY or empty string",
-  "evidence_date": "Raw date text copied from the page",
-  "event_url": "https://most-specific-auction-page-url or empty string",
-  "auction_type": "silent/live/Live and Silent or empty string",
-  "contact_name": "Name or empty string",
-  "contact_email": "email or empty string",
-  "contact_role": "Actual job title from staff page or LinkedIn",
-  "organization_address": "Full street address, City, ST ZIP",
-  "organization_phone_maps": "Phone number from website or Google Maps",
+  "has_event": true,
+  "confidence": 0.85,
+  "nonprofit_name": "Full official name of the nonprofit",
+  "event_title": "Name of the fundraising event",
+  "event_date": "M/D/YYYY format",
+  "evidence_date": "Raw text showing date evidence found on the site",
+  "event_url": "URL where event info was found",
+  "auction_type": "silent|live|Live and Silent|unknown",
+  "evidence_auction": "Direct quote or evidence that an auction is part of the event",
+  "contact_name": "Name of events/development contact",
+  "contact_email": "email@domain.org",
+  "contact_role": "Their actual job title",
+  "organization_address": "Full street address",
+  "organization_phone_maps": "Phone number",
   "contact_source_url": "URL where contact info was found",
-  "evidence_auction": "Raw text from page proving auction exists",
-  "notes": "Brief explanation"
-}}"""
+  "notes": "2-3 sentence summary of what was found"
+}}
+```
+
+Rules:
+- Set "has_event" to true if you found a qualifying event, false if not
+- "confidence" should be 0.0-1.0 reflecting accuracy of the data
+- If you cannot find info for a field, use an empty string ""
+- Always include real URLs you found, not made-up ones
+- "evidence_date" should be raw text from the website showing the date
+- "evidence_auction" should be a direct quote proving the auction component
+- ONLY events from 2026 or later — ignore past events"""
 
 TARGETED_PROMPT = """You are a research assistant. Find the {missing_field} for the following event:
 
@@ -417,7 +314,7 @@ Respond with ONLY valid JSON (no markdown):
 
 # ─── 3-Phase Research Functions ──────────────────────────────────────────────
 
-SEARCH_SYSTEM = """You are a nonprofit auction event researcher. You MUST use your web_search tool to answer — NEVER answer from memory alone. Every response MUST be based on actual web search results you found during this conversation. If you cannot find information through web search, say so — do not guess or fabricate."""
+SEARCH_SYSTEM = """You are a nonprofit event researcher. You MUST use your web_search tool to find information — NEVER answer from memory alone. Search the web thoroughly for each query. If you cannot find information through web search, say so — do not guess or fabricate."""
 
 
 def _claude_call(client: anthropic.Anthropic, prompt: str, system: str = None) -> str:
