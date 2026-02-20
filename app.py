@@ -58,7 +58,7 @@ from db import (
     has_sufficient_balance, get_transactions, get_research_fee_cents,
     update_password, get_spending_summary, get_job_breakdowns,
     create_search_job, complete_search_job, fail_search_job,
-    get_user_jobs, cleanup_expired_jobs,
+    get_user_jobs, cleanup_expired_jobs, cleanup_stale_running_jobs,
     get_user_by_email, create_reset_token, validate_reset_token,
     consume_reset_token,
     create_ticket, get_ticket, get_tickets_for_user, get_all_tickets,
@@ -3855,9 +3855,13 @@ if __name__ == "__main__":
         print("ERROR: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
         sys.exit(1)
 
-    # Initialize SQLite database
+    # Initialize database
     init_db()
     print("Database initialized.", file=sys.stderr)
+
+    # Clean up zombie "running" jobs from previous server instance
+    cleanup_stale_running_jobs()
+    cleanup_expired_jobs()
 
     port = int(os.environ.get("PORT", 5000))
     print(f"AUCTIONFINDER Web UI starting on http://localhost:{port}", file=sys.stderr)

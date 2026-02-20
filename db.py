@@ -578,6 +578,24 @@ def cleanup_expired_jobs():
     cur.close()
 
 
+def cleanup_stale_running_jobs():
+    """Mark any 'running' jobs older than 30 minutes as failed.
+    Called on server startup to clear zombie jobs from crashed/restarted servers."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """UPDATE search_jobs SET status='error', results_summary='Server restarted — job interrupted',
+           completed_at=NOW()
+           WHERE status='running' AND created_at < NOW() - INTERVAL '30 minutes'""",
+    )
+    cleaned = cur.rowcount
+    conn.commit()
+    cur.close()
+    if cleaned:
+        print(f"[DB] Cleaned up {cleaned} stale running job(s)", flush=True)
+    return cleaned
+
+
 # ─── Password Reset Tokens ───────────────────────────────────────────────────
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
