@@ -1504,18 +1504,17 @@ def irs_search():
         return jsonify({"error": str(e)}), 500
 
 
+US_STATES = [
+    "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+    "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+    "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+    "VA","WA","WV","WI","WY","DC","PR","VI","GU","AS","MP",
+]
+
 @app.route("/api/irs/states")
 @login_required
 def irs_states():
-    try:
-        conn = get_irs_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT PhysicalState FROM tax_year_2019_search WHERE PhysicalState IS NOT NULL ORDER BY PhysicalState")
-        states = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        return jsonify(states)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify(US_STATES)
 
 
 # ─── Routes: Getting Started ─────────────────────────────────────────────────
