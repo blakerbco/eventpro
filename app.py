@@ -3,11 +3,11 @@
 AUCTIONFINDER — Web Interface
 
 User-authenticated web UI with wallet-based billing for the Nonprofit
-Auction Event Finder. Uses Claude + Web Search for research, Stripe
+Auction Event Finder. Uses Poe bot for research, Stripe
 for wallet top-ups, and SSE for real-time progress streaming.
 
 Usage:
-    set ANTHROPIC_API_KEY=...
+    set POE_API_KEY=...
     set STRIPE_SECRET_KEY=sk_test_...
     set STRIPE_PUBLISHABLE_KEY=pk_test_...
     python app.py
@@ -36,7 +36,6 @@ from flask import (
     Flask, request, Response, jsonify, session,
     redirect, url_for, send_file,
 )
-import anthropic
 import stripe
 import openpyxl
 import psycopg2
@@ -44,12 +43,11 @@ import psycopg2
 # ─── Import bot config & prompts ─────────────────────────────────────────────
 
 from bot import (
-    BATCH_SIZE, MAX_PARALLEL_BATCHES, MAX_NONPROFITS, CLAUDE_MODEL,
-    DELAY_BETWEEN_BATCHES, ALLOWLISTED_PLATFORMS,
-    CSV_COLUMNS, SYSTEM_PROMPT, build_user_prompt, parse_input,
+    BATCH_SIZE, MAX_PARALLEL_BATCHES, MAX_NONPROFITS, POE_BOT_NAME,
+    DELAY_BETWEEN_CALLS, DELAY_PER_WORKER, ALLOWLISTED_PLATFORMS,
+    CSV_COLUMNS, parse_input,
     _error_result, extract_json, classify_lead_tier, _has_valid_url,
-    _quick_scan, _deep_research, _targeted_followup,
-    _quick_scan_to_full, _missing_billable_fields, _claude_call,
+    _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
 )
 
 from db import (
@@ -322,7 +320,6 @@ def _inject_sidebar(html, active):
 # ─── Research Worker (runs in background thread with its own event loop) ─────
 
 async def _research_nonprofit_web(
-    client: anthropic.Anthropic,
     nonprofit: str,
     semaphore: asyncio.Semaphore,
     index: int,
@@ -333,8 +330,9 @@ async def _research_nonprofit_web(
     is_admin: bool = False,
     is_trial: bool = False,
     balance_stop: Optional[asyncio.Event] = None,
+    worker_id: int = 0,
 ) -> Dict[str, Any]:
-    """Research a single nonprofit using 3-phase early-stop strategy.
+    """Research a single nonprofit via Poe bot (single call).
     Pushes progress events to the queue. Charges fees for non-admin users.
     Trial users are only charged for billable results (no research fee on dead leads).
     balance_stop: if set, the job has been stopped due to insufficient balance.
@@ -392,147 +390,22 @@ async def _research_nonprofit_web(
             })
             return cached
 
-        api_calls = 0
         text = ""
+        delay = DELAY_BETWEEN_CALLS + (worker_id * DELAY_PER_WORKER)
 
         try:
-            # ── Phase 1: Quick Scan ──
-            api_calls += 1
-            scan = await _quick_scan(client, nonprofit)
+            # ── Single Poe bot call ──
+            text = await asyncio.to_thread(call_poe_bot_sync, nonprofit)
+            poe_data = extract_json(text)
+            result = _poe_result_to_full(poe_data, nonprofit)
+            result["_api_calls"] = 1
 
-            # Quick negative
-            if not scan.get("has_event") and scan.get("confidence", 0) >= 0.80:
-                result = _quick_scan_to_full(scan, nonprofit)
-                result["_api_calls"] = api_calls
-                result["_phase"] = "quick_scan"
-                result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-                result["_source"] = "claude"
-
-                # Charge research fee (trial users: free on dead leads)
-                if user_id and not is_admin and not is_trial:
-                    fee = get_research_fee_cents(total)
-                    if get_balance(user_id) >= fee:
-                        charge_research_fee(user_id, 1, job_id, fee)
-                        progress_q.put({"type": "balance", "balance": get_balance(user_id)})
-                    else:
-                        if balance_stop:
-                            balance_stop.set()
-                        progress_q.put({"type": "balance_warning", "message": "Insufficient balance — stopping job."})
-
-                progress_q.put({
-                    "type": "result", "index": index, "total": total,
-                    "nonprofit": nonprofit, "status": "not_found",
-                    "event_title": "", "confidence": 0, "tier": "not_billable", "tier_price": 0,
-                })
-                cache_put(nonprofit, result)
-                return result
-
-            # Quick positive — only early-stop if ALL fields are filled
-            if scan.get("has_event") and scan.get("confidence", 0) >= 0.85:
-                full_from_scan = _quick_scan_to_full(scan, nonprofit)
-                tier, price = classify_lead_tier(full_from_scan)
-                _all_filled = (
-                    tier == "full"
-                    and _has_valid_url(full_from_scan)
-                    and full_from_scan.get("evidence_date", "").strip()
-                    and full_from_scan.get("contact_role", "").strip()
-                    and full_from_scan.get("organization_address", "").strip()
-                    and full_from_scan.get("organization_phone_maps", "").strip()
-                    and full_from_scan.get("contact_source_url", "").strip()
-                )
-                if _all_filled:
-                    full_from_scan["_api_calls"] = api_calls
-                    full_from_scan["_phase"] = "quick_scan"
-                    full_from_scan["_processed_at"] = datetime.now(timezone.utc).isoformat()
-                    full_from_scan["_source"] = "claude"
-
-                    if user_id and not is_admin:
-                        fee = get_research_fee_cents(total)
-                        total_charge = fee + price
-                        if get_balance(user_id) >= total_charge:
-                            charge_research_fee(user_id, 1, job_id, fee)
-                            charge_lead_fee(user_id, tier, price, job_id, nonprofit)
-                            progress_q.put({"type": "balance", "balance": get_balance(user_id)})
-                        else:
-                            if balance_stop:
-                                balance_stop.set()
-                            full_from_scan["_balance_exhausted"] = True
-                            progress_q.put({"type": "balance_warning", "message": "Insufficient balance — stopping job."})
-                            tier, price = "not_billable", 0
-
-                    progress_q.put({
-                        "type": "result", "index": index, "total": total,
-                        "nonprofit": nonprofit, "status": "found",
-                        "event_title": scan.get("event_title", ""),
-                        "event_url": full_from_scan.get("event_url", ""),
-                        "confidence": scan.get("confidence", 0),
-                        "tier": tier, "tier_price": price,
-                    })
-                    cache_put(nonprofit, full_from_scan)
-                    return full_from_scan
-
-            # ── Phase 2: Deep Research ──
-            api_calls += 1
-            result = await _deep_research(client, nonprofit)
-            result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-            result["_source"] = "claude"
-
-            status = result.get("status", "uncertain")
-
-            if status == "not_found":
-                result["_api_calls"] = api_calls
-                result["_phase"] = "deep_research"
-
-                if user_id and not is_admin and not is_trial:
-                    fee = get_research_fee_cents(total)
-                    if get_balance(user_id) >= fee:
-                        charge_research_fee(user_id, 1, job_id, fee)
-                        progress_q.put({"type": "balance", "balance": get_balance(user_id)})
-                    else:
-                        if balance_stop:
-                            balance_stop.set()
-                        progress_q.put({"type": "balance_warning", "message": "Insufficient balance — stopping job."})
-
-                progress_q.put({
-                    "type": "result", "index": index, "total": total,
-                    "nonprofit": nonprofit, "status": "not_found",
-                    "event_title": "", "confidence": 0, "tier": "not_billable", "tier_price": 0,
-                })
-                cache_put(nonprofit, result)
-                return result
-
-            # Check tier
-            tier, price = classify_lead_tier(result)
-            missing = _missing_billable_fields(result)
-
-            # ── Phase 3: Targeted Follow-up (chase up to 3 missing fields) ──
-            if missing and result.get("event_title", "").strip():
-                for field in missing[:3]:
-                    api_calls += 1
-                    try:
-                        followup = await _targeted_followup(
-                            client, nonprofit,
-                            result.get("event_title", ""),
-                            result.get("event_date", ""),
-                            field,
-                        )
-                        value = followup.get(field, "").strip()
-                        if value:
-                            result[field] = value
-                            if followup.get("source_url"):
-                                result["contact_source_url"] = followup["source_url"]
-                    except Exception:
-                        pass
-
-            # Final classification
+            # Classify
             tier, price = classify_lead_tier(result)
             title = result.get("event_title", "")
             status = result.get("status", "uncertain")
-            result["_api_calls"] = api_calls
-            result["_phase"] = f"phase_{api_calls}"
 
             # Charge fees (trial users: only charged for billable results)
-            # Mid-job balance guard: check balance before each charge
             if user_id and not is_admin:
                 fee = get_research_fee_cents(total)
                 bal = get_balance(user_id)
@@ -572,6 +445,9 @@ async def _research_nonprofit_web(
                 "tier": tier, "tier_price": price,
             })
             cache_put(nonprofit, result)
+
+            # Delay between calls to avoid rate limits
+            await asyncio.sleep(delay)
             return result
 
         except json.JSONDecodeError:
@@ -581,14 +457,14 @@ async def _research_nonprofit_web(
                 "event_title": "JSON parse error", "confidence": 0,
                 "tier": "not_billable", "tier_price": 0,
             })
-            # Charge research fee on error (trial users: free on errors)
             if user_id and not is_admin and not is_trial:
                 fee = get_research_fee_cents(total)
                 if get_balance(user_id) >= fee:
                     charge_research_fee(user_id, 1, job_id, fee)
                     progress_q.put({"type": "balance", "balance": get_balance(user_id)})
-            err = _error_result(nonprofit, "Failed to parse response as JSON", text[:500] if text else "")
+            err = _error_result(nonprofit, "Failed to parse Poe response as JSON", text[:500] if text else "")
             cache_put(nonprofit, err)
+            await asyncio.sleep(delay)
             return err
 
         except Exception as e:
@@ -605,9 +481,10 @@ async def _research_nonprofit_web(
                     charge_research_fee(user_id, 1, job_id, fee)
                     progress_q.put({"type": "balance", "balance": get_balance(user_id)})
             err = _error_result(nonprofit, err_msg)
-            # Don't cache rate limit errors — those should be retried immediately
-            if "429" not in err_msg and "RESOURCE_EXHAUSTED" not in err_msg:
+            is_transient = any(x in err_msg.lower() for x in ["429", "rate", "timeout", "overloaded"])
+            if not is_transient:
                 cache_put(nonprofit, err)
+            await asyncio.sleep(delay)
             return err
 
 
@@ -620,10 +497,9 @@ async def _run_job(
     if len(nonprofits) > MAX_NONPROFITS:
         nonprofits = nonprofits[:MAX_NONPROFITS]
 
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     batches = [nonprofits[i:i + BATCH_SIZE] for i in range(0, len(nonprofits), BATCH_SIZE)]
     total_batches = len(batches)
-    semaphore = asyncio.Semaphore(BATCH_SIZE * MAX_PARALLEL_BATCHES)
+    semaphore = asyncio.Semaphore(1)  # Sequential — one Poe call at a time per worker
 
     progress_q.put({
         "type": "started",
@@ -654,7 +530,7 @@ async def _run_job(
             for k, np_name in enumerate(batch):
                 batch_tasks.append(
                     _research_nonprofit_web(
-                        client, np_name, semaphore, offset + k + 1,
+                        np_name, semaphore, offset + k + 1,
                         len(nonprofits), progress_q,
                         user_id=user_id, job_id=job_id, is_admin=is_admin, is_trial=is_trial,
                         balance_stop=balance_stop,
@@ -683,7 +559,7 @@ async def _run_job(
         })
 
         if completed < total_batches:
-            await asyncio.sleep(DELAY_BETWEEN_BATCHES)
+            await asyncio.sleep(DELAY_BETWEEN_CALLS)
 
     elapsed = time.time() - start
 
@@ -746,7 +622,7 @@ async def _run_job(
         "meta": {
             "total_nonprofits": len(all_results),
             "processing_time_seconds": round(elapsed, 2),
-            "model": CLAUDE_MODEL,
+            "model": f"Poe Bot: {POE_BOT_NAME}",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "summary": {
