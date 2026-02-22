@@ -1403,8 +1403,8 @@ def irs_search():
         conditions.append("PhysicalState = %s")
         params.append(state.upper())
     elif region:
-        conditions.append("Region5 = %s")
-        params.append(region.capitalize())
+        conditions.append("LOWER(region5) = LOWER(%s)")
+        params.append(region)
 
     event_keyword = data.get("event_keyword", "").strip()
     if event_keyword:
