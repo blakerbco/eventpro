@@ -22,8 +22,8 @@ import fastapi_poe as fp
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-POE_API_KEY = os.environ.get("POE_API_KEY", "")
-POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "auctionintel.app")
+POE_API_KEY = os.environ.get("POE_API_KEY", "").strip()
+POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "auctionintel.app").strip()
 
 MAX_NONPROFITS = 5000
 MAX_RETRIES = 2
