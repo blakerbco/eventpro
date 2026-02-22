@@ -31,7 +31,7 @@ import fastapi_poe as fp
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 POE_API_KEY = os.environ.get("POE_API_KEY", "")
-POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "Bitchbotauction")
+POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "auctionintel.app")
 
 BATCH_SIZE = 5          # nonprofits per batch
 MAX_PARALLEL_BATCHES = 1  # sequential by default (overridden by --workers)
