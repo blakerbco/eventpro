@@ -271,6 +271,7 @@ _SIDEBAR_ICONS = {
     "profile": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>',
     "logout": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     "tools": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+    "analyzer": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="2"/><path d="M21 21l-4.3-4.3"/><path d="M3.05 11a8 8 0 0 1 15.9 0M3.05 13a8 8 0 0 0 15.9 0"/></svg>',
 }
 
 _SIDEBAR_NAV_ITEMS = [
@@ -289,6 +290,7 @@ _SIDEBAR_NAV_ITEMS = [
     ]),
     ("Tools", [
         ("tools", "/tools/merge", "File Merger"),
+        ("analyzer", "/tools/analyzer", "Field Analyzer", True),  # admin-only
     ]),
     ("Settings", [
         ("profile", "/profile", "Profile"),
@@ -298,10 +300,15 @@ _SIDEBAR_NAV_ITEMS = [
 
 def _build_sidebar_html(active):
     """Build sidebar + topbar HTML. `active` = page key like 'wallet', 'search'."""
+    is_admin = _is_admin()
     sections = ""
     for group_label, items in _SIDEBAR_NAV_ITEMS:
         links = ""
-        for key, href, label in items:
+        for item in items:
+            key, href, label = item[0], item[1], item[2]
+            admin_only = item[3] if len(item) > 3 else False
+            if admin_only and not is_admin:
+                continue
             cls = ' class="active"' if key == active else ""
             icon = _SIDEBAR_ICONS.get(key, "")
             links += f'      <a href="{href}"{cls}>{icon} {label}</a>\n'
@@ -1526,6 +1533,17 @@ def test_poe():
 def tools_merge_page():
     user = _current_user()
     html = _inject_sidebar(MERGE_TOOL_HTML, "tools")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
+    return _inject_nav_badge(html)
+
+
+@app.route("/tools/analyzer")
+@login_required
+def tools_analyzer_page():
+    if not _is_admin():
+        return redirect("/")
+    user = _current_user()
+    html = _inject_sidebar(ANALYZER_TOOL_HTML, "analyzer")
     html = html.replace("{{EMAIL}}", user["email"] if user else "")
     return _inject_nav_badge(html)
 
@@ -3442,6 +3460,355 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
   function showStatus(t,m){statusBar.className='status-bar '+t;statusIcon.textContent=t==='success'?'\\u2713':'\\u2717';statusText.textContent=m;}
   function clearResults(){statusBar.className='status-bar';statusBar.style.display='';downloadArea.className='download-area';previewSection.className='preview-section';if(mergedBlobUrl){URL.revokeObjectURL(mergedBlobUrl);mergedBlobUrl=null;}}
   function escapeHtml(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML;}
+})();
+</script>
+</body>
+</html>"""
+
+ANALYZER_TOOL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - JSON Field Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'SF Mono','Consolas',monospace; background:#121212; color:#f5f5f5; min-height:100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width:960px; margin:0 auto; padding:24px 14px 80px; }
+  .page-header { text-align:center; margin-bottom:28px; }
+  .page-header h2 { font-size:20px; color:#d4d4d4; }
+  .page-header h2 .hl { color:#eab308; }
+  .page-header p { color:#737373; font-size:13px; margin-top:4px; }
+  .dropzone { border:2px dashed #333; border-radius:12px; padding:42px 24px; text-align:center; cursor:pointer; transition:all .25s; background:#1a1a1a; position:relative; }
+  .dropzone:hover, .dropzone.over { border-color:#eab308; background:rgba(234,179,8,0.04); }
+  .dz-icon { width:50px; height:50px; margin:0 auto 12px; background:#262626; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:20px; color:#eab308; }
+  .dropzone h3 { font-weight:600; font-size:14px; color:#d4d4d4; }
+  .dropzone .sub { color:#737373; font-size:12px; margin-top:3px; }
+  .dropzone .cap { display:inline-block; margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#737373; background:#262626; padding:3px 10px; border-radius:6px; }
+  .dropzone input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .file-tabs { display:flex; gap:6px; margin:16px 0 14px; overflow-x:auto; padding-bottom:4px; }
+  .file-tab { display:flex; align-items:center; gap:6px; padding:7px 12px; border:1px solid #333; border-radius:8px; background:#1a1a1a; color:#a3a3a3; font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer; white-space:nowrap; transition:all .2s; flex-shrink:0; }
+  .file-tab:hover { border-color:#eab308; color:#f5f5f5; }
+  .file-tab.active { background:#eab308; color:#000; border-color:#eab308; }
+  .file-tab .xtab { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; font-size:11px; cursor:pointer; }
+  .file-tab .xtab:hover { background:rgba(255,255,255,.2); }
+  .file-tab:not(.active) .xtab:hover { background:#2E1010; color:#F87171; }
+  .section { margin-bottom:18px; }
+  .section-title { font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:#737373; font-weight:600; margin-bottom:8px; }
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .stat-card { background:#1a1a1a; border:1px solid #333; border-radius:10px; padding:14px 16px; }
+  .stat-card .sc-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#737373; font-family:'IBM Plex Mono',monospace; font-weight:500; }
+  .stat-card .sc-val { font-size:24px; font-weight:700; font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+  .sc-total .sc-val { color:#f5f5f5; }
+  .sc-fields .sc-val { color:#eab308; }
+  .sc-combos .sc-val { color:#A78BFA; }
+  .sc-errors .sc-val { color:#F87171; }
+  .ftable-wrap, .combo-wrap { background:#1a1a1a; border:1px solid #333; border-radius:12px; overflow:hidden; }
+  .ftable-header, .combo-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #333; background:#0d0d0d; flex-wrap:wrap; gap:6px; }
+  .ftable-header span, .combo-header span { font-family:'IBM Plex Mono',monospace; font-size:12px; color:#737373; }
+  .sort-btns { display:flex; gap:3px; }
+  .sort-btn { padding:4px 10px; border:1px solid #333; border-radius:6px; background:#262626; color:#737373; font-size:12px; font-weight:500; cursor:pointer; transition:all .2s; }
+  .sort-btn:hover { color:#a3a3a3; border-color:#555; }
+  .sort-btn.active { background:#eab308; color:#000; border-color:#eab308; }
+  .ftable-body, .combo-body { max-height:55vh; overflow-y:auto; }
+  .frow { display:grid; grid-template-columns:minmax(140px,1.2fr) 80px 80px 1fr; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #222; transition:background .12s; }
+  .frow:last-child { border-bottom:none; }
+  .frow:hover { background:#0d0d0d; }
+  .frow-name { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; color:#f5f5f5; word-break:break-all; }
+  .frow-pop { font-family:'IBM Plex Mono',monospace; font-size:12px; color:#4ADE80; font-weight:600; }
+  .frow-miss { font-family:'IBM Plex Mono',monospace; font-size:12px; color:#FB923C; font-weight:600; }
+  .frow-bar { height:8px; border-radius:4px; background:#262626; overflow:hidden; }
+  .frow-bar-fill { height:100%; border-radius:4px; transition:width .6s ease; }
+  .frow-bar-fill.full { background:#4ADE80; }
+  .frow-bar-fill.high { background:#eab308; }
+  .frow-bar-fill.mid { background:#FBBF24; }
+  .frow-bar-fill.low { background:#FB923C; }
+  .frow-bar-fill.crit { background:#F87171; }
+  .frow-head { background:#0d0d0d; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#737373; font-weight:600; font-family:'IBM Plex Mono',monospace; padding:8px 16px; position:sticky; top:0; z-index:2; border-bottom:1px solid #333; }
+  .combo-row { display:grid; grid-template-columns:1fr 70px 80px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid #222; transition:background .12s; }
+  .combo-row:last-child { border-bottom:none; }
+  .combo-row:hover { background:#0d0d0d; }
+  .combo-row-head { background:#0d0d0d; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#737373; font-weight:600; font-family:'IBM Plex Mono',monospace; padding:8px 16px; position:sticky; top:0; z-index:2; border-bottom:1px solid #333; }
+  .combo-fields { display:flex; flex-wrap:wrap; gap:4px; }
+  .combo-tag { font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 7px; border-radius:5px; background:#2E1E0C; color:#FB923C; white-space:nowrap; }
+  .combo-tag.full { background:#0E2818; color:#4ADE80; }
+  .combo-count { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:#f5f5f5; text-align:right; }
+  .combo-pct { font-family:'IBM Plex Mono',monospace; font-size:12px; color:#737373; text-align:right; }
+  .export-row { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+  .ebtn { padding:8px 16px; border:1px solid #333; border-radius:8px; background:#262626; color:#a3a3a3; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
+  .ebtn:hover { border-color:#eab308; color:#eab308; }
+  .ebtn.primary { background:#eab308; border-color:#eab308; color:#000; }
+  .ebtn.primary:hover { filter:brightness(1.1); }
+  .hidden { display:none !important; }
+  @media(max-width:600px) {
+    .stats-row { grid-template-columns:repeat(2,1fr); }
+    .frow { grid-template-columns:minmax(100px,1fr) 60px 60px 80px; gap:6px; padding:8px 12px; }
+    .combo-row { grid-template-columns:1fr 50px 60px; gap:6px; padding:8px 12px; }
+    .export-row { flex-direction:column; }
+    .ebtn { justify-content:center; }
+  }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<main class="main-content">
+<div class="container">
+  <div class="page-header">
+    <h2>JSON Field <span class="hl">Analyzer</span></h2>
+    <p>Analyze field completeness across all records</p>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <div class="dz-icon">&#128269;</div>
+    <h3>Drop JSON files here</h3>
+    <p class="sub">or click to browse &mdash; up to 5 MB per file</p>
+    <span class="cap">accepts .json arrays or objects</span>
+    <input type="file" id="fileInput" accept=".json" multiple>
+  </div>
+
+  <div id="dashboard" class="hidden">
+    <div class="file-tabs" id="fileTabs"></div>
+    <div class="section">
+      <div class="section-title">Overview</div>
+      <div class="stats-row">
+        <div class="stat-card sc-total"><div class="sc-label">Records</div><div class="sc-val" id="stRecords">0</div></div>
+        <div class="stat-card sc-fields"><div class="sc-label">Unique Fields</div><div class="sc-val" id="stFields">0</div></div>
+        <div class="stat-card sc-combos"><div class="sc-label">Missing Combos</div><div class="sc-val" id="stCombos">0</div></div>
+        <div class="stat-card sc-errors"><div class="sc-label">Discarded Errors</div><div class="sc-val" id="stErrors">0</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Field Completeness <span id="fieldCountLabel" style="color:#a3a3a3;font-weight:400;"></span></div>
+      <div class="ftable-wrap">
+        <div class="ftable-header">
+          <span>Populated vs Missing per field</span>
+          <div class="sort-btns">
+            <button class="sort-btn active" data-sort="name">A-Z</button>
+            <button class="sort-btn" data-sort="pop-desc">Most filled</button>
+            <button class="sort-btn" data-sort="miss-desc">Most empty</button>
+          </div>
+        </div>
+        <div class="ftable-body" id="ftableBody"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Missing Field Combinations <span id="comboCountLabel" style="color:#a3a3a3;font-weight:400;"></span></div>
+      <div class="combo-wrap">
+        <div class="combo-header"><span>Records grouped by which fields are empty</span></div>
+        <div class="combo-body" id="comboBody"></div>
+      </div>
+    </div>
+    <div class="export-row">
+      <button class="ebtn" id="exportJsonBtn">Export Report JSON</button>
+      <button class="ebtn" id="exportCsvBtn">Export Report CSV</button>
+      <button class="ebtn primary" id="exportCompleteBtn">Download Complete Records</button>
+    </div>
+  </div>
+</div>
+</main>
+<script>
+(function(){
+  "use strict";
+  var MAX_SIZE=5*1024*1024;var files={};var activeFile=null;var currentSort="name";
+  var dropzone=document.getElementById("dropzone");var fileInput=document.getElementById("fileInput");
+  var dashboard=document.getElementById("dashboard");var fileTabs=document.getElementById("fileTabs");
+
+  dropzone.addEventListener("dragover",function(e){e.preventDefault();dropzone.classList.add("over");});
+  dropzone.addEventListener("dragleave",function(){dropzone.classList.remove("over");});
+  dropzone.addEventListener("drop",function(e){e.preventDefault();dropzone.classList.remove("over");handleFiles(e.dataTransfer.files);});
+  fileInput.addEventListener("change",function(e){handleFiles(e.target.files);e.target.value="";});
+
+  function handleFiles(fl){
+    for(var i=0;i<fl.length;i++){
+      var f=fl[i];
+      if(!f.name.endsWith(".json")){showToast(f.name+" is not a .json file");continue;}
+      if(f.size>MAX_SIZE){showToast(f.name+" exceeds 5 MB limit");continue;}
+      (function(file){
+        var reader=new FileReader();
+        reader.onload=function(ev){
+          try{var raw=JSON.parse(ev.target.result);var arr=normalizeToArray(raw);
+            if(arr.length===0){showToast(file.name+": no records found");return;}
+            processFile(file.name,arr);
+          }catch(err){showToast("Failed to parse "+file.name);}
+        };reader.readAsText(file);
+      })(f);
+    }
+  }
+
+  function normalizeToArray(data){
+    if(Array.isArray(data))return flattenObjects(data);
+    if(data&&typeof data==="object"){return flattenObjects(Object.values(data));}
+    return[];
+  }
+  function flattenObjects(arr){
+    var out=[];for(var i=0;i<arr.length;i++){
+      if(Array.isArray(arr[i])){for(var j=0;j<arr[i].length;j++){if(arr[i][j]&&typeof arr[i][j]==="object"&&!Array.isArray(arr[i][j]))out.push(arr[i][j]);}}
+      else if(arr[i]&&typeof arr[i]==="object"){out.push(arr[i]);}
+    }return out;
+  }
+  function isEmpty(val){
+    if(val===undefined||val===null)return true;
+    if(typeof val==="number")return false;
+    if(typeof val==="boolean")return false;
+    if(typeof val==="string"&&val.trim()==="")return true;
+    return false;
+  }
+  var ERROR_MARKER="Error during research: poe.BotError:";
+  function isErrorRecord(rec){if(!rec||!rec.event_summary)return false;return String(rec.event_summary).indexOf(ERROR_MARKER)!==-1;}
+
+  function analyze(records){
+    var allFields={};var i,j,key;
+    for(i=0;i<records.length;i++){var keys=Object.keys(records[i]);for(j=0;j<keys.length;j++){allFields[keys[j]]=true;}}
+    var fieldNames=Object.keys(allFields).sort();
+    var fieldStats=[];
+    for(i=0;i<fieldNames.length;i++){key=fieldNames[i];var populated=0;var missing=0;
+      for(j=0;j<records.length;j++){if(isEmpty(records[j][key]))missing++;else populated++;}
+      fieldStats.push({name:key,populated:populated,missing:missing});
+    }
+    var combos={};
+    for(i=0;i<records.length;i++){var missingKeys=[];
+      for(j=0;j<fieldNames.length;j++){if(isEmpty(records[i][fieldNames[j]]))missingKeys.push(fieldNames[j]);}
+      var comboKey=missingKeys.length===0?"__ALL_COMPLETE__":missingKeys.join(" + ");
+      if(!combos[comboKey])combos[comboKey]={fields:missingKeys,count:0};combos[comboKey].count++;
+    }
+    var comboList=[];for(key in combos){comboList.push(combos[key]);}
+    comboList.sort(function(a,b){return b.count-a.count;});
+    return{totalRecords:records.length,fieldNames:fieldNames,fieldStats:fieldStats,combos:comboList};
+  }
+
+  function processFile(name,records){
+    var filtered=[];var errorCount=0;
+    for(var i=0;i<records.length;i++){if(isErrorRecord(records[i])){errorCount++;}else{filtered.push(records[i]);}}
+    if(errorCount>0){showToast("Discarded "+errorCount+" BotError record"+(errorCount!==1?"s":"")+" from "+name);}
+    if(filtered.length===0){showToast(name+": no valid records after filtering");return;}
+    var result=analyze(filtered);result.records=filtered;result.discardedErrors=errorCount;
+    files[name]=result;activeFile=name;dashboard.classList.remove("hidden");renderTabs();renderDashboard();
+  }
+
+  function renderTabs(){
+    fileTabs.innerHTML="";var names=Object.keys(files);
+    for(var i=0;i<names.length;i++){(function(name){
+      var tab=document.createElement("div");tab.className="file-tab"+(name===activeFile?" active":"");
+      var lbl=document.createElement("span");lbl.textContent=name;tab.appendChild(lbl);
+      var x=document.createElement("span");x.className="xtab";x.textContent="x";
+      x.addEventListener("click",function(e){e.stopPropagation();removeFile(name);});tab.appendChild(x);
+      tab.addEventListener("click",function(){activeFile=name;renderTabs();renderDashboard();});
+      fileTabs.appendChild(tab);
+    })(names[i]);}
+  }
+  function removeFile(name){delete files[name];var rem=Object.keys(files);
+    if(rem.length===0){activeFile=null;dashboard.classList.add("hidden");return;}
+    if(activeFile===name)activeFile=rem[0];renderTabs();renderDashboard();
+  }
+
+  function renderDashboard(){
+    var data=files[activeFile];if(!data)return;
+    document.getElementById("stRecords").textContent=data.totalRecords;
+    document.getElementById("stFields").textContent=data.fieldNames.length;
+    document.getElementById("stCombos").textContent=data.combos.length;
+    document.getElementById("stErrors").textContent=data.discardedErrors||0;
+    document.getElementById("fieldCountLabel").textContent="("+data.fieldNames.length+" fields)";
+    document.getElementById("comboCountLabel").textContent="("+data.combos.length+" patterns)";
+    renderFieldTable();renderCombos();
+  }
+
+  function renderFieldTable(){
+    var data=files[activeFile];var stats=data.fieldStats.slice();var total=data.totalRecords;
+    if(currentSort==="name")stats.sort(function(a,b){return a.name.localeCompare(b.name);});
+    else if(currentSort==="pop-desc")stats.sort(function(a,b){return b.populated-a.populated||a.name.localeCompare(b.name);});
+    else if(currentSort==="miss-desc")stats.sort(function(a,b){return b.missing-a.missing||a.name.localeCompare(b.name);});
+    var body=document.getElementById("ftableBody");body.innerHTML="";
+    var head=document.createElement("div");head.className="frow-head frow";
+    head.innerHTML="<span>Field Name</span><span>Filled</span><span>Empty</span><span>Coverage</span>";body.appendChild(head);
+    for(var i=0;i<stats.length;i++){
+      var s=stats[i];var pct=total>0?Math.round((s.populated/total)*100):0;
+      var row=document.createElement("div");row.className="frow";
+      var n=document.createElement("div");n.className="frow-name";n.textContent=s.name;row.appendChild(n);
+      var p=document.createElement("div");p.className="frow-pop";p.textContent=s.populated;row.appendChild(p);
+      var m=document.createElement("div");m.className="frow-miss";m.textContent=s.missing;row.appendChild(m);
+      var bw=document.createElement("div");bw.style.cssText="display:flex;align-items:center;gap:8px;";
+      var bar=document.createElement("div");bar.className="frow-bar";bar.style.flex="1";
+      var fill=document.createElement("div");fill.className="frow-bar-fill";fill.style.width=pct+"%";
+      if(pct===100)fill.className+=" full";else if(pct>=80)fill.className+=" high";
+      else if(pct>=50)fill.className+=" mid";else if(pct>=20)fill.className+=" low";
+      else fill.className+=" crit";
+      bar.appendChild(fill);bw.appendChild(bar);
+      var pe=document.createElement("span");pe.style.cssText="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#737373;min-width:36px;text-align:right;";
+      pe.textContent=pct+"%";bw.appendChild(pe);row.appendChild(bw);body.appendChild(row);
+    }
+  }
+
+  var sortBtns=document.querySelectorAll(".sort-btn");
+  for(var si=0;si<sortBtns.length;si++){sortBtns[si].addEventListener("click",function(){
+    for(var sj=0;sj<sortBtns.length;sj++)sortBtns[sj].classList.remove("active");
+    this.classList.add("active");currentSort=this.getAttribute("data-sort");renderFieldTable();
+  });}
+
+  function renderCombos(){
+    var data=files[activeFile];var total=data.totalRecords;var combos=data.combos;
+    var body=document.getElementById("comboBody");body.innerHTML="";
+    var head=document.createElement("div");head.className="combo-row-head combo-row";
+    head.innerHTML="<span>Missing Fields Pattern</span><span>Count</span><span>% of Total</span>";body.appendChild(head);
+    for(var i=0;i<combos.length;i++){
+      var c=combos[i];var pct=total>0?((c.count/total)*100).toFixed(1):"0.0";
+      var row=document.createElement("div");row.className="combo-row";
+      var fe=document.createElement("div");fe.className="combo-fields";
+      if(c.fields.length===0){var tag=document.createElement("span");tag.className="combo-tag full";tag.textContent="All fields complete";fe.appendChild(tag);}
+      else{for(var j=0;j<c.fields.length;j++){var t2=document.createElement("span");t2.className="combo-tag";t2.textContent=c.fields[j];fe.appendChild(t2);}}
+      row.appendChild(fe);
+      var ce=document.createElement("div");ce.className="combo-count";ce.textContent=c.count;row.appendChild(ce);
+      var pce=document.createElement("div");pce.className="combo-pct";pce.textContent=pct+"%";row.appendChild(pce);
+      body.appendChild(row);
+    }
+  }
+
+  function downloadBlob(content,filename,mime){var blob=new Blob([content],{type:mime});var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+    document.body.removeChild(a);URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("exportJsonBtn").addEventListener("click",function(){
+    var data=files[activeFile];if(!data)return;
+    var report={file:activeFile,totalRecords:data.totalRecords,uniqueFields:data.fieldNames.length,
+      fieldCompleteness:data.fieldStats.map(function(f){return{field:f.name,populated:f.populated,missing:f.missing,pct:data.totalRecords>0?Math.round(f.populated/data.totalRecords*100):0};}),
+      missingFieldCombinations:data.combos.map(function(c){return{missingFields:c.fields.length===0?["(none)"]:c.fields,count:c.count,pct:data.totalRecords>0?+((c.count/data.totalRecords)*100).toFixed(1):0};})
+    };
+    downloadBlob(JSON.stringify(report,null,2),(activeFile||"report").replace(".json","")+"_analysis.json","application/json");
+  });
+
+  document.getElementById("exportCsvBtn").addEventListener("click",function(){
+    var data=files[activeFile];if(!data)return;
+    var lines=["Section,Field,Populated,Missing,Coverage %"];
+    for(var i=0;i<data.fieldStats.length;i++){var f=data.fieldStats[i];var pct=data.totalRecords>0?Math.round(f.populated/data.totalRecords*100):0;
+      lines.push("Field Completeness,"+escCSV(f.name)+","+f.populated+","+f.missing+","+pct);}
+    lines.push("");lines.push("Section,Missing Fields,Count,% of Total");
+    for(var j=0;j<data.combos.length;j++){var c=data.combos[j];var cpct=data.totalRecords>0?((c.count/data.totalRecords)*100).toFixed(1):"0.0";
+      var label=c.fields.length===0?"(all complete)":c.fields.join(" + ");
+      lines.push("Missing Combination,"+escCSV(label)+","+c.count+","+cpct);}
+    downloadBlob(lines.join("\\n"),(activeFile||"report").replace(".json","")+"_analysis.csv","text/csv");
+  });
+
+  document.getElementById("exportCompleteBtn").addEventListener("click",function(){
+    var data=files[activeFile];if(!data)return;var complete=[];
+    for(var i=0;i<data.records.length;i++){var rec=data.records[i];var allFilled=true;
+      for(var j=0;j<data.fieldNames.length;j++){if(isEmpty(rec[data.fieldNames[j]])){allFilled=false;break;}}
+      if(allFilled)complete.push(rec);}
+    if(complete.length===0){showToast("No fully complete records found");return;}
+    downloadBlob(JSON.stringify(complete,null,2),(activeFile||"data").replace(".json","")+"_complete.json","application/json");
+    showToast("Downloaded "+complete.length+" complete records");
+  });
+
+  function escCSV(s){var v=String(s);if(v.indexOf('"')!==-1||v.indexOf(",")!==-1||v.indexOf("\\n")!==-1){return '"'+v.replace(/"/g,'""')+'"';}return v;}
+
+  function showToast(msg){
+    var t=document.createElement("div");
+    t.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#262626;color:#f5f5f5;border:1px solid #333;padding:10px 22px;border-radius:10px;font-size:13px;z-index:200;font-family:'IBM Plex Mono',monospace;max-width:90vw;text-align:center;";
+    t.textContent=msg;document.body.appendChild(t);
+    setTimeout(function(){t.style.opacity="0";t.style.transition="opacity .3s";
+      setTimeout(function(){if(t.parentNode)document.body.removeChild(t);},300);},2800);
+  }
 })();
 </script>
 </body>
