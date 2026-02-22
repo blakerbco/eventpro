@@ -1472,17 +1472,26 @@ def irs_search():
     where = " AND ".join(conditions) if conditions else "1=1"
     query = f"""
         SELECT
-            EIN, OrganizationName, Website, PhysicalAddress, PhysicalCity, PhysicalState, PhysicalZIP,
-            BusinessOfficerPhone, PrincipalOfficerName,
-            TotalRevenue, GrossReceipts, NetIncome, TotalAssets, ContributionsReceived,
-            ProgramServiceRevenue, FundraisingGrossIncome, FundraisingDirectExpenses,
-            Event1Name, Event1GrossReceipts, Event1GrossRevenue, Event1NetIncome,
-            Event2Name, Event2GrossReceipts, Event2GrossRevenue,
-            Event1Keyword, Event2Keyword, PrimaryEventType, ProspectTier,
-            Region5, MissionDescriptionShort
+            ein AS "EIN", organizationname AS "OrganizationName", website AS "Website",
+            physicaladdress AS "PhysicalAddress", physicalcity AS "PhysicalCity",
+            physicalstate AS "PhysicalState", physicalzip AS "PhysicalZIP",
+            businessofficerphone AS "BusinessOfficerPhone", principalofficername AS "PrincipalOfficerName",
+            totalrevenue AS "TotalRevenue", grossreceipts AS "GrossReceipts",
+            netincome AS "NetIncome", totalassets AS "TotalAssets",
+            contributionsreceived AS "ContributionsReceived",
+            programservicerevenue AS "ProgramServiceRevenue",
+            fundraisinggrossincome AS "FundraisingGrossIncome",
+            fundraisingdirectexpenses AS "FundraisingDirectExpenses",
+            event1name AS "Event1Name", event1grossreceipts AS "Event1GrossReceipts",
+            event1grossrevenue AS "Event1GrossRevenue", event1netincome AS "Event1NetIncome",
+            event2name AS "Event2Name", event2grossreceipts AS "Event2GrossReceipts",
+            event2grossrevenue AS "Event2GrossRevenue",
+            event1keyword AS "Event1Keyword", event2keyword AS "Event2Keyword",
+            primaryeventtype AS "PrimaryEventType", prospecttier AS "ProspectTier",
+            region5 AS "Region5", missiondescriptionshort AS "MissionDescriptionShort"
         FROM tax_year_2019_search
         WHERE {where}
-        ORDER BY TotalRevenue DESC
+        ORDER BY totalrevenue DESC
         LIMIT {limit}
     """
 
