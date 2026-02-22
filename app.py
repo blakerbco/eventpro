@@ -87,6 +87,27 @@ app.permanent_session_lifetime = _dt.timedelta(days=30)
 def _make_session_permanent():
     session.permanent = True
 
+
+# ─── Rate Limiting ──────────────────────────────────────────────────────────
+
+_rate_limits: Dict[str, list] = {}  # key -> list of timestamps
+
+def _rate_limit(key: str, max_requests: int, window_seconds: int) -> bool:
+    """Returns True if rate limit exceeded. Cleans up old entries."""
+    now = time.time()
+    if key not in _rate_limits:
+        _rate_limits[key] = []
+    # Remove expired timestamps
+    _rate_limits[key] = [t for t in _rate_limits[key] if now - t < window_seconds]
+    if len(_rate_limits[key]) >= max_requests:
+        return True
+    _rate_limits[key].append(now)
+    return False
+
+def _get_client_ip() -> str:
+    """Get real client IP, respecting proxy headers."""
+    return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+
 RESULTS_DIR = os.environ.get("RESULTS_DIR", "results")
 DB_CONN_STRING = (
     os.environ.get("IRS_DB_CONNECTION")
@@ -740,6 +761,10 @@ def register_page():
 
 @app.route("/register", methods=["POST"])
 def register_submit():
+    ip = _get_client_ip()
+    # 3 registration attempts per IP per hour
+    if _rate_limit(f"register:{ip}", 3, 3600):
+        return REGISTER_HTML.replace("<!-- error -->", '<p class="error">Too many registration attempts. Try again later.</p>'), 429
     from db import is_work_email
 
     email = request.form.get("email", "").strip().lower()
@@ -792,6 +817,10 @@ def login_page():
 
 @app.route("/login", methods=["POST"])
 def login_submit():
+    ip = _get_client_ip()
+    # 5 login attempts per IP per 5 minutes
+    if _rate_limit(f"login:{ip}", 5, 300):
+        return LOGIN_HTML.replace("<!-- error -->", '<p class="error">Too many login attempts. Try again in a few minutes.</p>'), 429
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     user = authenticate(email, password)
@@ -818,6 +847,10 @@ def forgot_password_page():
 
 @app.route("/forgot-password", methods=["POST"])
 def forgot_password_submit():
+    ip = _get_client_ip()
+    # 3 reset attempts per IP per 15 minutes
+    if _rate_limit(f"reset:{ip}", 3, 900):
+        return FORGOT_PASSWORD_HTML.replace("<!-- error -->", '<p class="error">Too many reset attempts. Try again later.</p>'), 429
     email = request.form.get("email", "").strip().lower()
     if email:
         user = get_user_by_email(email)
@@ -1149,6 +1182,14 @@ def index():
 @app.route("/api/search", methods=["POST"])
 @login_required
 def start_search():
+    ip = _get_client_ip()
+    user_id = session.get("user_id", "anon")
+    # 10 search jobs per user per hour
+    if _rate_limit(f"search:{user_id}", 10, 3600):
+        return jsonify({"error": "Rate limit: max 10 searches per hour. Please wait."}), 429
+    # 20 search jobs per IP per hour (catches abuse across accounts)
+    if _rate_limit(f"search_ip:{ip}", 20, 3600):
+        return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
     data = request.get_json()
     raw_input = data.get("nonprofits", "")
     complete_only = bool(data.get("complete_only", False))
