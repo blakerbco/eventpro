@@ -229,7 +229,7 @@ def call_poe_bot_sync(nonprofit: str, extra_delay: float = 0) -> str:
     - Rate limit: wait 60s + add 1s to future delays, keep retrying until success
     - Other errors: standard retry with backoff
     """
-    prompt = f'Research this nonprofit and find upcoming auction events: "{nonprofit}"'
+    prompt = nonprofit
     attempt = 0
     max_attempts = 20  # generous limit for rate-limit retries
 
