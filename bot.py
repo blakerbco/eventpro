@@ -225,17 +225,14 @@ def _missing_billable_fields(result: Dict[str, Any]) -> List[str]:
 
 def call_poe_bot_sync(nonprofit: str, extra_delay: float = 0) -> str:
     """Call the Poe bot synchronously, streaming the full response text.
-    Retries on transient/rate-limit errors with adaptive backoff:
-    - Rate limit: wait 60s + add 1s to future delays, keep retrying until success
-    - Other errors: standard retry with backoff
+    Matches the working run_auction_finder.py pattern exactly.
     """
-    prompt = nonprofit
-    attempt = 0
-    max_attempts = 20  # generous limit for rate-limit retries
+    import traceback
+    print(f"    [POE DEBUG] Calling bot='{POE_BOT_NAME}' key_len={len(POE_API_KEY)} nonprofit='{nonprofit}'", file=sys.stderr)
 
-    while attempt < max_attempts:
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            message = fp.ProtocolMessage(role="user", content=prompt)
+            message = fp.ProtocolMessage(role="user", content=nonprofit)
             full_text = ""
             for partial in fp.get_bot_response_sync(
                 messages=[message],
@@ -246,27 +243,16 @@ def call_poe_bot_sync(nonprofit: str, extra_delay: float = 0) -> str:
             return full_text
         except Exception as e:
             err_msg = str(e)
-            is_rate_limit = any(x in err_msg.lower() for x in ["429", "rate", "too many", "quota"])
-
-            if is_rate_limit:
-                # Adaptive backoff: wait 60s, add 1s to global delay
-                global DELAY_BETWEEN_CALLS
-                DELAY_BETWEEN_CALLS += 1
-                wait = 60
-                print(f"    [RATE LIMIT] Poe rate limited, waiting {wait}s. "
-                      f"Increased base delay to {DELAY_BETWEEN_CALLS}s. "
-                      f"Attempt {attempt + 1}...", file=sys.stderr)
+            print(f"    [POE ERROR] Attempt {attempt}/{MAX_RETRIES}: {err_msg}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            if attempt < MAX_RETRIES:
+                wait = RETRY_BACKOFF[attempt - 1] if attempt - 1 < len(RETRY_BACKOFF) else 15
+                print(f"    [POE RETRY] Waiting {wait}s...", file=sys.stderr)
                 time.sleep(wait)
-                attempt += 1
-            elif attempt < MAX_RETRIES:
-                wait = RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 40
-                print(f"    [ERROR] Poe call failed ({err_msg[:80]}), retrying in {wait}s ({attempt + 1}/{MAX_RETRIES})...", file=sys.stderr)
-                time.sleep(wait)
-                attempt += 1
             else:
                 raise
 
-    raise Exception(f"Poe bot call failed after {max_attempts} attempts for: {nonprofit}")
+    raise Exception(f"Poe bot call failed after {MAX_RETRIES} attempts for: {nonprofit}")
 
 
 def _poe_result_to_full(poe_data: dict, nonprofit: str) -> Dict[str, Any]:
