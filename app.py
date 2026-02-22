@@ -4084,21 +4084,21 @@ LANDING_HTML = """<!DOCTYPE html>
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
+# ─── App Initialization (runs under both gunicorn and direct execution) ──────
+
+if not os.environ.get("POE_API_KEY"):
+    print("WARNING: POE_API_KEY environment variable is not set.", file=sys.stderr)
+
+init_db()
+print("Database initialized.", file=sys.stderr)
+
+cleanup_stale_running_jobs()
+cleanup_expired_jobs()
+flush_uncertain_cache()
+
+print(f"Stripe configured: {'Yes' if stripe.api_key else 'No (set STRIPE_SECRET_KEY)'}", file=sys.stderr)
+
 if __name__ == "__main__":
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
-        sys.exit(1)
-
-    # Initialize database
-    init_db()
-    print("Database initialized.", file=sys.stderr)
-
-    # Clean up zombie "running" jobs from previous server instance
-    cleanup_stale_running_jobs()
-    cleanup_expired_jobs()
-    flush_uncertain_cache()
-
     port = int(os.environ.get("PORT", 5000))
     print(f"AUCTIONFINDER Web UI starting on http://localhost:{port}", file=sys.stderr)
-    print(f"Stripe configured: {'Yes' if stripe.api_key else 'No (set STRIPE_SECRET_KEY)'}", file=sys.stderr)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
