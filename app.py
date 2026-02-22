@@ -1523,33 +1523,20 @@ def irs_states():
 @app.route("/api/test-poe")
 @login_required
 def test_poe():
-    """Debug endpoint: test a single Poe bot call with full diagnostics."""
+    """Debug endpoint: test a single Poe bot call."""
     user = _current_user()
     if not user or not user.get("is_admin"):
         return jsonify({"error": "Admin only"}), 403
     try:
         import traceback
-        import fastapi_poe as fp
         poe_key = os.environ.get("POE_API_KEY", "")
-        bot_name = POE_BOT_NAME
-        domain = request.args.get("domain", "redcross.org")
-        message = fp.ProtocolMessage(role="user", content=domain)
-        chunks = []
-        for partial in fp.get_bot_response_sync(
-            messages=[message],
-            bot_name=bot_name,
-            api_key=poe_key,
-        ):
-            chunks.append(repr(partial.text))
-        full = "".join(c.strip("'\"") for c in chunks)
+        text = call_poe_bot_sync("redcross.org")
         return jsonify({
-            "status": "ok", "bot": bot_name, "domain": domain,
+            "status": "ok", "bot": POE_BOT_NAME,
             "api_key_set": bool(poe_key), "api_key_prefix": poe_key[:8] + "..." if poe_key else "MISSING",
-            "chunk_count": len(chunks), "response_length": len(full),
-            "preview": full[:500],
+            "response_length": len(text), "preview": text[:500],
         })
     except Exception as e:
-        import traceback
         return jsonify({"status": "error", "bot": POE_BOT_NAME, "error": str(e), "traceback": traceback.format_exc()}), 500
 
 
