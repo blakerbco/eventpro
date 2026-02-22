@@ -46,7 +46,7 @@ from bot import (
     MAX_NONPROFITS, POE_BOT_NAME, PAUSE_BETWEEN_DOMAINS,
     ALLOWLISTED_PLATFORMS, CSV_COLUMNS, parse_input,
     _error_result, extract_json, extract_json_from_response,
-    classify_lead_tier, _has_valid_url,
+    classify_lead_tier, _has_valid_url, _is_valid_email,
     _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
 )
 
@@ -107,6 +107,27 @@ def _rate_limit(key: str, max_requests: int, window_seconds: int) -> bool:
 def _get_client_ip() -> str:
     """Get real client IP, respecting proxy headers."""
     return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+
+# ─── Emailable Email Validation ──────────────────────────────────────────────
+
+EMAILABLE_API_KEY = os.environ.get("EMAILABLE_API_KEY", "")
+
+def validate_email_emailable(email: str) -> dict:
+    """Validate email via Emailable.com API. Returns {state, accept_all, ...}."""
+    if not email or not EMAILABLE_API_KEY:
+        return {"state": "unknown"}
+    try:
+        import requests
+        resp = requests.get(
+            "https://api.emailable.com/v1/verify",
+            params={"email": email, "api_key": EMAILABLE_API_KEY},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return {"state": "unknown"}
 
 RESULTS_DIR = os.environ.get("RESULTS_DIR", "results")
 DB_CONN_STRING = (
@@ -379,6 +400,22 @@ def _research_one(
         cached["_source"] = "cache"
         cached["_api_calls"] = 0
         status = cached.get("status", "uncertain")
+
+        # Validate email if not already validated
+        if not cached.get("_email_status"):
+            email = cached.get("contact_email", "").strip()
+            if email and _is_valid_email(email):
+                validation = validate_email_emailable(email)
+                email_state = validation.get("state", "unknown")
+                if validation.get("accept_all"):
+                    email_state = "catch-all"
+                cached["_email_status"] = email_state
+                if email_state == "undeliverable":
+                    cached["contact_email"] = ""
+                    cached["_email_status"] = "invalid"
+            else:
+                cached["_email_status"] = "missing"
+
         tier, price = classify_lead_tier(cached)
         title = cached.get("event_title", "")
 
@@ -441,6 +478,20 @@ def _research_one(
     # Use first event as the primary result
     result = _poe_result_to_full(events[0], nonprofit)
     result["_api_calls"] = 1
+
+    # ── Validate email via Emailable ──
+    email = result.get("contact_email", "").strip()
+    if email and _is_valid_email(email):
+        validation = validate_email_emailable(email)
+        email_state = validation.get("state", "unknown")
+        if validation.get("accept_all"):
+            email_state = "catch-all"
+        result["_email_status"] = email_state
+        if email_state == "undeliverable":
+            result["contact_email"] = ""  # Strip fake/dead email
+            result["_email_status"] = "invalid"
+    else:
+        result["_email_status"] = "missing"
 
     tier, price = classify_lead_tier(result)
     status = result.get("status", "uncertain")
@@ -567,10 +618,10 @@ def _run_job(
     else:
         save_results = [r for r in all_results if classify_lead_tier(r)[1] > 0]
 
-    # If complete_only mode, further filter to only "full" tier leads
+    # If complete_only mode, further filter to only "complete" tier leads
     if complete_only and not is_admin:
-        save_results = [r for r in save_results if classify_lead_tier(r)[0] == "full"]
-        # Recalculate billing to only include full-tier leads
+        save_results = [r for r in save_results if classify_lead_tier(r)[0] == "complete"]
+        # Recalculate billing to only include complete-tier leads
         tier_counts = {}
         for r in save_results:
             tier, price = classify_lead_tier(r)

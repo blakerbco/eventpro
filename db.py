@@ -11,6 +11,9 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import psycopg2
 import psycopg2.extras
 from werkzeug.security import generate_password_hash, check_password_hash

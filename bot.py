@@ -140,49 +140,24 @@ def _is_valid_email(email: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()))
 
 
-GENERIC_PREFIXES = {"info@", "contact@", "admin@", "support@"}
-DOWNGRADE_GENERIC_EMAILS = False
-
-
 def _has_valid_url(result: Dict[str, Any]) -> bool:
     url = result.get("event_url", "").strip()
     return url.startswith("http://") or url.startswith("https://")
 
 
 def classify_lead_tier(result: Dict[str, Any]) -> tuple:
-    """Returns (tier_name, price_cents) based on fields present."""
+    """Returns (tier_name, price_cents). Single tier: complete=$1.50, else not_billable."""
     has_title = bool(result.get("event_title", "").strip())
     has_date = bool(result.get("event_date", "").strip())
     has_url = _has_valid_url(result)
     has_auction = bool(result.get("auction_type", "").strip())
     has_name = bool(result.get("contact_name", "").strip())
     has_email = _is_valid_email(result.get("contact_email", ""))
+    email_verified = result.get("_email_status") in ("deliverable", "catch-all", "risky")
 
-    if not has_title or not has_date or not has_url:
-        return ("not_billable", 0)
-
-    tier, price = "not_billable", 0
-
-    if has_title and has_date and has_url and has_auction and has_name and has_email:
-        tier, price = "full", 150
-    elif has_title and has_date and has_url and has_auction and has_email:
-        tier, price = "partial", 125
-    elif has_title and has_date and has_url and has_email:
-        tier, price = "semi", 100
-    elif has_title and has_date and has_url:
-        tier, price = "bare", 75
-
-    if DOWNGRADE_GENERIC_EMAILS and has_email:
-        email_lower = result.get("contact_email", "").lower()
-        if any(email_lower.startswith(p) for p in GENERIC_PREFIXES):
-            downgrades = {"full": "partial", "partial": "semi", "semi": "bare", "bare": "bare"}
-            new_tier = downgrades.get(tier, tier)
-            if new_tier != tier:
-                tier = new_tier
-                tier_prices = {"full": 150, "partial": 125, "semi": 100, "bare": 75, "not_billable": 0}
-                price = tier_prices.get(tier, 0)
-
-    return (tier, price)
+    if has_title and has_date and has_url and has_auction and has_name and has_email and email_verified:
+        return ("complete", 150)
+    return ("not_billable", 0)
 
 
 def _missing_billable_fields(result: Dict[str, Any]) -> List[str]:
