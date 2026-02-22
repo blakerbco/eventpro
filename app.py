@@ -509,6 +509,18 @@ def _run_job(
             })
             break
 
+        # Send ETA with each domain
+        elapsed_so_far = time.time() - start
+        avg_per = elapsed_so_far / (idx - 1) if idx > 1 else 45  # estimate ~45s first call
+        remaining_secs = int(avg_per * (total - idx + 1))
+        progress_q.put({
+            "type": "eta",
+            "elapsed": int(elapsed_so_far),
+            "remaining": remaining_secs,
+            "index": idx,
+            "total": total,
+        })
+
         result = _research_one(
             np_name, idx, total, progress_q,
             user_id=user_id, job_id=job_id, is_admin=is_admin,
@@ -2291,6 +2303,9 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="progress-bar" id="progressBar"></div>
       <div class="progress-text" id="progressText">0 / 0</div>
     </div>
+    <div id="etaDisplay" style="display:none;text-align:center;padding:6px 0 2px;font-size:13px;color:#a3a3a3;font-family:monospace;">
+      <span id="etaElapsed"></span> &nbsp;&bull;&nbsp; <span id="etaRemaining" style="color:#eab308;"></span>
+    </div>
 
     <div class="stats">
       <div class="stat found"><div class="num" id="statFound">0</div><div class="label">Found</div></div>
@@ -2513,6 +2528,14 @@ async function startSearch() {
 
         case 'complete':
           log('', '');
+          // Update ETA to show final elapsed time
+          const cEtaDiv = document.getElementById('etaDisplay');
+          const cM = Math.floor(data.elapsed / 60);
+          const cS = Math.round(data.elapsed % 60);
+          cEtaDiv.style.display = 'block';
+          document.getElementById('etaElapsed').textContent = 'Total time: ' + cM + 'm ' + (cS < 10 ? '0' : '') + cS + 's';
+          document.getElementById('etaRemaining').textContent = 'Complete!';
+          document.getElementById('etaRemaining').style.color = '#4ade80';
           log('SEARCH COMPLETE in ' + data.elapsed + 's', 'complete');
           log('Found: ' + data.summary.found + ' | 3rd Party: ' + data.summary['3rdpty_found'] +
               ' | Not Found: ' + data.summary.not_found + ' | Uncertain: ' + data.summary.uncertain, 'complete');
@@ -2554,6 +2577,17 @@ async function startSearch() {
           searchBtn.disabled = false;
           currentEvtSource.close();
           currentEvtSource = null;
+          break;
+
+        case 'eta':
+          const etaDiv = document.getElementById('etaDisplay');
+          etaDiv.style.display = 'block';
+          const eM = Math.floor(data.elapsed / 60);
+          const eS = data.elapsed % 60;
+          const rM = Math.floor(data.remaining / 60);
+          const rS = data.remaining % 60;
+          document.getElementById('etaElapsed').textContent = 'Elapsed: ' + eM + 'm ' + (eS < 10 ? '0' : '') + eS + 's';
+          document.getElementById('etaRemaining').textContent = '~' + rM + 'm ' + (rS < 10 ? '0' : '') + rS + 's remaining';
           break;
 
         case 'heartbeat':
