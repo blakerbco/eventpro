@@ -249,6 +249,7 @@ _SIDEBAR_ICONS = {
     "support": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     "profile": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>',
     "logout": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
+    "tools": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
 }
 
 _SIDEBAR_NAV_ITEMS = [
@@ -264,6 +265,9 @@ _SIDEBAR_NAV_ITEMS = [
     ("Help", [
         ("getting-started", "/getting-started", "Getting Started"),
         ("support", "/support", "Support{{SUPPORT_BADGE}}"),
+    ]),
+    ("Tools", [
+        ("tools", "/tools/merge", "File Merger"),
     ]),
     ("Settings", [
         ("profile", "/profile", "Profile"),
@@ -1515,6 +1519,17 @@ US_STATES = [
 @login_required
 def irs_states():
     return jsonify(US_STATES)
+
+
+# ─── Routes: Tools ───────────────────────────────────────────────────────────
+
+@app.route("/tools/merge")
+@login_required
+def tools_merge_page():
+    user = _current_user()
+    html = _inject_sidebar(MERGE_TOOL_HTML, "tools")
+    html = html.replace("{{EMAIL}}", user["email"] if user else "")
+    return _inject_nav_badge(html)
 
 
 # ─── Routes: Getting Started ─────────────────────────────────────────────────
@@ -3089,11 +3104,326 @@ RESULTS_HTML = """<!DOCTYPE html>
 {{SIDEBAR_HTML}}
 <div class="main-content">
 <div class="container">
-  <h2>Search Results</h2>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h2>Search Results</h2>
+    <a href="/tools/merge" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#eab308;text-decoration:none;font-size:13px;font-weight:600;transition:all 0.2s;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      Merge Files
+    </a>
+  </div>
   <p class="subtitle">Your past search results are stored for 180 days. Download in CSV, JSON, or XLSX format.</p>
   {{JOB_CARDS}}
 </div>
 </div>
+</body>
+</html>"""
+
+MERGE_TOOL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - File Merger</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width: 760px; margin: 0 auto; padding: 24px; }
+  h2 { font-size: 18px; color: #d4d4d4; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #737373; margin-bottom: 24px; }
+
+  .mode-tabs { display:flex; background:#1a1a1a; border-radius:10px; padding:3px; margin-bottom:20px; border:1px solid #262626; }
+  .mode-tab { flex:1; padding:10px 14px; border:none; background:transparent; font-family:inherit; font-size:13px; font-weight:600; color:#737373; border-radius:8px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .mode-tab.active-csv { background:#eab308; color:#000; }
+  .mode-tab.active-json { background:#7c3aed; color:#fff; }
+  .mode-tab:not([class*="active-"]):hover { color:#f5f5f5; background:#262626; }
+
+  .drop-zone { border:2px dashed #333; border-radius:12px; padding:36px 20px; text-align:center; cursor:pointer; transition:all 0.2s; background:#1a1a1a; position:relative; }
+  .drop-zone:hover, .drop-zone.dragover { border-color:#eab308; background:#1a1a0a; }
+  .drop-zone-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-size:20px; background:#262626; color:#eab308; }
+  .mode-json .drop-zone-icon { color:#7c3aed; }
+  .drop-zone h3 { font-size:14px; font-weight:600; margin-bottom:4px; }
+  .drop-zone p { font-size:12px; color:#737373; }
+  .drop-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+
+  .file-list-section { margin-top:16px; }
+  .file-list-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .file-list-header h3 { font-size:13px; font-weight:600; color:#a3a3a3; }
+  .file-count { font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#262626; color:#eab308; }
+  .file-list { display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; }
+  .file-list::-webkit-scrollbar { width:4px; }
+  .file-list::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
+  .file-item { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#1a1a1a; border:1px solid #262626; border-radius:8px; }
+  .file-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; background:#262626; color:#eab308; flex-shrink:0; }
+  .mode-json .file-icon { color:#7c3aed; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:11px; color:#737373; }
+  .file-remove { width:28px; height:28px; border-radius:6px; border:none; background:transparent; color:#737373; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+  .file-remove:hover { background:#3a1a1a; color:#f87171; }
+
+  .actions { display:flex; gap:8px; margin-top:16px; }
+  .btn { flex:1; padding:12px 16px; border:none; border-radius:8px; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn-merge-csv { background:#eab308; color:#000; }
+  .btn-merge-csv:not(:disabled):hover { filter:brightness(1.1); }
+  .btn-merge-json { background:#7c3aed; color:#fff; }
+  .btn-merge-json:not(:disabled):hover { filter:brightness(1.1); }
+  .btn-clear { background:#1a1a1a; color:#a3a3a3; border:1px solid #333; flex:0 0 auto; padding:12px 14px; }
+  .btn-clear:not(:disabled):hover { background:#3a1a1a; color:#f87171; border-color:#f87171; }
+
+  .status-bar { margin-top:14px; padding:12px 14px; border-radius:8px; font-size:13px; font-weight:500; display:none; align-items:center; gap:8px; }
+  .status-bar.success { display:flex; background:#1a2a1a; color:#4ade80; border:1px solid #2a3a2a; }
+  .status-bar.error { display:flex; background:#3a1a1a; color:#f87171; border:1px solid #4a2a2a; }
+
+  .download-area { margin-top:14px; display:none; }
+  .download-area.visible { display:block; }
+  .btn-download { width:100%; padding:14px 16px; border:2px dashed #eab308; border-radius:8px; background:#1a1a0a; color:#eab308; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; }
+  .btn-download:hover { background:#eab308; color:#000; border-style:solid; }
+
+  .preview-section { margin-top:16px; display:none; }
+  .preview-section.visible { display:block; }
+  .preview-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .preview-header h3 { font-size:13px; font-weight:600; color:#a3a3a3; }
+  .preview-toggle { font-size:12px; color:#737373; background:none; border:none; cursor:pointer; font-family:inherit; font-weight:500; }
+  .preview-toggle:hover { color:#f5f5f5; }
+  .preview-box { background:#0a0a0a; border:1px solid #262626; border-radius:8px; padding:12px; max-height:240px; overflow:auto; font-size:11px; line-height:1.6; color:#a3a3a3; white-space:pre; word-break:break-all; }
+  .preview-box::-webkit-scrollbar { width:4px; height:4px; }
+  .preview-box::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
+
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; }
+  .modal-box { background:#1a1a1a; border:1px solid #333; border-radius:12px; padding:20px; max-width:360px; width:100%; }
+  .modal-box h3 { font-size:15px; font-weight:600; margin-bottom:6px; }
+  .modal-box p { font-size:13px; color:#a3a3a3; margin-bottom:16px; line-height:1.5; }
+  .modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+  .modal-btn { padding:8px 16px; border-radius:6px; border:none; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .modal-btn-cancel { background:#262626; color:#a3a3a3; }
+  .modal-btn-cancel:hover { background:#333; }
+  .modal-btn-confirm { background:#f87171; color:#fff; }
+  .modal-btn-confirm:hover { filter:brightness(1.1); }
+
+  @media (max-width: 480px) {
+    .container { padding:16px; }
+    .actions { flex-direction:column; }
+    .btn-clear { flex:1; }
+  }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h2>File Merger</h2>
+  <p class="subtitle">Upload multiple CSV or JSON result files and merge them into a single download.</p>
+
+  <div class="mode-tabs">
+    <button class="mode-tab active-csv" id="tabCsv" onclick="switchMode('csv')">CSV Merger</button>
+    <button class="mode-tab" id="tabJson" onclick="switchMode('json')">JSON Merger</button>
+  </div>
+
+  <div class="drop-zone mode-csv" id="dropZone">
+    <input type="file" id="fileInput" multiple accept=".csv">
+    <div class="drop-zone-icon">&#8593;</div>
+    <h3 id="dropTitle">Drop CSV files here or click to browse</h3>
+    <p id="dropHint">Up to 20 files &middot; Same column headers required</p>
+  </div>
+
+  <div class="file-list-section" id="fileListSection" style="display:none;">
+    <div class="file-list-header">
+      <h3>Uploaded Files</h3>
+      <span class="file-count" id="fileCount">0 / 20</span>
+    </div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <div class="actions" id="actionsArea" style="display:none;">
+    <button class="btn btn-merge-csv" id="btnMerge" onclick="mergeFiles()" disabled>
+      <span id="mergeLabel">Merge CSV Files</span>
+    </button>
+    <button class="btn btn-clear" id="btnClear" onclick="confirmClear()">Clear</button>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <span id="statusIcon"></span>
+    <span class="status-text" id="statusText"></span>
+  </div>
+
+  <div class="download-area" id="downloadArea">
+    <a class="btn-download" id="downloadLink" href="#" download="merged.csv">
+      <span id="downloadLabel">Download Merged CSV</span>
+    </a>
+  </div>
+
+  <div class="preview-section" id="previewSection">
+    <div class="preview-header">
+      <h3 id="previewTitle">Preview (first 50 rows)</h3>
+      <button class="preview-toggle" id="previewToggle" onclick="togglePreview()">Hide</button>
+    </div>
+    <div class="preview-box" id="previewBox"></div>
+  </div>
+</div>
+</div>
+
+<script>
+(function() {
+  var currentMode = 'csv';
+  var csvFiles = [];
+  var jsonFiles = [];
+  var mergedBlobUrl = null;
+
+  var dropZone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var fileListSection = document.getElementById('fileListSection');
+  var fileList = document.getElementById('fileList');
+  var fileCount = document.getElementById('fileCount');
+  var actionsArea = document.getElementById('actionsArea');
+  var btnMerge = document.getElementById('btnMerge');
+  var mergeLabel = document.getElementById('mergeLabel');
+  var statusBar = document.getElementById('statusBar');
+  var statusIcon = document.getElementById('statusIcon');
+  var statusText = document.getElementById('statusText');
+  var downloadArea = document.getElementById('downloadArea');
+  var downloadLink = document.getElementById('downloadLink');
+  var downloadLabel = document.getElementById('downloadLabel');
+  var previewSection = document.getElementById('previewSection');
+  var previewBox = document.getElementById('previewBox');
+  var previewToggle = document.getElementById('previewToggle');
+  var tabCsv = document.getElementById('tabCsv');
+  var tabJson = document.getElementById('tabJson');
+  var dropTitle = document.getElementById('dropTitle');
+  var dropHint = document.getElementById('dropHint');
+
+  window.switchMode = function(mode) {
+    currentMode = mode;
+    clearResults();
+    if (mode === 'csv') {
+      tabCsv.className = 'mode-tab active-csv';
+      tabJson.className = 'mode-tab';
+      dropZone.className = 'drop-zone mode-csv';
+      fileInput.accept = '.csv';
+      dropTitle.textContent = 'Drop CSV files here or click to browse';
+      dropHint.textContent = 'Up to 20 files \\u00B7 Same column headers required';
+      mergeLabel.textContent = 'Merge CSV Files';
+      btnMerge.className = 'btn btn-merge-csv';
+    } else {
+      tabCsv.className = 'mode-tab';
+      tabJson.className = 'mode-tab active-json';
+      dropZone.className = 'drop-zone mode-json';
+      fileInput.accept = '.json';
+      dropTitle.textContent = 'Drop JSON files here or click to browse';
+      dropHint.textContent = 'Up to 20 files \\u00B7 Identical JSON structure required';
+      mergeLabel.textContent = 'Merge JSON Files';
+      btnMerge.className = 'btn btn-merge-json';
+    }
+    renderFileList();
+  };
+
+  function getFiles() { return currentMode === 'csv' ? csvFiles : jsonFiles; }
+  function setFiles(f) { if (currentMode === 'csv') csvFiles = f; else jsonFiles = f; }
+
+  function addFiles(newFiles) {
+    var current = getFiles();
+    var remaining = 20 - current.length;
+    if (remaining <= 0) { showStatus('error', 'Maximum 20 files. Remove some first.'); return; }
+    var ext = currentMode === 'csv' ? '.csv' : '.json';
+    var accepted = [], rejected = 0;
+    for (var i = 0; i < newFiles.length && accepted.length < remaining; i++) {
+      var f = newFiles[i];
+      if (f.name.toLowerCase().endsWith(ext)) {
+        var dup = false;
+        for (var j = 0; j < current.length; j++) { if (current[j].name === f.name) { dup = true; break; } }
+        if (!dup) accepted.push(f); else rejected++;
+      } else { rejected++; }
+    }
+    if (rejected > 0) showStatus('error', rejected + ' file(s) skipped (wrong type or duplicate).');
+    if (accepted.length > 0) { setFiles(current.concat(accepted)); clearResults(); renderFileList(); }
+  }
+
+  fileInput.addEventListener('change', function(e) { if (e.target.files.length > 0) { addFiles(Array.from(e.target.files)); e.target.value = ''; } });
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', function(e) { e.preventDefault(); dropZone.classList.remove('dragover'); });
+  dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files.length > 0) addFiles(Array.from(e.dataTransfer.files)); });
+
+  function fmtSize(b) { if (b < 1024) return b+' B'; if (b < 1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
+
+  function renderFileList() {
+    var files = getFiles();
+    if (files.length === 0) { fileListSection.style.display='none'; actionsArea.style.display='none'; return; }
+    fileListSection.style.display = 'block';
+    actionsArea.style.display = 'flex';
+    fileCount.textContent = files.length + ' / 20';
+    btnMerge.disabled = files.length < 2;
+    fileListSection.className = 'file-list-section ' + (currentMode==='csv'?'mode-csv':'mode-json');
+    var html = '';
+    for (var i = 0; i < files.length; i++) {
+      html += '<div class="file-item"><div class="file-icon">'+(currentMode==='csv'?'CSV':'{ }')+'</div><div class="file-info"><div class="file-name">'+escapeHtml(files[i].name)+'</div><div class="file-meta">'+fmtSize(files[i].size)+'</div></div><button class="file-remove" onclick="removeFile('+i+')" title="Remove">&times;</button></div>';
+    }
+    fileList.innerHTML = html;
+  }
+
+  window.removeFile = function(i) { var f=getFiles(); f.splice(i,1); setFiles(f); clearResults(); renderFileList(); };
+
+  window.confirmClear = function() {
+    var files = getFiles(); if (files.length===0) return;
+    var ov = document.createElement('div'); ov.className='modal-overlay';
+    ov.innerHTML='<div class="modal-box"><h3>Clear All Files?</h3><p>Remove all '+files.length+' '+currentMode.toUpperCase()+' file(s) and results.</p><div class="modal-actions"><button class="modal-btn modal-btn-cancel" id="mc">Cancel</button><button class="modal-btn modal-btn-confirm" id="mk">Clear All</button></div></div>';
+    document.body.appendChild(ov);
+    document.getElementById('mc').onclick=function(){ov.remove();};
+    document.getElementById('mk').onclick=function(){ov.remove();setFiles([]);clearResults();renderFileList();};
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+  };
+
+  function readFile(f) { return new Promise(function(ok,err){ var r=new FileReader(); r.onload=function(){ok(r.result);}; r.onerror=function(){err(new Error('Failed: '+f.name));}; r.readAsText(f); }); }
+
+  function parseCSV(text) {
+    var rows=[],row=[],field='',inQ=false,i=0;
+    while(i<text.length){var c=text[i];if(inQ){if(c==='"'){if(i+1<text.length&&text[i+1]==='"'){field+='"';i+=2;}else{inQ=false;i++;}}else{field+=c;i++;}}else{if(c==='"'){inQ=true;i++;}else if(c===','){row.push(field);field='';i++;}else if(c==='\\r'){if(i+1<text.length&&text[i+1]==='\\n')i++;row.push(field);field='';rows.push(row);row=[];i++;}else if(c==='\\n'){row.push(field);field='';rows.push(row);row=[];i++;}else{field+=c;i++;}}}
+    if(field.length>0||row.length>0){row.push(field);rows.push(row);} return rows;
+  }
+  function rowToCSV(row){return row.map(function(c){if(c.indexOf(',')!==-1||c.indexOf('"')!==-1||c.indexOf('\\n')!==-1)return '"'+c.replace(/"/g,'""')+'"';return c;}).join(',');}
+
+  window.mergeFiles = async function() {
+    var files=getFiles(); if(files.length<2)return;
+    clearResults(); btnMerge.disabled=true; mergeLabel.textContent='Merging...';
+    try { if(currentMode==='csv') await mergeCSV(files); else await mergeJSON(files); } catch(e) { showStatus('error',e.message||'Merge error.'); }
+    mergeLabel.textContent=currentMode==='csv'?'Merge CSV Files':'Merge JSON Files'; btnMerge.disabled=false;
+  };
+
+  async function mergeCSV(files) {
+    var all=[]; for(var i=0;i<files.length;i++){var t=await readFile(files[i]);all.push({name:files[i].name,text:t});}
+    var first=parseCSV(all[0].text); if(first.length===0)throw new Error('First file is empty.');
+    var hdr=first[0],hdrStr=hdr.join(',').toLowerCase().trim();
+    var merged=first.slice(1).filter(function(r){return r.length>1||(r.length===1&&r[0].trim()!=='');});
+    for(var j=1;j<all.length;j++){var rows=parseCSV(all[j].text);if(rows.length===0)continue;if(rows[0].join(',').toLowerCase().trim()!==hdrStr)throw new Error('Header mismatch in "'+all[j].name+'"');var dr=rows.slice(1).filter(function(r){return r.length>1||(r.length===1&&r[0].trim()!=='');});merged=merged.concat(dr);}
+    var lines=[rowToCSV(hdr)];for(var k=0;k<merged.length;k++)lines.push(rowToCSV(merged[k]));var out=lines.join('\\n');
+    showStatus('success','Merged '+files.length+' files \\u2014 '+merged.length+' total rows.');
+    createDownload(out,'merged.csv','text/csv','Download Merged CSV ('+merged.length+' rows)');
+    showPreview(out,'csv',merged.length);
+  }
+
+  async function mergeJSON(files) {
+    var all=[];for(var i=0;i<files.length;i++){var t=await readFile(files[i]);var p;try{p=JSON.parse(t);}catch(e){throw new Error('Invalid JSON in "'+files[i].name+'"');}if(Array.isArray(p))all=all.concat(p);else if(typeof p==='object'&&p!==null)all.push(p);else throw new Error('"'+files[i].name+'" unsupported JSON.');}
+    var out=JSON.stringify(all,null,2);
+    showStatus('success','Merged '+files.length+' files \\u2014 '+all.length+' total items.');
+    createDownload(out,'merged.json','application/json','Download Merged JSON ('+all.length+' items)');
+    showPreview(out,'json',all.length);
+  }
+
+  function createDownload(content,filename,mime,label){if(mergedBlobUrl)URL.revokeObjectURL(mergedBlobUrl);var blob=new Blob([content],{type:mime});mergedBlobUrl=URL.createObjectURL(blob);downloadLink.href=mergedBlobUrl;downloadLink.download=filename;downloadLabel.textContent=label;downloadArea.className='download-area visible';}
+
+  function showPreview(content,type,total){
+    var lines,previewTitle=document.getElementById('previewTitle');
+    if(type==='csv'){lines=content.split('\\n');var s=Math.min(lines.length,51);previewBox.textContent=lines.slice(0,s).join('\\n');previewTitle.textContent='Preview (first '+Math.min(50,total)+' of '+total+' rows)';}
+    else{lines=content.split('\\n');if(lines.length>200){previewBox.textContent=lines.slice(0,200).join('\\n')+'\\n... ('+(lines.length-200)+' more lines)';}else{previewBox.textContent=content;}previewTitle.textContent='Preview ('+total+' items)';}
+    previewSection.className='preview-section visible';previewToggle.textContent='Hide';
+  }
+
+  window.togglePreview=function(){if(previewBox.style.display==='none'){previewBox.style.display='';previewToggle.textContent='Hide';}else{previewBox.style.display='none';previewToggle.textContent='Show';}};
+  function showStatus(t,m){statusBar.className='status-bar '+t;statusIcon.textContent=t==='success'?'\\u2713':'\\u2717';statusText.textContent=m;}
+  function clearResults(){statusBar.className='status-bar';statusBar.style.display='';downloadArea.className='download-area';previewSection.className='preview-section';if(mergedBlobUrl){URL.revokeObjectURL(mergedBlobUrl);mergedBlobUrl=null;}}
+  function escapeHtml(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML;}
+})();
+</script>
 </body>
 </html>"""
 

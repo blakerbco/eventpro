@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auction Intel — CSV & JSON Merger</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #FDF8EF;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F7F0E2;
+    --text-primary: #2C2410;
+    --text-secondary: #6B5D45;
+    --text-muted: #A89B80;
+    --accent-csv: #D4982A;
+    --accent-csv-light: #FDF2DC;
+    --accent-json: #B8860B;
+    --accent-json-light: #FBF3DC;
+    --border: #E6DABD;
+    --border-light: #EFE6D0;
+    --shadow: rgba(44,36,16,0.06);
+    --shadow-md: rgba(44,36,16,0.12);
+    --danger: #C0392B;
+    --danger-light: #FDECEA;
+    --drop-bg: rgba(212,152,42,0.07);
+    --drop-border: #D4982A;
+    --card-radius: 16px;
+    --btn-radius: 10px;
+    --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  html.dark {
+    --bg-primary: #171310;
+    --bg-secondary: #211D17;
+    --bg-tertiary: #2A2520;
+    --text-primary: #F0E8D8;
+    --text-secondary: #B5A88E;
+    --text-muted: #7A6E58;
+    --accent-csv: #E8AE4A;
+    --accent-csv-light: #2D2518;
+    --accent-json: #D4A017;
+    --accent-json-light: #2D2614;
+    --border: #3A3228;
+    --border-light: #453C30;
+    --shadow: rgba(0,0,0,0.25);
+    --shadow-md: rgba(0,0,0,0.4);
+    --danger: #E74C3C;
+    --danger-light: #2D1A18;
+    --drop-bg: rgba(232,174,74,0.1);
+    --drop-border: #E8AE4A;
+  }
+  html.dark .mode-json {
+    --drop-bg: rgba(212,160,23,0.1);
+    --drop-border: #D4A017;
+  }
+  .mode-json {
+    --drop-bg: rgba(184,134,11,0.07);
+    --drop-border: #B8860B;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: background var(--transition), color var(--transition);
+  }
+
+  .app-container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 20px 40px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 28px;
+    animation: fadeDown 0.5s ease both;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+  .header h1 .accent-csv { color: var(--accent-csv); }
+  .header h1 .accent-json { color: var(--accent-json); }
+  .header p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
+  /* Mode Tabs */
+  .mode-tabs {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    animation: fadeDown 0.55s ease both;
+  }
+  .mode-tab {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .mode-tab i { font-size: 14px; }
+  .mode-tab.active-csv {
+    background: var(--accent-csv);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(212,152,42,0.35);
+  }
+  .mode-tab.active-json {
+    background: var(--accent-json);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(184,134,11,0.35);
+  }
+  .mode-tab:not([class*="active-"]):hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+  }
+
+  /* Drop Zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--card-radius);
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--bg-secondary);
+    animation: fadeUp 0.6s ease both;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--drop-border);
+    background: var(--drop-bg);
+  }
+  .drop-zone.dragover {
+    transform: scale(1.01);
+  }
+  .drop-zone-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 14px;
+    font-size: 22px;
+    transition: all var(--transition);
+  }
+  .mode-csv .drop-zone-icon { background: var(--accent-csv-light); color: var(--accent-csv); }
+  .mode-json .drop-zone-icon { background: var(--accent-json-light); color: var(--accent-json); }
+  .drop-zone h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .drop-zone p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* File List */
+  .file-list-section {
+    margin-top: 20px;
+    animation: fadeUp 0.65s ease both;
+  }
+  .file-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .file-list-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .file-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .mode-csv .file-count { background: var(--accent-csv-light); color: var(--accent-csv); }
+  .mode-json .file-count { background: var(--accent-json-light); color: var(--accent-json); }
+
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .file-list::-webkit-scrollbar { width: 5px; }
+  .file-list::-webkit-scrollbar-track { background: transparent; }
+  .file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    transition: all var(--transition);
+    animation: slideIn 0.3s ease both;
+  }
+  .file-item:hover { border-color: var(--border); }
+  .file-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .mode-csv .file-icon { background: var(--accent-csv-light); color: var(--accent-csv); }
+  .mode-json .file-icon { background: var(--accent-json-light); color: var(--accent-json); }
+  .file-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .file-name {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .file-remove {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all var(--transition);
+    flex-shrink: 0;
+  }
+  .file-remove:hover {
+    background: var(--danger-light);
+    color: var(--danger);
+  }
+
+  /* Actions */
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    animation: fadeUp 0.7s ease both;
+  }
+  .btn {
+    flex: 1;
+    padding: 14px 20px;
+    border: none;
+    border-radius: var(--btn-radius);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-merge-csv {
+    background: var(--accent-csv);
+    color: #fff;
+  }
+  .btn-merge-csv:not(:disabled):hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(212,152,42,0.35);
+  }
+  .btn-merge-json {
+    background: var(--accent-json);
+    color: #fff;
+  }
+  .btn-merge-json:not(:disabled):hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(184,134,11,0.35);
+  }
+  .btn-clear {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    flex: 0 0 auto;
+    padding: 14px 18px;
+  }
+  .btn-clear:not(:disabled):hover {
+    background: var(--danger-light);
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+
+  /* Status / Result */
+  .status-bar {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 11px;
+    font-size: 14px;
+    font-weight: 500;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    animation: fadeUp 0.3s ease both;
+  }
+  .status-bar.success {
+    display: flex;
+    background: var(--accent-csv-light);
+    color: var(--accent-csv);
+    border: 1px solid rgba(212,152,42,0.2);
+  }
+  .status-bar.error {
+    display: flex;
+    background: var(--danger-light);
+    color: var(--danger);
+    border: 1px solid rgba(192,57,43,0.15);
+  }
+  .status-bar .status-text { flex: 1; }
+
+  /* Download Button */
+  .download-area {
+    margin-top: 16px;
+    display: none;
+    animation: fadeUp 0.35s ease both;
+  }
+  .download-area.visible { display: block; }
+  .btn-download {
+    width: 100%;
+    padding: 16px 20px;
+    border: 2px dashed var(--accent-csv);
+    border-radius: var(--btn-radius);
+    background: var(--accent-csv-light);
+    color: var(--accent-csv);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .btn-download:hover {
+    background: var(--accent-csv);
+    color: #fff;
+    border-style: solid;
+  }
+
+  /* Preview */
+  .preview-section {
+    margin-top: 20px;
+    display: none;
+    animation: fadeUp 0.4s ease both;
+  }
+  .preview-section.visible { display: block; }
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .preview-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .preview-toggle {
+    font-size: 13px;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    transition: color var(--transition);
+  }
+  .preview-toggle:hover { color: var(--text-primary); }
+  .preview-box {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    padding: 14px;
+    max-height: 260px;
+    overflow: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre;
+    word-break: break-all;
+  }
+  .preview-box::-webkit-scrollbar { width: 5px; height: 5px; }
+  .preview-box::-webkit-scrollbar-track { background: transparent; }
+  .preview-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-box {
+    background: var(--bg-secondary);
+    border-radius: var(--card-radius);
+    padding: 24px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 60px var(--shadow-md);
+  }
+  .modal-box h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .modal-box p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .modal-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .modal-btn-cancel {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+  }
+  .modal-btn-cancel:hover { background: var(--border); }
+  .modal-btn-confirm {
+    background: var(--danger);
+    color: #fff;
+  }
+  .modal-btn-confirm:hover { filter: brightness(1.1); }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .app-container { padding: 20px 14px 32px; }
+    .header h1 { font-size: 24px; }
+    .drop-zone { padding: 30px 16px; }
+    .actions { flex-direction: column; }
+    .btn-clear { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container" id="app">
+  <!-- Header -->
+  <div class="header">
+    <h1><span class="accent-csv">CSV</span> & <span class="accent-json">JSON</span> Merger</h1>
+    <p>Upload up to 20 files, merge them, and download the result</p>
+  </div>
+
+  <!-- Mode Tabs -->
+  <div class="mode-tabs">
+    <button class="mode-tab active-csv" id="tabCsv" onclick="switchMode('csv')">
+      <i class="fas fa-table"></i> CSV Merger
+    </button>
+    <button class="mode-tab" id="tabJson" onclick="switchMode('json')">
+      <i class="fas fa-code"></i> JSON Merger
+    </button>
+  </div>
+
+  <!-- Drop Zone -->
+  <div class="drop-zone mode-csv" id="dropZone">
+    <input type="file" id="fileInput" multiple accept=".csv" >
+    <div class="drop-zone-icon">
+      <i class="fas fa-cloud-arrow-up"></i>
+    </div>
+    <h3 id="dropTitle">Drop CSV files here or click to browse</h3>
+    <p id="dropHint">Up to 20 files · Same column headers required</p>
+  </div>
+
+  <!-- File List -->
+  <div class="file-list-section" id="fileListSection" style="display:none;">
+    <div class="file-list-header">
+      <h3>Uploaded Files</h3>
+      <span class="file-count" id="fileCount">0 / 20</span>
+    </div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="actions" id="actionsArea" style="display:none;">
+    <button class="btn btn-merge-csv" id="btnMerge" onclick="mergeFiles()" disabled>
+      <i class="fas fa-layer-group"></i> <span id="mergeLabel">Merge CSV Files</span>
+    </button>
+    <button class="btn btn-clear" id="btnClear" onclick="confirmClear()">
+      <i class="fas fa-trash-can"></i>
+    </button>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar" id="statusBar">
+    <i class="fas fa-circle-info" id="statusIcon"></i>
+    <span class="status-text" id="statusText"></span>
+  </div>
+
+  <!-- Download -->
+  <div class="download-area" id="downloadArea">
+    <a class="btn-download" id="downloadLink" href="#" download="merged.csv">
+      <i class="fas fa-download"></i>
+      <span id="downloadLabel">Download Merged CSV</span>
+    </a>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-section" id="previewSection">
+    <div class="preview-header">
+      <h3 id="previewTitle">Preview (first 50 rows)</h3>
+      <button class="preview-toggle" id="previewToggle" onclick="togglePreview()">Hide</button>
+    </div>
+    <div class="preview-box" id="previewBox"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Dark mode
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add('dark');
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(event) {
+    if (event.matches) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  });
+
+  var currentMode = 'csv';
+  var csvFiles = [];
+  var jsonFiles = [];
+  var mergedBlobUrl = null;
+
+  var dropZone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var fileListSection = document.getElementById('fileListSection');
+  var fileList = document.getElementById('fileList');
+  var fileCount = document.getElementById('fileCount');
+  var actionsArea = document.getElementById('actionsArea');
+  var btnMerge = document.getElementById('btnMerge');
+  var mergeLabel = document.getElementById('mergeLabel');
+  var statusBar = document.getElementById('statusBar');
+  var statusIcon = document.getElementById('statusIcon');
+  var statusText = document.getElementById('statusText');
+  var downloadArea = document.getElementById('downloadArea');
+  var downloadLink = document.getElementById('downloadLink');
+  var downloadLabel = document.getElementById('downloadLabel');
+  var previewSection = document.getElementById('previewSection');
+  var previewBox = document.getElementById('previewBox');
+  var previewToggle = document.getElementById('previewToggle');
+  var tabCsv = document.getElementById('tabCsv');
+  var tabJson = document.getElementById('tabJson');
+  var dropTitle = document.getElementById('dropTitle');
+  var dropHint = document.getElementById('dropHint');
+
+  window.switchMode = function(mode) {
+    currentMode = mode;
+    clearResults();
+
+    if (mode === 'csv') {
+      tabCsv.className = 'mode-tab active-csv';
+      tabJson.className = 'mode-tab';
+      dropZone.className = 'drop-zone mode-csv';
+      fileInput.accept = '.csv';
+      dropTitle.textContent = 'Drop CSV files here or click to browse';
+      dropHint.textContent = 'Up to 20 files \u00B7 Same column headers required';
+      mergeLabel.textContent = 'Merge CSV Files';
+      btnMerge.className = 'btn btn-merge-csv';
+    } else {
+      tabCsv.className = 'mode-tab';
+      tabJson.className = 'mode-tab active-json';
+      dropZone.className = 'drop-zone mode-json';
+      fileInput.accept = '.json';
+      dropTitle.textContent = 'Drop JSON files here or click to browse';
+      dropHint.textContent = 'Up to 20 files \u00B7 Identical JSON structure required';
+      mergeLabel.textContent = 'Merge JSON Files';
+      btnMerge.className = 'btn btn-merge-json';
+    }
+
+    renderFileList();
+  };
+
+  // File handling
+  function getFiles() {
+    return currentMode === 'csv' ? csvFiles : jsonFiles;
+  }
+
+  function setFiles(files) {
+    if (currentMode === 'csv') {
+      csvFiles = files;
+    } else {
+      jsonFiles = files;
+    }
+  }
+
+  function addFiles(newFiles) {
+    var current = getFiles();
+    var remaining = 20 - current.length;
+    if (remaining <= 0) {
+      showStatus('error', 'Maximum 20 files allowed. Remove some files first.');
+      return;
+    }
+
+    var ext = currentMode === 'csv' ? '.csv' : '.json';
+    var accepted = [];
+    var rejected = 0;
+
+    for (var i = 0; i < newFiles.length && accepted.length < remaining; i++) {
+      var f = newFiles[i];
+      if (f.name.toLowerCase().endsWith(ext)) {
+        // Check for duplicate names
+        var isDuplicate = false;
+        for (var j = 0; j < current.length; j++) {
+          if (current[j].name === f.name) {
+            isDuplicate = true;
+            break;
+          }
+        }
+        if (!isDuplicate) {
+          accepted.push(f);
+        } else {
+          rejected++;
+        }
+      } else {
+        rejected++;
+      }
+    }
+
+    if (rejected > 0) {
+      showStatus('error', rejected + ' file(s) skipped (wrong type or duplicate).');
+    }
+
+    if (accepted.length > 0) {
+      setFiles(current.concat(accepted));
+      clearResults();
+      renderFileList();
+    }
+  }
+
+  fileInput.addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+      addFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
+  });
+
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+  });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+      addFiles(Array.from(e.dataTransfer.files));
+    }
+  });
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function renderFileList() {
+    var files = getFiles();
+    if (files.length === 0) {
+      fileListSection.style.display = 'none';
+      actionsArea.style.display = 'none';
+      return;
+    }
+
+    fileListSection.style.display = 'block';
+    actionsArea.style.display = 'flex';
+    fileCount.textContent = files.length + ' / 20';
+    btnMerge.disabled = files.length < 2;
+
+    // Set the mode class on the file list section
+    fileListSection.className = 'file-list-section ' + (currentMode === 'csv' ? 'mode-csv' : 'mode-json');
+    actionsArea.className = 'actions';
+
+    var icon = currentMode === 'csv' ? 'fa-file-csv' : 'fa-file-code';
+    var html = '';
+    for (var i = 0; i < files.length; i++) {
+      html += '<div class="file-item" data-index="' + i + '">' +
+        '<div class="file-icon"><i class="fas ' + icon + '"></i></div>' +
+        '<div class="file-info">' +
+          '<div class="file-name">' + escapeHtml(files[i].name) + '</div>' +
+          '<div class="file-meta">' + formatSize(files[i].size) + '</div>' +
+        '</div>' +
+        '<button class="file-remove" onclick="removeFile(' + i + ')" title="Remove">' +
+          '<i class="fas fa-xmark"></i>' +
+        '</button>' +
+      '</div>';
+    }
+    fileList.innerHTML = html;
+  }
+
+  window.removeFile = function(index) {
+    var files = getFiles();
+    files.splice(index, 1);
+    setFiles(files);
+    clearResults();
+    renderFileList();
+  };
+
+  window.confirmClear = function() {
+    var files = getFiles();
+    if (files.length === 0) return;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+      '<div class="modal-box">' +
+        '<h3>Clear All Files?</h3>' +
+        '<p>This will remove all ' + files.length + ' uploaded ' + currentMode.toUpperCase() + ' file(s) and any merged results.</p>' +
+        '<div class="modal-actions">' +
+          '<button class="modal-btn modal-btn-cancel" id="modalCancel">Cancel</button>' +
+          '<button class="modal-btn modal-btn-confirm" id="modalConfirm">Clear All</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('modalCancel').onclick = function() {
+      overlay.remove();
+    };
+    document.getElementById('modalConfirm').onclick = function() {
+      overlay.remove();
+      setFiles([]);
+      clearResults();
+      renderFileList();
+    };
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+  };
+
+  function readFileAsText(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); };
+      reader.onerror = function() { reject(new Error('Failed to read ' + file.name)); };
+      reader.readAsText(file);
+    });
+  }
+
+  // CSV parsing (handles quoted fields with commas/newlines)
+  function parseCSV(text) {
+    var rows = [];
+    var row = [];
+    var field = '';
+    var inQuotes = false;
+    var i = 0;
+
+    while (i < text.length) {
+      var ch = text[i];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < text.length && text[i + 1] === '"') {
+            field += '"';
+            i += 2;
+          } else {
+            inQuotes = false;
+            i++;
+          }
+        } else {
+          field += ch;
+          i++;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+          i++;
+        } else if (ch === ',') {
+          row.push(field);
+          field = '';
+          i++;
+        } else if (ch === '\r') {
+          if (i + 1 < text.length && text[i + 1] === '\n') {
+            i++;
+          }
+          row.push(field);
+          field = '';
+          rows.push(row);
+          row = [];
+          i++;
+        } else if (ch === '\n') {
+          row.push(field);
+          field = '';
+          rows.push(row);
+          row = [];
+          i++;
+        } else {
+          field += ch;
+          i++;
+        }
+      }
+    }
+
+    // Last field/row
+    if (field.length > 0 || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  function rowToCSV(row) {
+    return row.map(function(cell) {
+      if (cell.indexOf(',') !== -1 || cell.indexOf('"') !== -1 || cell.indexOf('\n') !== -1) {
+        return '"' + cell.replace(/"/g, '""') + '"';
+      }
+      return cell;
+    }).join(',');
+  }
+
+  // Merge logic
+  window.mergeFiles = async function() {
+    var files = getFiles();
+    if (files.length < 2) return;
+
+    clearResults();
+    btnMerge.disabled = true;
+    mergeLabel.textContent = 'Merging...';
+
+    try {
+      if (currentMode === 'csv') {
+        await mergeCSV(files);
+      } else {
+        await mergeJSON(files);
+      }
+    } catch (err) {
+      showStatus('error', err.message || 'An error occurred during merge.');
+    }
+
+    mergeLabel.textContent = currentMode === 'csv' ? 'Merge CSV Files' : 'Merge JSON Files';
+    btnMerge.disabled = false;
+  };
+
+  async function mergeCSV(files) {
+    var allTexts = [];
+    for (var i = 0; i < files.length; i++) {
+      var t = await readFileAsText(files[i]);
+      allTexts.push({ name: files[i].name, text: t });
+    }
+
+    // Parse headers from first file
+    var firstRows = parseCSV(allTexts[0].text);
+    if (firstRows.length === 0) {
+      throw new Error('First file "' + allTexts[0].name + '" is empty.');
+    }
+
+    var header = firstRows[0];
+    var headerStr = header.join(',').toLowerCase().trim();
+    var mergedRows = firstRows.slice(1).filter(function(r) {
+      return r.length > 1 || (r.length === 1 && r[0].trim() !== '');
+    });
+
+    // Parse and validate remaining files
+    for (var j = 1; j < allTexts.length; j++) {
+      var rows = parseCSV(allTexts[j].text);
+      if (rows.length === 0) continue;
+
+      var thisHeader = rows[0].join(',').toLowerCase().trim();
+      if (thisHeader !== headerStr) {
+        throw new Error('Header mismatch in "' + allTexts[j].name + '". Expected columns: ' + header.join(', '));
+      }
+
+      var dataRows = rows.slice(1).filter(function(r) {
+        return r.length > 1 || (r.length === 1 && r[0].trim() !== '');
+      });
+      mergedRows = mergedRows.concat(dataRows);
+    }
+
+    // Build output
+    var lines = [rowToCSV(header)];
+    for (var k = 0; k < mergedRows.length; k++) {
+      lines.push(rowToCSV(mergedRows[k]));
+    }
+    var output = lines.join('\n');
+
+    showStatus('success', 'Merged ' + files.length + ' files \u2014 ' + mergedRows.length + ' total rows.');
+    createDownload(output, 'merged.csv', 'text/csv', 'Download Merged CSV (' + mergedRows.length + ' rows)');
+    showPreview(output, 'csv', mergedRows.length);
+  }
+
+  async function mergeJSON(files) {
+    var allData = [];
+    for (var i = 0; i < files.length; i++) {
+      var t = await readFileAsText(files[i]);
+      var parsed;
+      try {
+        parsed = JSON.parse(t);
+      } catch (e) {
+        throw new Error('Invalid JSON in "' + files[i].name + '": ' + e.message);
+      }
+
+      if (Array.isArray(parsed)) {
+        allData = allData.concat(parsed);
+      } else if (typeof parsed === 'object' && parsed !== null) {
+        allData.push(parsed);
+      } else {
+        throw new Error('"' + files[i].name + '" contains unsupported JSON (expected array or object).');
+      }
+    }
+
+    var output = JSON.stringify(allData, null, 2);
+    var itemCount = allData.length;
+
+    showStatus('success', 'Merged ' + files.length + ' files \u2014 ' + itemCount + ' total items.');
+    createDownload(output, 'merged.json', 'application/json', 'Download Merged JSON (' + itemCount + ' items)');
+    showPreview(output, 'json', itemCount);
+  }
+
+  function createDownload(content, filename, mime, label) {
+    if (mergedBlobUrl) {
+      URL.revokeObjectURL(mergedBlobUrl);
+    }
+    var blob = new Blob([content], { type: mime });
+    mergedBlobUrl = URL.createObjectURL(blob);
+    downloadLink.href = mergedBlobUrl;
+    downloadLink.download = filename;
+    downloadLabel.textContent = label;
+    downloadArea.className = 'download-area visible';
+  }
+
+  function showPreview(content, type, totalCount) {
+    var lines;
+    var previewLimit = 50;
+    var previewTitle = document.getElementById('previewTitle');
+
+    if (type === 'csv') {
+      lines = content.split('\n');
+      var shown = Math.min(lines.length, previewLimit + 1); // +1 for header
+      previewBox.textContent = lines.slice(0, shown).join('\n');
+      previewTitle.textContent = 'Preview (first ' + Math.min(previewLimit, totalCount) + ' of ' + totalCount + ' rows)';
+    } else {
+      // Show first portion of pretty-printed JSON
+      lines = content.split('\n');
+      var maxLines = 200;
+      if (lines.length > maxLines) {
+        previewBox.textContent = lines.slice(0, maxLines).join('\n') + '\n... (' + (lines.length - maxLines) + ' more lines)';
+      } else {
+        previewBox.textContent = content;
+      }
+      previewTitle.textContent = 'Preview (' + totalCount + ' items)';
+    }
+
+    previewSection.className = 'preview-section visible';
+    previewToggle.textContent = 'Hide';
+  }
+
+  window.togglePreview = function() {
+    if (previewBox.style.display === 'none') {
+      previewBox.style.display = '';
+      previewToggle.textContent = 'Hide';
+    } else {
+      previewBox.style.display = 'none';
+      previewToggle.textContent = 'Show';
+    }
+  };
+
+  function showStatus(type, message) {
+    statusBar.className = 'status-bar ' + type;
+    statusIcon.className = type === 'success' ? 'fas fa-circle-check' : 'fas fa-circle-exclamation';
+    statusText.textContent = message;
+  }
+
+  function clearResults() {
+    statusBar.className = 'status-bar';
+    statusBar.style.display = '';
+    downloadArea.className = 'download-area';
+    previewSection.className = 'preview-section';
+    if (mergedBlobUrl) {
+      URL.revokeObjectURL(mergedBlobUrl);
+      mergedBlobUrl = null;
+    }
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+})();
+</script>
+</body>
+</html>
