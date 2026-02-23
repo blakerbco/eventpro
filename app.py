@@ -635,7 +635,7 @@ def _run_job(
         "meta": {
             "total_nonprofits": len(all_results),
             "processing_time_seconds": round(elapsed, 2),
-            "model": f"Poe Bot: {POE_BOT_NAME}",
+            "model": "Auctionintel.app",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "summary": {
@@ -2729,14 +2729,14 @@ async function _doSearch(selectedTiers) {
           const _tierColor = { decision_maker: '#4ade80', outreach_ready: '#60a5fa', event_verified: '#facc15' };
           let msg = '[' + data.index + '/' + data.total + '] ' + status.toUpperCase() + ': ' + data.nonprofit;
           if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
-          if (data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
+          if (status !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
             msg += ' [' + _tierDisplay[data.tier] + ']';
           }
 
           log(msg, status);
 
-          // Add colored tier badge after log line
-          if (data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
+          // Add colored tier badge after log line (not for not_found)
+          if (status !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
             const lastLine = terminal.lastElementChild;
             if (lastLine) {
               const badge = document.createElement('span');

@@ -290,7 +290,7 @@ def write_json(results: List[Dict[str, Any]], filepath: str, elapsed: float) -> 
         "meta": {
             "total_nonprofits": len(results),
             "processing_time_seconds": round(elapsed, 2),
-            "model": f"Poe Bot: {POE_BOT_NAME}",
+            "model": "Auctionintel.app",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "summary": {
