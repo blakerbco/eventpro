@@ -244,24 +244,42 @@ def _missing_billable_fields(result: Dict[str, Any]) -> List[str]:
 
 # ─── Result Mapping ──────────────────────────────────────────────────────────
 
+def _strip_citations(text: str) -> str:
+    """Remove markdown citation links like [[1]](https://...) from text."""
+    if not text or not isinstance(text, str):
+        return text or ""
+    # Remove [[N]](url) patterns
+    text = re.sub(r'\[\[\d+\]\]\([^)]*\)', '', text)
+    # Fix common UTF-8 mojibake (double-encoded UTF-8 read as latin-1)
+    replacements = {
+        'Â·': '·', 'â€"': '—', 'â€"': '–', 'â€™': "'", 'â€˜': "'",
+        'â€œ': '"', 'â€\x9d': '"', 'Â©': '©', 'Â®': '®', 'Â ': ' ',
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    # Collapse multiple spaces
+    text = re.sub(r'  +', ' ', text).strip()
+    return text
+
+
 def _poe_result_to_full(poe_data: dict, nonprofit: str) -> Dict[str, Any]:
     """Map Poe bot JSON response fields to our CSV_COLUMNS format."""
     result = {col: "" for col in CSV_COLUMNS}
-    result["nonprofit_name"] = poe_data.get("nonprofit_name", nonprofit)
-    result["event_title"] = poe_data.get("event_title", "")
-    result["event_type"] = poe_data.get("event_type", "")
-    result["event_date"] = poe_data.get("event_date", "")
-    result["event_url"] = poe_data.get("event_url", "")
-    result["auction_type"] = poe_data.get("auction_type", "")
-    result["evidence_date"] = poe_data.get("evidence_date", "")
-    result["evidence_auction"] = poe_data.get("evidence_auction", "")
-    result["contact_name"] = poe_data.get("contact_name", "")
-    result["contact_email"] = poe_data.get("contact_email", "")
-    result["contact_role"] = poe_data.get("contact_role", "")
-    result["organization_address"] = poe_data.get("organization_address", "")
-    result["organization_phone_maps"] = poe_data.get("organization_phone_maps", "")
-    result["contact_source_url"] = poe_data.get("contact_source_url", "")
-    result["event_summary"] = poe_data.get("event_summary", poe_data.get("notes", ""))
+    result["nonprofit_name"] = _strip_citations(poe_data.get("nonprofit_name", nonprofit))
+    result["event_title"] = _strip_citations(poe_data.get("event_title", ""))
+    result["event_type"] = _strip_citations(poe_data.get("event_type", ""))
+    result["event_date"] = _strip_citations(poe_data.get("event_date", ""))
+    result["event_url"] = poe_data.get("event_url", "")  # don't strip URLs
+    result["auction_type"] = _strip_citations(poe_data.get("auction_type", ""))
+    result["evidence_date"] = _strip_citations(poe_data.get("evidence_date", ""))
+    result["evidence_auction"] = _strip_citations(poe_data.get("evidence_auction", ""))
+    result["contact_name"] = _strip_citations(poe_data.get("contact_name", ""))
+    result["contact_email"] = poe_data.get("contact_email", "")  # don't strip emails
+    result["contact_role"] = _strip_citations(poe_data.get("contact_role", ""))
+    result["organization_address"] = _strip_citations(poe_data.get("organization_address", ""))
+    result["organization_phone_maps"] = _strip_citations(poe_data.get("organization_phone_maps", ""))
+    result["contact_source_url"] = poe_data.get("contact_source_url", "")  # don't strip URLs
+    result["event_summary"] = _strip_citations(poe_data.get("event_summary", poe_data.get("notes", "")))
 
     conf = poe_data.get("confidence_score", poe_data.get("confidence", 0.0))
     try:
