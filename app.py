@@ -48,7 +48,7 @@ from bot import (
     _error_result, extract_json, extract_json_from_response,
     classify_lead_tier, _has_valid_url,
     _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
-    validate_email_emailable, EMAILABLE_API_KEY,
+    validate_email_emailable, EMAILABLE_API_KEY,  # EMAILABLE_API_KEY still used for startup log
 )
 
 from db import (
@@ -383,15 +383,15 @@ def _research_one(
         status = cached.get("status", "uncertain")
         tier, price = classify_lead_tier(cached)
 
-        # Validate email via Emailable (skip entirely if no API key)
+        # Validate email via Emailable
         cached["email_status"] = ""
-        if EMAILABLE_API_KEY and cached.get("contact_email", "").strip():
-            print(f"[EMAILABLE] Validating (cache): {cached['contact_email']}", flush=True)
-            email_status = validate_email_emailable(cached["contact_email"])
-            print(f"[EMAILABLE] Result (cache): {email_status}", flush=True)
-            if email_status == "deliverable":
-                cached["email_status"] = "deliverable"
-            else:
+        contact_email = cached.get("contact_email", "").strip()
+        if contact_email:
+            print(f"[EMAILABLE-CACHE] Calling for: {contact_email}", flush=True)
+            email_state = validate_email_emailable(contact_email)
+            cached["email_status"] = email_state
+            print(f"[EMAILABLE-CACHE] {contact_email} => {email_state}", flush=True)
+            if email_state != "deliverable":
                 cached["contact_email"] = ""
                 cached["contact_name"] = ""
                 tier, price = "event_verified", 75
@@ -467,15 +467,15 @@ def _research_one(
     tier, price = classify_lead_tier(result)
     status = result.get("status", "uncertain")
 
-    # Validate email via Emailable (skip entirely if no API key)
+    # Validate email via Emailable
     result["email_status"] = ""
-    if EMAILABLE_API_KEY and result.get("contact_email", "").strip():
-        print(f"[EMAILABLE] Validating: {result['contact_email']}", flush=True)
-        email_status = validate_email_emailable(result["contact_email"])
-        print(f"[EMAILABLE] Result: {email_status}", flush=True)
-        if email_status == "deliverable":
-            result["email_status"] = "deliverable"
-        else:
+    contact_email = result.get("contact_email", "").strip()
+    if contact_email:
+        print(f"[EMAILABLE-FRESH] Calling for: {contact_email}", flush=True)
+        email_state = validate_email_emailable(contact_email)
+        result["email_status"] = email_state
+        print(f"[EMAILABLE-FRESH] {contact_email} => {email_state}", flush=True)
+        if email_state != "deliverable":
             result["contact_email"] = ""
             result["contact_name"] = ""
             tier, price = "event_verified", 75
@@ -1520,6 +1520,8 @@ def irs_search():
         _add_amount_filter(conditions, params, col, data.get(key, ""))
 
     where = " AND ".join(conditions) if conditions else "1=1"
+    is_trial = session.get("is_trial", False)
+    table = "trial_nonprofits" if is_trial else "tax_year_2019_search"
     query = f"""
         SELECT
             ein AS "EIN", organizationname AS "OrganizationName", website AS "Website",
@@ -1539,7 +1541,7 @@ def irs_search():
             event1keyword AS "Event1Keyword", event2keyword AS "Event2Keyword",
             primaryeventtype AS "PrimaryEventType", prospecttier AS "ProspectTier",
             region5 AS "Region5", missiondescriptionshort AS "MissionDescriptionShort"
-        FROM tax_year_2019_search
+        FROM {table}
         WHERE {where}
         ORDER BY totalrevenue DESC
         LIMIT {limit}

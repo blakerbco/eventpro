@@ -143,35 +143,60 @@ def _is_valid_email(email: str) -> bool:
 
 EMAILABLE_API_KEY = os.environ.get("EMAILABLE_API_KEY", "")
 
+
 def validate_email_emailable(email: str) -> str:
-    """Call Emailable API. Returns: deliverable, risky, undeliverable, catch-all, unknown."""
+    """Verify a single email via Emailable API.
+
+    GET https://api.emailable.com/v1/verify?email=...&api_key=...
+    Returns state: deliverable | undeliverable | risky | unknown
+    Docs: https://emailable.com/docs/api/#verify-an-email
+    """
     if not EMAILABLE_API_KEY:
-        print(f"[EMAILABLE] SKIP — no API key set", flush=True)
+        print(f"[EMAILABLE] NO API KEY — skipping {email}", flush=True)
         return "unknown"
-    if not email:
-        print(f"[EMAILABLE] SKIP — empty email", flush=True)
+    if not email or not isinstance(email, str) or "@" not in email:
+        print(f"[EMAILABLE] INVALID EMAIL — skipping: {email!r}", flush=True)
         return "unknown"
+
+    email = email.strip()
+    url = "https://api.emailable.com/v1/verify"
+    params = {"email": email, "api_key": EMAILABLE_API_KEY}
+
+    print(f"[EMAILABLE] >>> GET {url}?email={email}&api_key={EMAILABLE_API_KEY[:8]}...", flush=True)
+
     try:
-        print(f"[EMAILABLE] Calling API for: {email} (key: {EMAILABLE_API_KEY[:10]}...)", flush=True)
-        resp = requests.get(
-            "https://api.emailable.com/v1/verify",
-            params={"email": email, "api_key": EMAILABLE_API_KEY},
-            timeout=10,
-        )
-        print(f"[EMAILABLE] HTTP {resp.status_code} for {email}", flush=True)
-        if resp.status_code == 200:
-            data = resp.json()
-            state = data.get("state", "unknown")
-            score = data.get("score", "?")
-            reason = data.get("reason", "?")
-            print(f"[EMAILABLE] {email} -> state={state}, score={score}, reason={reason}", flush=True)
-            return state
-        else:
-            print(f"[EMAILABLE] ERROR {resp.status_code}: {resp.text[:200]}", flush=True)
-            return "unknown"
+        resp = requests.get(url, params=params, timeout=10)
     except Exception as e:
-        print(f"[EMAILABLE] EXCEPTION for {email}: {e}", flush=True)
+        print(f"[EMAILABLE] NETWORK ERROR for {email}: {type(e).__name__}: {e}", flush=True)
         return "unknown"
+
+    print(f"[EMAILABLE] <<< HTTP {resp.status_code} for {email}", flush=True)
+
+    if resp.status_code == 249:
+        # Emailable says "taking longer than normal, retry"
+        print(f"[EMAILABLE] 249 RETRY for {email} — retrying once...", flush=True)
+        try:
+            resp = requests.get(url, params=params, timeout=10)
+            print(f"[EMAILABLE] <<< RETRY HTTP {resp.status_code} for {email}", flush=True)
+        except Exception as e:
+            print(f"[EMAILABLE] RETRY NETWORK ERROR for {email}: {e}", flush=True)
+            return "unknown"
+
+    if resp.status_code != 200:
+        print(f"[EMAILABLE] ERROR {resp.status_code} for {email}: {resp.text[:300]}", flush=True)
+        return "unknown"
+
+    try:
+        data = resp.json()
+    except Exception as e:
+        print(f"[EMAILABLE] JSON PARSE ERROR for {email}: {e} — body: {resp.text[:300]}", flush=True)
+        return "unknown"
+
+    state = data.get("state", "unknown")
+    score = data.get("score", "?")
+    reason = data.get("reason", "?")
+    print(f"[EMAILABLE] RESULT {email} => state={state}, score={score}, reason={reason}", flush=True)
+    return state
 
 
 def _has_valid_url(result: Dict[str, Any]) -> bool:
