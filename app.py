@@ -48,6 +48,7 @@ from bot import (
     _error_result, extract_json, extract_json_from_response,
     classify_lead_tier, _has_valid_url,
     _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
+    validate_email_emailable, EMAILABLE_API_KEY,
 )
 
 from db import (
@@ -355,6 +356,7 @@ def _research_one(
     nonprofit: str, index: int, total: int, progress_q: queue.Queue,
     user_id: Optional[int] = None, job_id: str = "", is_admin: bool = False,
     is_trial: bool = False, balance_exhausted: list = None,
+    selected_tiers: list = None,
 ) -> Dict[str, Any]:
     """Research a single nonprofit via Poe bot — simple synchronous call.
     Matches the proven AUCTIONINTEL.APP_BOT.PY pattern exactly.
@@ -380,7 +382,26 @@ def _research_one(
         cached["_api_calls"] = 0
         status = cached.get("status", "uncertain")
         tier, price = classify_lead_tier(cached)
+
+        # Validate email via Emailable
+        if EMAILABLE_API_KEY and cached.get("contact_email", "").strip():
+            email_status = validate_email_emailable(cached["contact_email"])
+            if email_status == "deliverable":
+                cached["email_status"] = "deliverable"
+            else:
+                cached["email_status"] = ""
+                cached["contact_email"] = ""
+                cached["contact_name"] = ""
+                tier, price = "event_verified", 75
+        else:
+            cached["email_status"] = ""
+
         title = cached.get("event_title", "")
+
+        # Skip lead fee if tier not in selected_tiers
+        _sel = selected_tiers or ["decision_maker", "outreach_ready", "event_verified"]
+        if tier != "not_billable" and tier not in _sel:
+            price = 0
 
         if user_id and not is_admin and status in ("found", "3rdpty_found") and price > 0:
             fee = get_research_fee_cents(total)
@@ -408,6 +429,7 @@ def _research_one(
             "nonprofit": nonprofit, "status": status,
             "event_title": title, "confidence": cached.get("confidence_score", 0),
             "tier": tier, "tier_price": price,
+            "email_status": cached.get("email_status", ""),
         })
         return cached
 
@@ -444,6 +466,24 @@ def _research_one(
 
     tier, price = classify_lead_tier(result)
     status = result.get("status", "uncertain")
+
+    # Validate email via Emailable
+    if EMAILABLE_API_KEY and result.get("contact_email", "").strip():
+        email_status = validate_email_emailable(result["contact_email"])
+        if email_status == "deliverable":
+            result["email_status"] = "deliverable"
+        else:
+            result["email_status"] = ""
+            result["contact_email"] = ""
+            result["contact_name"] = ""
+            tier, price = "event_verified", 75
+    else:
+        result["email_status"] = ""
+
+    # Skip lead fee if tier not in selected_tiers
+    _sel = selected_tiers or ["decision_maker", "outreach_ready", "event_verified"]
+    if tier != "not_billable" and tier not in _sel:
+        price = 0
 
     # Charge fees
     if user_id and not is_admin:
@@ -483,6 +523,7 @@ def _research_one(
         "event_url": result.get("event_url", ""),
         "confidence": result.get("confidence_score", 0),
         "tier": tier, "tier_price": price,
+        "email_status": result.get("email_status", ""),
     })
     cache_put(nonprofit, result)
     return result
@@ -491,10 +532,12 @@ def _research_one(
 def _run_job(
     nonprofits: List[str], job_id: str, progress_q: queue.Queue,
     user_id: Optional[int] = None, is_admin: bool = False, is_trial: bool = False,
-    complete_only: bool = False,
+    selected_tiers: list = None,
 ):
     """Run research — one domain at a time, no batching, no async.
     Matches AUCTIONINTEL.APP_BOT.PY sequential pattern."""
+    if selected_tiers is None:
+        selected_tiers = ["decision_maker", "outreach_ready", "event_verified"]
     if len(nonprofits) > MAX_NONPROFITS:
         nonprofits = nonprofits[:MAX_NONPROFITS]
 
@@ -507,6 +550,15 @@ def _run_job(
     start = time.time()
 
     for idx, np_name in enumerate(nonprofits, start=1):
+        # Stop if user requested stop
+        if jobs.get(job_id, {}).get("stop_requested"):
+            skipped = total - idx + 1
+            progress_q.put({
+                "type": "balance_warning",
+                "message": f"Search stopped by user. {skipped} nonprofit(s) skipped.",
+            })
+            break
+
         # Stop if balance exhausted
         if balance_exhausted[0] and not is_admin:
             skipped = total - idx + 1
@@ -532,6 +584,7 @@ def _run_job(
             np_name, idx, total, progress_q,
             user_id=user_id, job_id=job_id, is_admin=is_admin,
             is_trial=is_trial, balance_exhausted=balance_exhausted,
+            selected_tiers=selected_tiers,
         )
         all_results.append(result)
 
@@ -544,46 +597,28 @@ def _run_job(
     # Enrich missing address/phone from IRS database
     _enrich_from_irs(all_results)
 
-    # Compute billing summary
+    # Compute billing summary (only selected tiers)
     fee_cents = get_research_fee_cents(len(nonprofits))
     billing_summary["research_fees"] = len(nonprofits) * fee_cents
     tier_counts = {}
     for r in all_results:
         tier, price = classify_lead_tier(r)
-        if price > 0:
+        if price > 0 and tier in selected_tiers:
             if tier not in tier_counts:
                 tier_counts[tier] = {"count": 0, "price_each": price, "total": 0}
             tier_counts[tier]["count"] += 1
             tier_counts[tier]["total"] += price
-            billing_summary["lead_fees"] = tier_counts
+    billing_summary["lead_fees"] = tier_counts
     billing_summary["total_charged"] = (
         billing_summary["research_fees"]
         + sum(t["total"] for t in tier_counts.values())
     )
 
-    # Determine which results to save (billable only for non-admin)
+    # Determine which results to save (only selected tiers for non-admin)
     if is_admin:
         save_results = all_results
     else:
-        save_results = [r for r in all_results if classify_lead_tier(r)[1] > 0]
-
-    # If complete_only mode, further filter to only "full" tier leads
-    if complete_only and not is_admin:
-        save_results = [r for r in save_results if classify_lead_tier(r)[0] == "full"]
-        # Recalculate billing to only include full-tier leads
-        tier_counts = {}
-        for r in save_results:
-            tier, price = classify_lead_tier(r)
-            if price > 0:
-                if tier not in tier_counts:
-                    tier_counts[tier] = {"count": 0, "price_each": price, "total": 0}
-                tier_counts[tier]["count"] += 1
-                tier_counts[tier]["total"] += price
-        billing_summary["lead_fees"] = tier_counts
-        billing_summary["total_charged"] = (
-            billing_summary["research_fees"]
-            + sum(t["total"] for t in tier_counts.values())
-        )
+        save_results = [r for r in all_results if classify_lead_tier(r)[0] in selected_tiers]
 
     # Save results
     csv_file = os.path.join(RESULTS_DIR, f"{job_id}.csv")
@@ -688,11 +723,11 @@ def _run_job(
 def _job_worker(
     nonprofits: List[str], job_id: str, progress_q: queue.Queue,
     user_id: Optional[int] = None, is_admin: bool = False, is_trial: bool = False,
-    complete_only: bool = False,
+    selected_tiers: list = None,
 ):
     """Thread target that runs the job (synchronous — no async needed)."""
     try:
-        _run_job(nonprofits, job_id, progress_q, user_id=user_id, is_admin=is_admin, is_trial=is_trial, complete_only=complete_only)
+        _run_job(nonprofits, job_id, progress_q, user_id=user_id, is_admin=is_admin, is_trial=is_trial, selected_tiers=selected_tiers or ["decision_maker", "outreach_ready", "event_verified"])
     except Exception as e:
         progress_q.put({"type": "error", "message": str(e)})
         progress_q.put(None)
@@ -1141,7 +1176,10 @@ def start_search():
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
     data = request.get_json()
     raw_input = data.get("nonprofits", "")
-    complete_only = bool(data.get("complete_only", False))
+    valid_tiers = {"decision_maker", "outreach_ready", "event_verified"}
+    selected_tiers = [t for t in data.get("selected_tiers", list(valid_tiers)) if t in valid_tiers]
+    if not selected_tiers:
+        selected_tiers = list(valid_tiers)
     nonprofits = parse_input(raw_input)
 
     if not nonprofits:
@@ -1156,9 +1194,9 @@ def start_search():
 
     # Pre-search balance check for non-admin
     # Estimates TOTAL cost including research fees + estimated lead fees
-    # Conservative hit rate: 55%, avg lead price: $1.40 (most leads are "full" at $1.50)
+    # Conservative hit rate: 55%, avg lead price: $1.25 (weighted across 3 tiers)
     ESTIMATED_HIT_RATE = 0.55
-    ESTIMATED_AVG_LEAD_CENTS = 140  # weighted average across tiers
+    ESTIMATED_AVG_LEAD_CENTS = 125  # weighted average across 3 tiers
 
     if not is_admin:
         balance = get_balance(user_id)
@@ -1214,7 +1252,7 @@ def start_search():
     thread = threading.Thread(
         target=_job_worker,
         args=(nonprofits, job_id, progress_q),
-        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "complete_only": complete_only},
+        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers},
         daemon=True,
     )
     thread.start()
@@ -1253,6 +1291,18 @@ def stream_progress(job_id):
                 yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/api/stop/<job_id>", methods=["POST"])
+@login_required
+def stop_job(job_id):
+    if job_id not in jobs:
+        return jsonify({"error": "Job not found"}), 404
+    job = jobs[job_id]
+    if job.get("status") != "running":
+        return jsonify({"error": "Job not running"}), 400
+    job["stop_requested"] = True
+    return jsonify({"ok": True})
 
 
 @app.route("/api/download/<job_id>/<fmt>")
@@ -1787,6 +1837,37 @@ REGISTER_HTML = f"""<!DOCTYPE html>
     var input = document.querySelector('input[name="promo_code"]');
     if (input) input.value = promo.toUpperCase();
   }}
+
+  // Client-side validation — prevent form reset on password mismatch
+  var form = document.querySelector('form');
+  form.addEventListener('submit', function(e) {{
+    var pw = form.querySelector('input[name="password"]').value;
+    var confirm = form.querySelector('input[name="confirm"]').value;
+    var existing = form.querySelector('.error');
+    if (existing) existing.remove();
+
+    if (pw !== confirm) {{
+      e.preventDefault();
+      var err = document.createElement('p');
+      err.className = 'error';
+      err.textContent = 'Passwords do not match';
+      var marker = form.querySelector('.sub');
+      marker.insertAdjacentElement('afterend', err);
+      form.querySelector('input[name="confirm"]').value = '';
+      form.querySelector('input[name="confirm"]').focus();
+      return;
+    }}
+    if (pw.length < 6) {{
+      e.preventDefault();
+      var err = document.createElement('p');
+      err.className = 'error';
+      err.textContent = 'Password must be at least 6 characters';
+      var marker = form.querySelector('.sub');
+      marker.insertAdjacentElement('afterend', err);
+      form.querySelector('input[name="password"]').focus();
+      return;
+    }}
+  }});
 }})();
 </script>
 </body>
@@ -2263,6 +2344,14 @@ INDEX_HTML = """<!DOCTYPE html>
   .progress-bar { height: 100%; background: linear-gradient(90deg, #ca8a04, #eab308); border-radius: 8px; transition: width 0.3s ease; width: 0%; }
   .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 13px; font-weight: 600; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
 
+  .search-dots { display: none; text-align: center; padding: 10px 0 4px; }
+  .search-dots span { display: inline-block; width: 10px; height: 10px; margin: 0 4px; border-radius: 50%; background: #eab308; animation: dotBounce 1.4s ease-in-out infinite; }
+  .search-dots span:nth-child(2) { animation-delay: 0.16s; }
+  .search-dots span:nth-child(3) { animation-delay: 0.32s; }
+  .search-dots span:nth-child(4) { animation-delay: 0.48s; }
+  .search-dots span:nth-child(5) { animation-delay: 0.64s; }
+  @keyframes dotBounce { 0%,80%,100% { transform: scale(0.4); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   .stat { background: #000000; border-radius: 8px; padding: 12px; text-align: center; }
   .stat .num { font-size: 24px; font-weight: 700; }
@@ -2316,15 +2405,9 @@ INDEX_HTML = """<!DOCTYPE html>
   <div class="input-section">
     <h2>Enter Nonprofit Domains or Names</h2>
     <textarea id="input" placeholder="Paste nonprofit domains or names here, one per line or comma-separated...&#10;&#10;Example:&#10;National Museum of Mexican Art&#10;Radio Milwaukee&#10;driveagainstdiabetes.org"></textarea>
-    <div class="toggle-row" style="margin:12px 0;display:flex;align-items:center;gap:10px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#d4d4d4;" title="When enabled, only Complete Contact leads are returned — each includes event title, event date, verified event page link, auction type, contact name, and contact email.">
-        <input type="checkbox" id="completeOnly" style="accent-color:#eab308;width:16px;height:16px;">
-        <span style="font-weight:600;">Complete Contacts Only</span>
-      </label>
-      <span style="font-size:12px;color:#737373;">Fewer results, but every lead includes a contact name and email.</span>
-    </div>
     <div class="controls">
       <button class="btn-primary" id="searchBtn" onclick="startSearch()">Search for Auctions</button>
+      <button class="btn-secondary" id="stopBtn" onclick="stopSearch()" style="display:none;background:#7f1d1d;color:#fca5a5;border-color:#991b1b;">Stop Search</button>
       <button class="btn-secondary" onclick="document.getElementById('input').value='';updateCount()">Clear</button>
       <span class="count-label" id="countLabel">0 nonprofits</span>
     </div>
@@ -2335,6 +2418,7 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="progress-bar" id="progressBar"></div>
       <div class="progress-text" id="progressText">0 / 0</div>
     </div>
+    <div class="search-dots" id="searchDots"><span></span><span></span><span></span><span></span><span></span></div>
     <div id="etaDisplay" style="display:none;text-align:center;padding:6px 0 2px;font-size:13px;color:#a3a3a3;font-family:monospace;">
       <span id="etaElapsed"></span> &nbsp;&bull;&nbsp; <span id="etaRemaining" style="color:#eab308;"></span>
     </div>
@@ -2360,6 +2444,51 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="json-viewer" id="jsonViewer"><pre id="jsonContent"></pre></div>
     </div>
   </div>
+<!-- Tier Selection Modal -->
+<div id="tierModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:#0a0a0a;border:1px solid #262626;border-radius:12px;max-width:480px;width:90%;padding:28px 24px 20px;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+    <h3 style="margin:0 0 4px;color:#f5f5f5;font-size:18px;">Choose Your Lead Tiers</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:#737373;" id="tierResearchFee">Research fee: $0.04 per nonprofit (charged for every nonprofit searched)</p>
+
+    <label style="display:block;cursor:pointer;padding:14px;border:1px solid #262626;border-radius:8px;margin-bottom:10px;transition:border-color 0.15s;" id="tierLabel_decision_maker" onmouseenter="this.style.borderColor='#404040'" onmouseleave="this.style.borderColor=document.getElementById('tier_decision_maker').checked?'#eab308':'#262626'">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="tier_decision_maker" checked style="accent-color:#eab308;width:16px;height:16px;" onchange="tierCheckChanged()">
+        <span style="font-weight:700;color:#4ade80;font-size:15px;">Decision Maker</span>
+        <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$1.75</span>
+      </div>
+      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Named contact + verified email + full event details</div>
+      <div style="margin:2px 0 0 26px;font-size:11.5px;color:#737373;">Best for: Phone campaigns &amp; personalized outreach</div>
+    </label>
+
+    <label style="display:block;cursor:pointer;padding:14px;border:1px solid #262626;border-radius:8px;margin-bottom:10px;transition:border-color 0.15s;" id="tierLabel_outreach_ready" onmouseenter="this.style.borderColor='#404040'" onmouseleave="this.style.borderColor=document.getElementById('tier_outreach_ready').checked?'#eab308':'#262626'">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="tier_outreach_ready" style="accent-color:#eab308;width:16px;height:16px;" onchange="tierCheckChanged()">
+        <span style="font-weight:700;color:#60a5fa;font-size:15px;">Outreach Ready</span>
+        <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$1.25</span>
+      </div>
+      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Verified email + event details (no contact name)</div>
+      <div style="margin:2px 0 0 26px;font-size:11.5px;color:#737373;">Best for: Email campaigns &amp; cold outreach</div>
+    </label>
+
+    <label style="display:block;cursor:pointer;padding:14px;border:1px solid #262626;border-radius:8px;margin-bottom:10px;transition:border-color 0.15s;" id="tierLabel_event_verified" onmouseenter="this.style.borderColor='#404040'" onmouseleave="this.style.borderColor=document.getElementById('tier_event_verified').checked?'#eab308':'#262626'">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="tier_event_verified" style="accent-color:#eab308;width:16px;height:16px;" onchange="tierCheckChanged()">
+        <span style="font-weight:700;color:#facc15;font-size:15px;">Event Verified</span>
+        <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$0.75</span>
+      </div>
+      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Confirmed event with date &amp; URL (no contact info)</div>
+      <div style="margin:2px 0 0 26px;font-size:11.5px;color:#737373;">Best for: Building prospect lists &amp; DIY research</div>
+    </label>
+
+    <p style="margin:12px 0 16px;font-size:12px;color:#525252;text-align:center;">You're never charged for nonprofits with no events found.</p>
+    <p id="tierError" style="display:none;margin:0 0 10px;font-size:13px;color:#ef4444;text-align:center;">Please select at least one tier.</p>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="closeTierModal()" style="padding:8px 20px;background:transparent;color:#a3a3a3;border:1px solid #333;border-radius:6px;cursor:pointer;font-size:14px;font-family:inherit;">Cancel</button>
+      <button id="tierStartBtn" onclick="confirmTierAndSearch()" style="padding:8px 24px;background:#eab308;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:14px;font-family:inherit;">Start Search</button>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -2402,7 +2531,7 @@ function updateCount() {
   const n = items.length;
   countLabel.textContent = n + ' nonprofit' + (n !== 1 ? 's' : '');
   if (!IS_ADMIN && n > 0) {
-    const fee = n <= 10000 ? 8 : (n <= 50000 ? 7 : 6);
+    const fee = n <= 10000 ? 4 : (n <= 50000 ? 3 : 2);
     const est = (n * fee / 100).toFixed(2);
     feeEstimate.textContent = '~$' + est + ' research fee for ' + n + ' nonprofits';
   } else {
@@ -2446,7 +2575,68 @@ function updateProgress() {
   progressText.textContent = processed + ' / ' + totalNonprofits;
 }
 
-async function startSearch() {
+// ── Tier Modal Functions ──
+let _pendingSearchTiers = [];
+
+function tierCheckChanged() {
+  const tiers = ['decision_maker', 'outreach_ready', 'event_verified'];
+  const anyChecked = tiers.some(t => document.getElementById('tier_' + t).checked);
+  document.getElementById('tierStartBtn').disabled = !anyChecked;
+  document.getElementById('tierError').style.display = anyChecked ? 'none' : 'block';
+  tiers.forEach(t => {
+    const label = document.getElementById('tierLabel_' + t);
+    label.style.borderColor = document.getElementById('tier_' + t).checked ? '#eab308' : '#262626';
+  });
+}
+
+function showTierModal() {
+  const raw = inputEl.value.trim();
+  if (!raw) return;
+  // Show research fee estimate in modal
+  const lines = raw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);
+  const n = lines.length;
+  const fee = n <= 10000 ? 4 : (n <= 50000 ? 3 : 2);
+  document.getElementById('tierResearchFee').textContent = 'Research fee: $' + (fee/100).toFixed(2) + ' per nonprofit (' + n + ' nonprofit' + (n !== 1 ? 's' : '') + ' = $' + (n * fee / 100).toFixed(2) + ')';
+  tierCheckChanged();
+  const modal = document.getElementById('tierModal');
+  modal.style.display = 'flex';
+}
+
+function closeTierModal() {
+  document.getElementById('tierModal').style.display = 'none';
+}
+
+function confirmTierAndSearch() {
+  const tiers = ['decision_maker', 'outreach_ready', 'event_verified'];
+  _pendingSearchTiers = tiers.filter(t => document.getElementById('tier_' + t).checked);
+  if (_pendingSearchTiers.length === 0) {
+    document.getElementById('tierError').style.display = 'block';
+    return;
+  }
+  closeTierModal();
+  _doSearch(_pendingSearchTiers);
+}
+
+function startSearch() {
+  const raw = inputEl.value.trim();
+  if (!raw) return;
+  if (IS_ADMIN) {
+    _doSearch(['decision_maker', 'outreach_ready', 'event_verified']);
+  } else {
+    showTierModal();
+  }
+}
+
+async function stopSearch() {
+  if (!currentJobId) return;
+  try {
+    await fetch('/api/stop/' + currentJobId, { method: 'POST' });
+    log('Stop requested — waiting for current nonprofit to finish...', 'error');
+  } catch(e) {}
+  document.getElementById('stopBtn').disabled = true;
+}
+
+async function _doSearch(selectedTiers) {
   const raw = inputEl.value.trim();
   if (!raw) return;
 
@@ -2457,7 +2647,11 @@ async function startSearch() {
   }
 
   searchBtn.disabled = true;
+  const stopBtn = document.getElementById('stopBtn');
+  stopBtn.style.display = 'inline-block';
+  stopBtn.disabled = false;
   progressSection.style.display = 'block';
+  document.getElementById('searchDots').style.display = 'block';
   downloadSection.style.display = 'none';
   document.getElementById('billingSummary').style.display = 'none';
   terminal.innerHTML = '';
@@ -2468,12 +2662,16 @@ async function startSearch() {
   updateProgress();
 
   log('Starting search...', 'info');
+  if (!IS_ADMIN) {
+    const tierNames = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
+    log('Selected tiers: ' + selectedTiers.map(t => tierNames[t]).join(', '), 'info');
+  }
 
   try {
     const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nonprofits: raw, complete_only: document.getElementById('completeOnly').checked }),
+      body: JSON.stringify({ nonprofits: raw, selected_tiers: selectedTiers }),
     });
 
     if (!res.ok) {
@@ -2484,7 +2682,7 @@ async function startSearch() {
       } else {
         log('Error: ' + (err.error || 'Unknown error'), 'error');
       }
-      searchBtn.disabled = false;
+      searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
       return;
     }
 
@@ -2527,11 +2725,43 @@ async function startSearch() {
           if (counts.hasOwnProperty(status)) counts[status]++;
           else counts.uncertain++;
 
+          const _tierDisplay = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
+          const _tierColor = { decision_maker: '#4ade80', outreach_ready: '#60a5fa', event_verified: '#facc15' };
           let msg = '[' + data.index + '/' + data.total + '] ' + status.toUpperCase() + ': ' + data.nonprofit;
           if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
-          if (data.tier && data.tier !== 'not_billable') msg += ' [' + data.tier + ']';
+          if (data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
+            msg += ' [' + _tierDisplay[data.tier] + ']';
+          }
 
           log(msg, status);
+
+          // Add colored tier badge after log line
+          if (data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
+            const lastLine = terminal.lastElementChild;
+            if (lastLine) {
+              const badge = document.createElement('span');
+              badge.textContent = _tierDisplay[data.tier];
+              badge.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;color:#000;background:' + _tierColor[data.tier];
+              lastLine.appendChild(badge);
+              if (data.tier_price > 0) {
+                const priceTag = document.createElement('span');
+                priceTag.textContent = '$' + (data.tier_price / 100).toFixed(2);
+                priceTag.style.cssText = 'margin-left:4px;font-size:10px;color:#a3a3a3;';
+                lastLine.appendChild(priceTag);
+              }
+            }
+          }
+
+          // Show email verified badge
+          if (data.email_status === 'deliverable') {
+            const lastLine2 = terminal.lastElementChild;
+            if (lastLine2 && lastLine2.tagName !== 'DIV') {
+              const evBadge = document.createElement('span');
+              evBadge.textContent = 'Email Verified';
+              evBadge.style.cssText = 'margin-left:6px;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600;color:#065f46;background:#d1fae5;';
+              lastLine2.appendChild(evBadge);
+            }
+          }
 
           // Add Make Exclusive button for billable leads
           if (!IS_ADMIN && data.tier && data.tier !== 'not_billable' && data.event_url && data.event_title) {
@@ -2577,9 +2807,11 @@ async function startSearch() {
             const bs = document.getElementById('billingSummary');
             const b = data.billing;
             let html = '<div class="row"><span>Searched: ' + totalNonprofits + ' nonprofits</span><span>$' + (b.research_fees / 100).toFixed(2) + '</span></div>';
+            const _bTierNames = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
             if (b.lead_fees) {
               for (const [tier, info] of Object.entries(b.lead_fees)) {
-                html += '<div class="row"><span>' + info.count + ' ' + tier + ' leads x $' + (info.price_each / 100).toFixed(2) + '</span><span>$' + (info.total / 100).toFixed(2) + '</span></div>';
+                const tName = _bTierNames[tier] || tier;
+                html += '<div class="row"><span>' + info.count + ' ' + tName + ' leads x $' + (info.price_each / 100).toFixed(2) + '</span><span>$' + (info.total / 100).toFixed(2) + '</span></div>';
               }
             }
             html += '<div class="row total"><span>Total charged</span><span>$' + (b.total_charged / 100).toFixed(2) + '</span></div>';
@@ -2599,14 +2831,14 @@ async function startSearch() {
           document.getElementById('downloadJson').href = '/api/download/' + completedJobId + '/json';
           document.getElementById('downloadXlsx').href = '/api/download/' + completedJobId + '/xlsx';
 
-          searchBtn.disabled = false;
+          searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
           currentEvtSource.close();
           currentEvtSource = null;
           break;
 
         case 'error':
           log('ERROR: ' + data.message, 'error');
-          searchBtn.disabled = false;
+          searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
           currentEvtSource.close();
           currentEvtSource = null;
           break;
@@ -2629,13 +2861,13 @@ async function startSearch() {
 
     currentEvtSource.onerror = () => {
       log('Connection lost. Check results below if available.', 'error');
-      searchBtn.disabled = false;
+      searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
       if (currentEvtSource) { currentEvtSource.close(); currentEvtSource = null; }
     };
 
   } catch (err) {
     log('Request failed: ' + err.message, 'error');
-    searchBtn.disabled = false;
+    searchBtn.disabled = false; document.getElementById('searchDots').style.display = 'none';
   }
 }
 
@@ -3883,7 +4115,7 @@ GETTING_STARTED_HTML = """<!DOCTYPE html>
     <div class="step-content">
       <h3>Understand Your Results</h3>
       <p>Each lead includes up to <strong>16 fields</strong>: event title, date, URL, auction type, confidence score, contact name, email, role, address, phone, and evidence text. Leads are classified into tiers:</p>
-      <p style="margin-top:8px;"><strong style="color:#4ade80;">Complete Contact ($1.50)</strong> &mdash; all fields + verified URL &nbsp;|&nbsp; <strong style="color:#eab308;">Email + Auction Type ($1.25)</strong> &mdash; event + auction type + email &nbsp;|&nbsp; <strong style="color:#fbbf24;">Email Only ($1.00)</strong> &mdash; event + email &nbsp;|&nbsp; <strong style="color:#a3a3a3;">Event Only ($0.75)</strong> &mdash; event + URL only</p>
+      <p style="margin-top:8px;"><strong style="color:#4ade80;">Decision Maker ($1.75)</strong> &mdash; named contact + verified email + event details &nbsp;|&nbsp; <strong style="color:#60a5fa;">Outreach Ready ($1.25)</strong> &mdash; verified email + event details &nbsp;|&nbsp; <strong style="color:#facc15;">Event Verified ($0.75)</strong> &mdash; event title, date &amp; URL only</p>
     </div>
   </div>
 
@@ -4245,7 +4477,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="stat"><div class="num">300K+</div><div class="lbl">Nonprofits in Database</div></div>
   <div class="stat"><div class="num">Up to 1,000</div><div class="lbl">Nonprofit Domains Per Search</div></div>
   <div class="stat"><div class="num">40+</div><div class="lbl">Filters for Targeted Searches</div></div>
-  <div class="stat"><div class="num">7-Day</div><div class="lbl">Free Trial</div></div>
+  <div class="stat"><div class="num">$25</div><div class="lbl">Free Credit</div></div>
 </div>
 
 <!-- How It Works -->
@@ -4324,12 +4556,12 @@ LANDING_HTML = """<!DOCTYPE html>
 <section style="padding:80px 40px;text-align:center;background:linear-gradient(180deg,#0d0a1a 0%,#000 100%);border-top:1px solid #1a1a2a;border-bottom:1px solid #1a1a2a;">
   <div style="max-width:560px;margin:0 auto;">
     <div style="display:inline-block;padding:6px 20px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);border-radius:24px;font-size:12px;color:#8b5cf6;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:28px;">Free Trial</div>
-    <div style="font-size:72px;font-weight:900;color:#8b5cf6;line-height:1;margin-bottom:4px;">150</div>
-    <div style="font-size:22px;font-weight:700;color:#f5f5f5;margin-bottom:24px;">nonprofit researches&mdash;on&nbsp;us</div>
-    <p style="font-size:15px;color:#a3a3a3;margin-bottom:6px;">Up to $50 in value. No credit card required.</p>
+    <div style="font-size:72px;font-weight:900;color:#8b5cf6;line-height:1;margin-bottom:4px;">$25</div>
+    <div style="font-size:22px;font-weight:700;color:#f5f5f5;margin-bottom:24px;">in free search credit&mdash;on&nbsp;us</div>
+    <p style="font-size:15px;color:#a3a3a3;margin-bottom:6px;">Searches are free &mdash; you only pay for leads found. No credit card required.</p>
     <p style="font-size:14px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial.</p>
     <a href="/register" style="display:inline-block;padding:14px 36px;background:#8b5cf6;color:#fff;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
-    <p style="font-size:12px;color:#525252;margin-top:16px;">7-day trial &middot; No auto-charge &middot; Cancel anytime</p>
+    <p style="font-size:12px;color:#525252;margin-top:16px;">$25 free credit &middot; No credit card required &middot; Pay only for leads found</p>
   </div>
 </section>
 
@@ -4340,59 +4572,51 @@ LANDING_HTML = """<!DOCTYPE html>
     <h2>Simple, transparent pricing</h2>
     <p>All tiers require a verified event page link.<br>Wallet-based billing&mdash;no subscriptions, no commitments.</p>
   </div>
-  <div class="pricing-grid">
+  <div class="pricing-grid" style="grid-template-columns:repeat(3,1fr);">
     <div class="price-card highlight">
-      <h3>Complete Contact</h3>
-      <div class="price-tag"><b>$1.50</b> / lead</div>
+      <h3>Decision Maker</h3>
+      <div class="price-tag"><b>$1.75</b> / lead</div>
       <ul>
-        <li>Event title &amp; event date</li>
+        <li>Named contact + verified email</li>
+        <li>Event title &amp; date</li>
         <li>Verified event page link</li>
-        <li>Auction type (live/silent/both)</li>
-        <li>Contact name &amp; contact email</li>
+        <li>Email deliverability confirmed</li>
       </ul>
+      <p style="font-size:12px;color:#737373;margin-top:8px;">Best for: Phone campaigns &amp; personalized outreach</p>
       <a href="/register" class="signup-btn">Get Started</a>
     </div>
     <div class="price-card std">
-      <h3>Email + Auction Type</h3>
+      <h3>Outreach Ready</h3>
       <div class="price-tag"><b>$1.25</b> / lead</div>
       <ul>
-        <li>Event title &amp; event date</li>
+        <li>Verified email address</li>
+        <li>Event title &amp; date</li>
         <li>Verified event page link</li>
-        <li>Auction type (live/silent/both)</li>
-        <li>Contact email (no contact name)</li>
+        <li>Email deliverability confirmed</li>
       </ul>
+      <p style="font-size:12px;color:#737373;margin-top:8px;">Best for: Email campaigns &amp; cold outreach</p>
       <a href="/register" class="signup-btn">Create Account</a>
     </div>
     <div class="price-card std">
-      <h3>Email Only</h3>
-      <div class="price-tag"><b>$1.00</b> / lead</div>
-      <ul>
-        <li>Event title &amp; event date</li>
-        <li>Verified event page link</li>
-        <li>Contact email</li>
-        <li>Auction type missing</li>
-      </ul>
-      <a href="/register" class="signup-btn">Create Account</a>
-    </div>
-    <div class="price-card std">
-      <h3>Event Only</h3>
+      <h3>Event Verified</h3>
       <div class="price-tag"><b>$0.75</b> / lead</div>
       <ul>
-        <li>Event title &amp; event date</li>
-        <li>Verified event page link only</li>
+        <li>Event title &amp; date</li>
+        <li>Verified event page link</li>
         <li>No contact info</li>
       </ul>
+      <p style="font-size:12px;color:#737373;margin-top:8px;">Best for: Building prospect lists &amp; DIY research</p>
       <a href="/register" class="signup-btn">Create Account</a>
     </div>
   </div>
   <p class="pricing-note"><strong>No event page link = no lead charge.</strong></p>
-  <p class="pricing-note" style="margin-top:12px;">Research fee: <strong>$0.08</strong>/nonprofit ($0.07 at 10K+, $0.06 at 50K+) &mdash; charged whether or not a lead is found.</p>
+  <p class="pricing-note" style="margin-top:12px;">Research fee: <strong>$0.04</strong>/nonprofit ($0.03 at 10K+, $0.02 at 50K+) &mdash; charged whether or not a lead is found.</p>
   <p class="pricing-bonus">Bonus fields (no extra charge): mailing address + main phone (when available).</p>
 
-  <!-- Complete Contacts Only callout -->
+  <!-- Tier Selection callout -->
   <div style="max-width:900px;margin:40px auto 0;background:#111;border:1px solid #1a1a1a;border-radius:16px;padding:32px;text-align:left;">
-    <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Only Want Complete Contacts?</h3>
-    <p style="font-size:15px;color:#a3a3a3;line-height:1.6;">Turn on <strong style="color:#eab308;">"Complete Contacts Only"</strong> before running a search. When enabled, your results will only include leads with a verified contact name, contact email, auction type, and event page link.</p>
+    <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Choose Your Tiers Before Each Search</h3>
+    <p style="font-size:15px;color:#a3a3a3;line-height:1.6;">Before every search, a popup lets you pick which lead tiers you want. Only pay for the tiers you select&mdash;unselected tiers are excluded from your results and never billed.</p>
   </div>
 
   <!-- Exclusive Event Lead callout -->
@@ -4421,7 +4645,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What if a nonprofit doesn't have an upcoming auction? <span class="arrow">+</span></div>
-      <div class="faq-a">You still pay the research fee ($0.08 per nonprofit) because the research engine performed the web research. However, you are not charged a lead fee when no auction was found. The research fee covers the compute cost regardless of outcome.</div>
+      <div class="faq-a">You still pay the research fee ($0.04 per nonprofit) because the research engine performed the web research. However, you are not charged a lead fee when no auction was found. The research fee covers the compute cost regardless of outcome.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How do I add funds to my account? <span class="arrow">+</span></div>
@@ -4441,15 +4665,15 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's the difference between lead tiers? <span class="arrow">+</span></div>
-      <div class="faq-a">Leads are priced by completeness, and all tiers require a verified event page link: <b>Complete Contact ($1.50)</b>: Event title/date + event page link + auction type + contact name + contact email. <b>Email + Auction Type ($1.25)</b>: Event title/date + event page link + auction type + contact email (name missing). <b>Email Only ($1.00)</b>: Event title/date + event page link + contact email (auction type missing). <b>Event Only ($0.75)</b>: Event title/date + event page link only. No event page link = no lead charge. Bonus fields (no extra charge): mailing address + main phone (when available).</div>
+      <div class="faq-a">Leads are priced by use case, and all tiers require a verified event page link: <b>Decision Maker ($1.75)</b>: Named contact + verified email + event title/date + event page link. Email deliverability confirmed. Best for phone campaigns. <b>Outreach Ready ($1.25)</b>: Verified email + event title/date + event page link. Email deliverability confirmed. Best for email campaigns. <b>Event Verified ($0.75)</b>: Event title/date + event page link only. No contact info. Best for building prospect lists. No event page link = no lead charge. If an email fails deliverability verification, the lead is automatically downgraded to Event Verified. Bonus fields (no extra charge): mailing address + main phone (when available).</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is mailing address included? <span class="arrow">+</span></div>
       <div class="faq-a">Mailing address is included when available (no extra charge). Some nonprofits use PO Boxes or have incomplete public address data.</div>
     </div>
     <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is "Complete Contacts Only" mode? <span class="arrow">+</span></div>
-      <div class="faq-a">It's a toggle you can enable before running a search. When turned on, only Complete Contact leads are included in your results&mdash;each one includes event title, event date, verified event page link, auction type, contact name, and contact email. You'll get fewer results, but every lead is contact-ready. Leads that don't meet this standard are excluded from your export and not billed.</div>
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does tier selection work? <span class="arrow">+</span></div>
+      <div class="faq-a">Before each search, a popup lets you choose which lead tiers you want to pay for. Check one or more tiers&mdash;Decision Maker, Outreach Ready, or Event Verified. You're only charged lead fees for tiers you selected, and only those leads appear in your download. You're never charged for nonprofits with no events found.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is a Priority Lead Lock? <span class="arrow">+</span></div>

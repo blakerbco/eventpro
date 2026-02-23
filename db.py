@@ -237,7 +237,7 @@ def init_db():
 
 
 TRIAL_PROMO_CODE = "26AUCTION26"
-TRIAL_CREDIT_CENTS = 5000  # $50.00
+TRIAL_CREDIT_CENTS = 2500  # $25.00
 TRIAL_DAYS = 7
 
 FREE_EMAIL_DOMAINS = {
@@ -448,7 +448,7 @@ def add_funds(user_id: int, amount_cents: int, description: str = "Stripe top-up
     return True
 
 
-def charge_research_fee(user_id: int, count: int, job_id: str, fee_cents_each: int = 8):
+def charge_research_fee(user_id: int, count: int, job_id: str, fee_cents_each: int = 4):
     """Deduct research fee (per-nonprofit). Returns total charged."""
     total = count * fee_cents_each
     conn = _get_conn()
@@ -512,11 +512,11 @@ def get_transactions(user_id: int, limit: int = 50) -> list:
 def get_research_fee_cents(total_nonprofits: int) -> int:
     """Tiered research fee per nonprofit."""
     if total_nonprofits <= 10000:
-        return 8    # $0.08
+        return 4    # $0.04
     elif total_nonprofits <= 50000:
-        return 7    # $0.07
+        return 3    # $0.03
     else:
-        return 6    # $0.06
+        return 2    # $0.02
 
 
 # ─── Search Job Persistence ──────────────────────────────────────────────────

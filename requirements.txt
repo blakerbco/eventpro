@@ -6,4 +6,5 @@ fastapi-poe>=0.0.36
 psycopg2-binary>=2.9.0
 stripe>=8.0.0
 resend>=2.0.0
+requests>=2.31.0
 gunicorn>=21.2.0

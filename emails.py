@@ -102,8 +102,8 @@ def send_welcome(email: str, is_trial: bool = False):
     trial_note = ""
     if is_trial:
         trial_note = _p(
-            "Your free trial is active with <strong>$50.00 in credit</strong> "
-            "— that's up to 150 nonprofit searches included. Your trial lasts 7 days, "
+            "Your free trial is active with <strong>$25.00 in credit</strong> "
+            "— that's up to 75 nonprofit searches included. Your trial lasts 7 days, "
             "so dive in and start finding auction leads right away."
         )
 

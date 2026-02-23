@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
+import requests
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -40,8 +41,8 @@ ALLOWLISTED_PLATFORMS = [
 CSV_COLUMNS = [
     "nonprofit_name", "event_title", "event_type", "evidence_date",
     "auction_type", "event_date", "event_url", "confidence_score",
-    "evidence_auction", "contact_name", "contact_email", "contact_role",
-    "organization_address", "organization_phone_maps",
+    "evidence_auction", "contact_name", "contact_email", "email_status",
+    "contact_role", "organization_address", "organization_phone_maps",
     "contact_source_url", "event_summary",
 ]
 
@@ -140,8 +141,23 @@ def _is_valid_email(email: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()))
 
 
-GENERIC_PREFIXES = {"info@", "contact@", "admin@", "support@"}
-DOWNGRADE_GENERIC_EMAILS = False
+EMAILABLE_API_KEY = os.environ.get("EMAILABLE_API_KEY", "")
+
+def validate_email_emailable(email: str) -> str:
+    """Call Emailable API. Returns: deliverable, risky, undeliverable, catch-all, unknown."""
+    if not EMAILABLE_API_KEY or not email:
+        return "unknown"
+    try:
+        resp = requests.get(
+            "https://api.emailable.com/v1/verify",
+            params={"email": email, "api_key": EMAILABLE_API_KEY},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return resp.json().get("state", "unknown")
+        return "unknown"
+    except Exception:
+        return "unknown"
 
 
 def _has_valid_url(result: Dict[str, Any]) -> bool:
@@ -150,39 +166,22 @@ def _has_valid_url(result: Dict[str, Any]) -> bool:
 
 
 def classify_lead_tier(result: Dict[str, Any]) -> tuple:
-    """Returns (tier_name, price_cents) based on fields present."""
+    """Returns (tier_name, price_cents) based on fields present.
+    3-tier system: decision_maker ($1.75), outreach_ready ($1.25), event_verified ($0.75)."""
     has_title = bool(result.get("event_title", "").strip())
     has_date = bool(result.get("event_date", "").strip())
     has_url = _has_valid_url(result)
-    has_auction = bool(result.get("auction_type", "").strip())
     has_name = bool(result.get("contact_name", "").strip())
     has_email = _is_valid_email(result.get("contact_email", ""))
 
     if not has_title or not has_date or not has_url:
         return ("not_billable", 0)
 
-    tier, price = "not_billable", 0
-
-    if has_title and has_date and has_url and has_auction and has_name and has_email:
-        tier, price = "full", 150
-    elif has_title and has_date and has_url and has_auction and has_email:
-        tier, price = "partial", 125
-    elif has_title and has_date and has_url and has_email:
-        tier, price = "semi", 100
-    elif has_title and has_date and has_url:
-        tier, price = "bare", 75
-
-    if DOWNGRADE_GENERIC_EMAILS and has_email:
-        email_lower = result.get("contact_email", "").lower()
-        if any(email_lower.startswith(p) for p in GENERIC_PREFIXES):
-            downgrades = {"full": "partial", "partial": "semi", "semi": "bare", "bare": "bare"}
-            new_tier = downgrades.get(tier, tier)
-            if new_tier != tier:
-                tier = new_tier
-                tier_prices = {"full": 150, "partial": 125, "semi": 100, "bare": 75, "not_billable": 0}
-                price = tier_prices.get(tier, 0)
-
-    return (tier, price)
+    if has_email and has_name:
+        return ("decision_maker", 175)
+    if has_email:
+        return ("outreach_ready", 125)
+    return ("event_verified", 75)
 
 
 def _missing_billable_fields(result: Dict[str, Any]) -> List[str]:

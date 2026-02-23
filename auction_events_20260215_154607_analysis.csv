@@ -1,0 +1,45 @@
+Section,Field,Populated,Missing,Coverage %
+Field Completeness,_processed_at,159,0,100
+Field Completeness,auction_type,148,11,93
+Field Completeness,confidence_score,159,0,100
+Field Completeness,contact_email,142,17,89
+Field Completeness,contact_name,138,21,87
+Field Completeness,contact_role,156,3,98
+Field Completeness,contact_source_url,158,1,99
+Field Completeness,event_date,131,28,82
+Field Completeness,event_summary,159,0,100
+Field Completeness,event_title,135,24,85
+Field Completeness,event_type,136,23,86
+Field Completeness,event_url,135,24,85
+Field Completeness,evidence_auction,115,44,72
+Field Completeness,evidence_date,135,24,85
+Field Completeness,nonprofit_name,158,1,99
+Field Completeness,organization_address,157,2,99
+Field Completeness,organization_phone_maps,149,10,94
+Field Completeness,status,159,0,100
+
+Section,Missing Fields,Count,% of Total
+Missing Combination,(all complete),85,53.5
+Missing Combination,evidence_auction,17,10.7
+Missing Combination,contact_name,9,5.7
+Missing Combination,contact_email,8,5.0
+Missing Combination,event_date + event_title + event_type + event_url + evidence_auction + evidence_date,7,4.4
+Missing Combination,auction_type + event_date + event_title + event_type + event_url + evidence_auction + evidence_date,5,3.1
+Missing Combination,event_date,4,2.5
+Missing Combination,contact_name + evidence_auction,3,1.9
+Missing Combination,organization_phone_maps,3,1.9
+Missing Combination,event_date + event_title + event_type + event_url + evidence_date,2,1.3
+Missing Combination,auction_type + contact_name + event_date + event_title + event_type + event_url + evidence_auction + evidence_date,2,1.3
+Missing Combination,contact_name + event_date + event_title + event_type + event_url + evidence_auction + evidence_date,2,1.3
+Missing Combination,contact_email + evidence_auction,1,0.6
+Missing Combination,contact_email + contact_name + contact_role + event_date + event_title + event_url + evidence_auction + evidence_date,1,0.6
+Missing Combination,evidence_auction + organization_phone_maps,1,0.6
+Missing Combination,auction_type + contact_email + event_date + event_title + event_type + event_url + evidence_auction + evidence_date + organization_address + organization_phone_maps,1,0.6
+Missing Combination,contact_name + organization_phone_maps,1,0.6
+Missing Combination,contact_email + event_date + event_title + event_type + event_url + evidence_auction + evidence_date,1,0.6
+Missing Combination,auction_type + contact_email + contact_name + contact_role + contact_source_url + event_date + event_title + event_type + event_url + evidence_auction + evidence_date + nonprofit_name + organization_address + organization_phone_maps,1,0.6
+Missing Combination,contact_email + evidence_auction + organization_phone_maps,1,0.6
+Missing Combination,contact_email + contact_name + contact_role,1,0.6
+Missing Combination,auction_type + contact_name + event_date + event_title + event_type + event_url + evidence_date,1,0.6
+Missing Combination,contact_email + organization_phone_maps,1,0.6
+Missing Combination,auction_type + contact_email + event_date + event_title + event_type + event_url + evidence_auction + evidence_date + organization_phone_maps,1,0.6
