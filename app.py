@@ -4477,7 +4477,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="stat"><div class="num">300K+</div><div class="lbl">Nonprofits in Database</div></div>
   <div class="stat"><div class="num">Up to 1,000</div><div class="lbl">Nonprofit Domains Per Search</div></div>
   <div class="stat"><div class="num">40+</div><div class="lbl">Filters for Targeted Searches</div></div>
-  <div class="stat"><div class="num">$25</div><div class="lbl">Free Credit</div></div>
+  <div class="stat"><div class="num">$20</div><div class="lbl">Free Credit</div></div>
 </div>
 
 <!-- How It Works -->
@@ -4556,12 +4556,12 @@ LANDING_HTML = """<!DOCTYPE html>
 <section style="padding:80px 40px;text-align:center;background:linear-gradient(180deg,#0d0a1a 0%,#000 100%);border-top:1px solid #1a1a2a;border-bottom:1px solid #1a1a2a;">
   <div style="max-width:560px;margin:0 auto;">
     <div style="display:inline-block;padding:6px 20px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);border-radius:24px;font-size:12px;color:#8b5cf6;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:28px;">Free Trial</div>
-    <div style="font-size:72px;font-weight:900;color:#8b5cf6;line-height:1;margin-bottom:4px;">$25</div>
-    <div style="font-size:22px;font-weight:700;color:#f5f5f5;margin-bottom:24px;">in free search credit&mdash;on&nbsp;us</div>
-    <p style="font-size:15px;color:#a3a3a3;margin-bottom:6px;">Searches are free &mdash; you only pay for leads found. No credit card required.</p>
+    <div style="font-size:72px;font-weight:900;color:#8b5cf6;line-height:1;margin-bottom:4px;">$20</div>
+    <div style="font-size:22px;font-weight:700;color:#f5f5f5;margin-bottom:24px;">in free credit&mdash;on&nbsp;us</div>
+    <p style="font-size:15px;color:#a3a3a3;margin-bottom:6px;">Covers searches and results. No credit card required.</p>
     <p style="font-size:14px;color:#737373;margin-bottom:28px;">Enter your promo code at registration to activate your free trial.</p>
     <a href="/register" style="display:inline-block;padding:14px 36px;background:#8b5cf6;color:#fff;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none;">Start Your Free Trial</a>
-    <p style="font-size:12px;color:#525252;margin-top:16px;">$25 free credit &middot; No credit card required &middot; Pay only for leads found</p>
+    <p style="font-size:12px;color:#525252;margin-top:16px;">$20 free credit &middot; No credit card required &middot; Covers searches + leads</p>
   </div>
 </section>
 
