@@ -383,18 +383,18 @@ def _research_one(
         status = cached.get("status", "uncertain")
         tier, price = classify_lead_tier(cached)
 
-        # Validate email via Emailable
+        # Validate email via Emailable (skip entirely if no API key)
+        cached["email_status"] = ""
         if EMAILABLE_API_KEY and cached.get("contact_email", "").strip():
+            print(f"[EMAILABLE] Validating (cache): {cached['contact_email']}", flush=True)
             email_status = validate_email_emailable(cached["contact_email"])
+            print(f"[EMAILABLE] Result (cache): {email_status}", flush=True)
             if email_status == "deliverable":
                 cached["email_status"] = "deliverable"
             else:
-                cached["email_status"] = ""
                 cached["contact_email"] = ""
                 cached["contact_name"] = ""
                 tier, price = "event_verified", 75
-        else:
-            cached["email_status"] = ""
 
         title = cached.get("event_title", "")
 
@@ -467,18 +467,18 @@ def _research_one(
     tier, price = classify_lead_tier(result)
     status = result.get("status", "uncertain")
 
-    # Validate email via Emailable
+    # Validate email via Emailable (skip entirely if no API key)
+    result["email_status"] = ""
     if EMAILABLE_API_KEY and result.get("contact_email", "").strip():
+        print(f"[EMAILABLE] Validating: {result['contact_email']}", flush=True)
         email_status = validate_email_emailable(result["contact_email"])
+        print(f"[EMAILABLE] Result: {email_status}", flush=True)
         if email_status == "deliverable":
             result["email_status"] = "deliverable"
         else:
-            result["email_status"] = ""
             result["contact_email"] = ""
             result["contact_name"] = ""
             tier, price = "event_verified", 75
-    else:
-        result["email_status"] = ""
 
     # Skip lead fee if tier not in selected_tiers
     _sel = selected_tiers or ["decision_maker", "outreach_ready", "event_verified"]
@@ -4722,6 +4722,7 @@ cleanup_expired_jobs()
 flush_uncertain_cache()
 
 print(f"Stripe configured: {'Yes' if stripe.api_key else 'No (set STRIPE_SECRET_KEY)'}", file=sys.stderr)
+print(f"Emailable configured: {'Yes (' + EMAILABLE_API_KEY[:8] + '...)' if EMAILABLE_API_KEY else 'No (set EMAILABLE_API_KEY)'}", file=sys.stderr)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
