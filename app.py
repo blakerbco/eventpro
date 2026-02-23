@@ -2764,7 +2764,7 @@ async function _doSearch(selectedTiers) {
           }
 
           // Add Make Exclusive button for billable leads
-          if (!IS_ADMIN && data.tier && data.tier !== 'not_billable' && data.event_url && data.event_title) {
+          if (!IS_ADMIN && status !== 'not_found' && data.tier && data.tier !== 'not_billable' && data.event_url && data.event_title) {
             const btnRow = document.createElement('div');
             btnRow.style.cssText = 'margin:-4px 0 6px 48px;';
             const eBtn = document.createElement('button');
