@@ -1,0 +1,686 @@
+Authentication
+Introduction
+# Using api_key parameter
+curl "https://api.emailable.com/v1/api_endpoint?api_key=your_api_key"
+
+# Using Authorization header
+curl "https://api.emailable.com/v1/api_endpoint" -H "Authorization: Bearer your_api_key"
+Make sure to replace your_api_key with your API key.
+
+Emailable uses API keys to allow access to our API. To get started, sign up for an account here.
+
+Emailable expects the API key to be included in all API requests to the server as a URL parameter, or as POST data for POST endpoints.
+
+Alternatively, you can use an HTTP Authorization header with your API key. In the header, specify the Bearer scheme followed by your API key. (e.g. "Authorization: Bearer your_api_key").
+
+ You must replace your_api_key with your API key.
+Security
+Emailable has two types of API Keys. Please use the proper API key for your application.
+
+Private API Keys
+This type of key is meant to be used on the server-side of your application. These keys should never be exposed because they are not protected.
+
+Should a Private API key be compromised, you should immediately generate a new one by using the "roll key" function in the dashboard.
+
+To enhance security, you can specify a list of trusted IP addresses for each Private API key. If specified, only requests originating from one of the IP addresses you have listed will be accepted.
+
+Private API keys can be used to access any API endpoint.
+
+Public API Keys
+This type of key is meant to be used anywhere that the key will be exposed publicly. One example would be using the API in the JavaScript of a website to verify that user entered email addresses are valid.
+
+To prevent abuse of your account, we require that you set up a list of trusted domains when you create a Public API key. All requests that are made using a Public API key will only work if they originate from a trusted domain. They will also be rate limited to 10 unique requests per day per user.
+
+If you've configured a captcha provider for your API key, you will need to send a captcha_response parameter with the request. This will be used to validate the captcha with your captcha provider. If the captcha fails to verify, the API will return a 403 status code.
+
+Public API keys are limited to authenticating requests to the /verify endpoint. Attempting to use a Public API key for any other endpoint will fail.
+
+Testing
+For either type of API key (Public or Private), a test key can be used instead of a live key. When creating an API key, you will be asked whether you want to create a test key or a live key. If you choose to create a test key, the key you generate will begin with "test_" instead of "live_".
+
+Any requests made with a test key will not use credits or perform real verifications. Instead, a simulated response will be returned. This is useful for testing whether your application is correctly making API calls without having to waste credits.
+
+You can also use a test key with certain test email addresses to generate responses with specific attributes. This is documented below.
+
+Batches created with a test key will be automatically deleted after 24 hours.
+
+Trusted IP address and trusted domain restrictions will still apply to test keys. Domain-based rate limits for Public API keys are not enforced for test keys.
+
+Client Libraries
+Below is a list of client libraries.
+
+Ruby
+emailable-ruby
+Node JS
+emailable-node
+Python
+emailable-python
+OAuth Apps
+# Using access_token parameter
+curl "https://api.emailable.com/v1/api_endpoint?access_token=your_access_token"
+
+# Using Authorization header
+curl "https://api.emailable.com/v1/api_endpoint" -H "Authorization: Bearer your_access_token"
+Make sure to replace your_access_token with the access token.
+
+If you've authenticated a user with an OAuth App, you should have an access token for that user. You can use the access token to authenticate to the Emailable API by sending an access_token parameter instead of an api_key parameter. Alternatively, you can use an HTTP Authorization header with the access token. In the header, specify the Bearer scheme followed by the access token. (e.g. "Authorization: Bearer your_access_token").
+
+See OAuth for more information on OAuth endpoints, including instructions for obtaining an access token.
+
+Emails
+Verify an email
+curl "https://api.emailable.com/v1/verify?email=john@smith.com&api_key=your_api_key"
+The above command returns JSON structured like this:
+
+{
+  "accept_all": null,
+  "did_you_mean": null,
+  "disposable": false,
+  "domain": "gmail.com",
+  "duration": 0.493,
+  "email": "john.smith@gmail.com",
+  "first_name": "John",
+  "free": true,
+  "full_name": "John Smith",
+  "gender": "male",
+  "last_name": "Smith",
+  "mailbox_full": false,
+  "mx_record": "aspmx.l.google.com",
+  "no_reply": false,
+  "reason": "accepted_email",
+  "role": false,
+  "score": 100,
+  "smtp_provider": "google",
+  "state": "deliverable",
+  "tag": null,
+  "user": "john.smith"
+}
+If a verification is taking too long, a 249 status code will be returned:
+
+{
+  "message": "Your request is taking longer than normal. Please send your request again."
+}
+Verify a single email. If a verification request takes longer than the timeout, you may retry this request for up to 5 minutes. After 5 minutes, further requests will count against your usage. The verification result will be returned when it is available.
+
+When a test key is used, a random sample response will be returned.
+
+HTTP Request
+GET https://api.emailable.com/v1/verify
+
+Parameters
+Parameter	Required	Description
+email	true	The email you want verified.
+smtp	false	true or false. The SMTP step takes up the majority of the API's response time. If you would like to speed up your response times, you can disable this step. However, this will significantly decrease verification accuracy. Default: true
+accept_all	false	true or false. Whether or not an accept-all check is performed. Heavily impacts API's response time. Default: false
+api_key	false	Your API key.
+access_token	false	Your access token.
+timeout	false	Optional timeout to wait for response (in seconds). Min: 2, Max: 10. Default: 5
+captcha_response	false	The response string from your captcha provider. Only applicable when using a public API key with a captcha.
+Response
+The list of all attributes returned for each email verification. For additional details about each state and reason, click here.
+
+Attribute	Type	Description
+accept_all	Boolean	Whether the mail server used to verify indicates that all addresses are deliverable regardless of whether or not the email is valid.
+did_you_mean	String	A suggested correction for a common misspelling.
+disposable	Boolean	Whether this email is hosted on a disposable or temporary email service.
+domain	String	The domain of the email. (e.g. The domain for john.smith@gmail.com would be gmail.com)
+duration	Float	The length of time (in seconds) spent verifying this email.
+email	String	The email that was verified.
+first_name	String	The possible first name of the user.
+free	Boolean	Whether the email is hosted by a free email provider.
+full_name	String	The possible full name of the user.
+gender	String	The possible gender of the user.
+last_name	String	The possible last name of the user.
+mailbox_full	Boolean	The mailbox is currently full and emails may not be delivered.
+mx_record	String	The address of the mail server used to verify the email.
+no_reply	Boolean	An address that indicates it should not be replied to.
+reason	String	The reason for the associated state.
+role	Boolean	Whether the email is considered a role address. (e.g. support, info, etc.)
+score	Integer	The score of the verified email.
+smtp_provider	String	The SMTP provider of the verified email's domain.
+state	String	The state of the verified email. (e.g. deliverable, undeliverable, risky, unknown)
+tag	String	The tag part of the verified email. (e.g. The tag for john.smith+example@gmail.com would be example)
+user	String	The user part of the verified email. (e.g. The user for john.smith@gmail.com would be john.smith)
+Verify a batch of emails
+curl -X POST "https://api.emailable.com/v1/batch" \
+-d "emails=tim@smith.com,john@smith.com" \
+-d "url=http://example.com/callback" \
+-d "api_key=your_api_key"
+The above command returns JSON structured like this:
+
+{
+  "message": "Batch successfully created.",
+  "id": "5cf6dd30093f96d2ac34bb0a"
+}
+Verify a batch of emails. The emails should be sent as a parameter emails and should be separated by commas. Up to 50,000 emails can be sent per batch. For enterprise accounts, larger batches may be requested by contacting support.
+
+Data can be encoded as application/x-www-form-urlencoded, multipart/form-data, or application/json.
+
+Please ensure that all parameters are sent in the HTTP request body, not in the query string portion of the URL.
+
+If a URL is specified, the results will be sent to it via HTTP POST upon batch completion. The body will be JSON data, identical to the output from the batch status (GET /v1/batch) endpoint below. The endpoint should return an HTTP 200 status. If any other status code is returned, the results will continue to be sent hourly until a 200 status code is returned, or until 3 days have passed since the batch finished verifying.
+
+When a test key is used, a successful batch creation response will be returned along with an example batch id. Additionally, it is possible to simulate certain API responses when using a test key by utilizing the simulate parameter.
+
+Batches created with a test key will be automatically deleted after 24 hours.
+
+HTTP Request
+POST https://api.emailable.com/v1/batch
+
+Parameters
+Parameter	Required	Description
+emails	true	A comma separated list of emails.
+url	false	A URL that will receive the batch results via HTTP POST.
+api_key	false	Your API key.
+access_token	false	Your access token.
+response_fields	false	A comma separated list of fields to include in the response. If nothing is specified, all fields will be returned. Valid fields are accept_all, did_you_mean, disposable, domain, email, first_name, free, full_name, gender, last_name, mailbox_full, mx_record, no_reply, reason, role, score, smtp_provider, state, tag, and user.
+retries	false	Defaults to true. Retries increase accuracy by automatically retrying verification when our system receives certain responses from mail servers. To speed up verification, you can disable this by setting retries to false; however, doing so may increase the number of unknown responses.
+simulate	false	Used to simulate certain responses from the API while using a test key. Valid options are generic_error, insufficient_credits_error, payment_error, and card_error.
+Response
+Attribute	Type	Description
+message	String	A message about your batch.
+id	String	The unique ID of the batch.
+Get the status of a batch
+curl "https://api.emailable.com/v1/batch?api_key=your_api_key&id=5cf6dd30093f96d2ac34bb0a"
+If your batch is incomplete, a message will be returned, as well as the batch's progress if it is processing:
+
+{
+  "message": "Your batch is being processed.",
+  "processed": 1,
+  "total": 2
+}
+If you choose to include partial results, you will get emails and counts in your response, even if the batch is still processing (keep an eye on total_counts.processed and total_counts.total for progress):
+
+{
+  "message": "Your batch is being processed.",
+  "emails": [
+    {
+      "accept_all": false,
+      "did_you_mean": null,
+      "disposable": false,
+      "domain": "gmail.com",
+      "email": "john.smith@gmail.com",
+      "first_name": "John",
+      "free": true,
+      "full_name": "John Smith",
+      "gender": "male",
+      "last_name": "Smith",
+      "mailbox_full": false,
+      "mx_record": "aspmx.l.google.com",
+      "no_reply": false,
+      "reason": "accepted_email",
+      "role": false,
+      "score": 95,
+      "smtp_provider": "google",
+      "state": "deliverable",
+      "tag": null,
+      "user": "john.smith"
+    }
+  ],
+  "id": "5cf6dd30093f96d2ac34bb0a",
+  "reason_counts": {
+    "accepted_email": 1,
+    "invalid_domain": 0,
+    "invalid_email": 0,
+    "invalid_smtp": 0,
+    "low_deliverability": 0,
+    "low_quality": 0,
+    "no_connect": 0,
+    "rejected_email": 0,
+    "timeout": 0,
+    "unavailable_smtp": 0,
+    "unexpected_error": 0
+  },
+  "total_counts": {
+    "deliverable": 1,
+    "processed": 1,
+    "risky": 0,
+    "total": 2,
+    "undeliverable": 0,
+    "unknown": 0,
+    "duplicate": 0
+  }
+}
+When the batch completes, it will be indicated in the message field, and the results will be returned.
+
+Up to 1,000 emails:
+
+{
+  "emails": [
+    {
+      "accept_all": false,
+      "did_you_mean": null,
+      "disposable": false,
+      "domain": "gmail.com",
+      "email": "john.smith@gmail.com",
+      "first_name": "John",
+      "free": true,
+      "full_name": "John Smith",
+      "gender": "male",
+      "last_name": "Smith",
+      "mailbox_full": false,
+      "mx_record": "aspmx.l.google.com",
+      "no_reply": false,
+      "reason": "accepted_email",
+      "role": false,
+      "score": 95,
+      "smtp_provider": "google",
+      "state": "deliverable",
+      "tag": null,
+      "user": "john.smith"
+    },
+    {
+      "accept_all": false,
+      "did_you_mean": null,
+      "disposable": false,
+      "domain": "smith.com",
+      "email": "tim@smith.com",
+      "first_name": "Tim",
+      "free": false,
+      "full_name": "Tim",
+      "gender": "male",
+      "last_name": null,
+      "mailbox_full": false,
+      "mx_record": "mx1.smith.com",
+      "no_reply": false,
+      "reason": "accepted_email",
+      "role": false,
+      "score": 100,
+      "smtp_provider": null,
+      "state": "deliverable",
+      "tag": null,
+      "user": "tim"
+    }
+  ],
+  "id": "5cf6dd30093f96d2ac34bb0a",
+  "message": "Batch verification completed.",
+  "reason_counts": {
+    "accepted_email": 2,
+    "invalid_domain": 0,
+    "invalid_email": 0,
+    "invalid_smtp": 0,
+    "low_deliverability": 0,
+    "low_quality": 0,
+    "no_connect": 0,
+    "rejected_email": 0,
+    "timeout": 0,
+    "unavailable_smtp": 0,
+    "unexpected_error": 0
+  },
+  "total_counts": {
+    "deliverable": 2,
+    "processed": 2,
+    "risky": 0,
+    "total": 2,
+    "undeliverable": 0,
+    "unknown": 0,
+    "duplicate": 0
+  }
+}
+More than 1,000 emails:
+
+{
+  "id": "5cf6dd30093f96d2ac34bb0a",
+  "download_file": "https://app.emailable-cdn.com/downloads/6284ee8ee1b8323ee12c201c/5cf6dd30093f96d2ac34bb0a.csv?X-Amz-Expires=3600&X-Amz-Date=20220518T130252Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA5FIXD2WWI62KKBML/20220518/us-east-1/s3/aws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=7e38682a949082d7cc7e8e2bdc09973e0fdedd858de23061447af1a32ee65779",
+  "message": "Batch verification completed.",
+  "reason_counts": {
+    "accepted_email": 20000,
+    "invalid_domain": 0,
+    "invalid_email": 0,
+    "invalid_smtp": 0,
+    "low_deliverability": 0,
+    "low_quality": 0,
+    "no_connect": 0,
+    "rejected_email": 0,
+    "timeout": 0,
+    "unavailable_smtp": 0,
+    "unexpected_error": 0
+  },
+  "total_counts": {
+    "deliverable": 20000,
+    "processed": 20000,
+    "risky": 0,
+    "total": 20000,
+    "undeliverable": 0,
+    "unknown": 0,
+    "duplicate": 0
+  }
+}
+GET requests to the batch endpoint will get the current status of the batch verification job specified in the id parameter.
+
+When a credit card transaction is necessary to obtain enough credits to verify a batch, billing related messages will be returned if there is an error. These will be sent with a 402 response code.
+
+When a test key is used, a random sample response will be returned for each email in the batch. Additionally, it is possible to simulate certain API responses when using a test key by utilizing the simulate parameter.
+
+HTTP Request
+GET https://api.emailable.com/v1/batch
+
+Parameters
+Parameter	Required	Description
+id	true	The id of the batch.
+api_key	false	Your API key.
+access_token	false	Your access token.
+partial	false	A boolean value indicating whether to include partial results when a batch is still verifying. This option is only available for batches with up to 1,000 emails. Defaults to false.
+simulate	false	Used to simulate certain responses from the API while using a test key. Valid options are generic_error, importing, verifying, and paused.
+Response
+By default, all fields will be returned for each email in the response. It is possible to limit the fields that are returned by specifying the response_fields parameter on batch creation. See the batch creation parameters for details.
+
+Depending on the size of your batch, the batch status endpoint will operate in one of two ways.
+
+Up to 1,000 emails
+The response will include an emails key that will be an array containing responses for each email in the batch.
+
+After 30 days, the response will no longer return the emails key and their individual verification results. Only the aggregate counts for the batch will be returned.
+
+Over 1,000 emails
+The response will include a download_file key. This will be a URL to a ZIP compressed CSV file that contains all of the responses for each email in the batch.
+
+After 5 days, the response will no longer return the download_file key. Only the aggregate counts for the batch will be returned.
+
+Attribute	Type	Description
+message	String	A message about your batch.
+processed	Integer	The number of emails that have been verified in the batch.
+total	Integer	The total number of emails in your batch.
+emails	Array	An array containing responses for each email in the batch. This field will only be returned for batches up to 1,000 emails. (See single email verification for more information on the response fields.)
+download_file	String	A URL for a ZIP compressed CSV file containing responses for each email in the batch. This field will only be returned for batches over 1,000 emails.
+id	String	The unique ID of the batch.
+reason_counts	Hash	A hash with one key per possible reason attribute. The values are integers representing the number of emails with that reason.
+total_counts	Hash	A hash with one key per possible state attribute. The values are integers representing the number of emails with that state. In addition to the state keys, total_counts also contains keys processed and total, with values indicating the number of emails in the batch.
+Test email addresses
+There are several email addresses that can be used to return specific attributes when using a test API key. These will only work with the verify endpoint, not the batch endpoint.
+
+Email	Response
+deliverable@example.com	state will be deliverable
+undeliverable@example.com	state will be undeliverable
+risky@example.com	state will be risky
+unknown@example.com	state will be unknown
+role@example.com	role will be true
+free@example.com	free will be true
+accept-all@example.com	accept_all will be true
+disposable@example.com	disposable will be true
+slow@example.com	returns a 249 status code
+Account
+Get account info
+curl "https://api.emailable.com/v1/account?api_key=your_api_key"
+The above command returns JSON structured like this:
+
+{
+  "owner_email": "john@smith.com",
+  "available_credits": 1337
+}
+Get general account information like the email of the account owner and available credits.
+
+HTTP Request
+GET https://api.emailable.com/v1/account
+
+Parameters
+Parameter	Required	Description
+api_key	false	Your API key.
+access_token	false	Your access token.
+Response
+Attribute	Type	Description
+owner_email	String	The email of the account owner.
+available_credits	Integer	The amount of credits remaining on the account.
+Widget
+Using our widget is the easiest way to get email verification integrated into your existing website. Just install our embed code and we'll do the rest.
+
+Install the embed code
+Click here to go to the API page. Click "New Key" and create a Public API key. After you select Public, you will see an input for Trusted Domains. Be sure to enter the domain(s) that you will be installing the embed code on.
+
+For the security of your account, Public API Keys are restricted to 10 unique verifications per day per IP Address. All requests sent after the limit is reached will fail with a 429 status code response. If you need to do more extensive testing please make sure you use a Test Key which does not have this limit.
+
+Once you have an API key, install the code and we'll begin verifying any input with the type email.
+
+ You must replace your_api_key with your API key.
+<script>
+  (function (w, d, ns) {
+    w['EmailableObject'] = ns;
+    w[ns] = w[ns] || function () { (w[ns].q = w[ns].q || []).push(arguments) },
+    s = d.createElement('script'), fs = d.getElementsByTagName('script')[0];
+    s.async = 1; s.src = 'https://js.emailable.com/v2/';
+    fs.parentNode.insertBefore(s, fs)
+  })(window, document, 'emailable');
+
+  emailable('apiKey', 'your_api_key');
+</script>
+Configuration Options
+Using our configuration options, you can customize the email attributes you'd like to allow, which inputs we'll monitor, and more. The default configuration options are below.
+
+<script>
+  // types of emails that are allowed
+  emailable('allow', {
+    states: ['deliverable', 'risky', 'unknown'],
+    free: true,
+    role: true,
+    disposable: false
+  });
+
+  // maximum time to wait for the verification to respond. some mail servers
+  // are slow and we don't want to hold the user up for too long.
+  emailable('verificationTimeout', 5);
+
+  // how long to wait after a user stops typing to verify the email
+  emailable('verifyAfterDelay', 1000);
+
+  // enable form validation messages
+  // this will also remove the novalidate attribute from forms with one
+  emailable('formValidation', true);
+
+  // this is the selector for the inputs we will monitor
+  emailable('inputSelector', 'input[type=email]');
+
+  // array of form names to ignore
+  emailable('ignoredForms', []);
+
+  // array of input names to ignore
+  emailable('ignoredInputs', []);
+
+  // users who enter 10+ emails will be rate-limited by our servers.
+  // when set to true the user will get the rateLimited message.
+  emailable('blockOnRateLimit', false)
+
+  // the parent element to append the status element to. can be an element or
+  // CSS identifier.
+  emailable('statusAppendTo', 'body')
+
+  // styles
+  emailable('style', {
+    loadingIconColor: 'rgba(0, 0, 0, 0.3)'
+  });
+
+  // messages
+  emailable('messages', {
+    verifying: "Please wait a moment while we verify your email address.",
+    invalid: "It looks like you've entered an invalid email address.",
+    role: "It looks like you've entered a role or group email address.",
+    free: "It looks like you've entered a free email address.",
+    disposable: "It looks like you've entered a disposable email.",
+    didYouMean: "It looks like you've entered an invalid email address. Did you mean [EMAIL]?",
+    rateLimited: "It looks like you've attempted to enter too many emails."
+  });
+</script>
+Event Listener
+Our event listeners will give you the ability to take specific actions once the verification has completed.
+
+Verified Event
+<script>
+// example event listener
+$('input').on('verified', function(event) {
+  console.log(event.detail);
+  /*
+  {
+    accepted: false,
+    message: "It looks like you've entered an invalid email address.",
+    verificationData: {
+      body: "{"accept_all":false,"did_you_mean":null,"disposable":false,"domain":"gmail.com",...",
+      status: 200
+    }
+  }
+  */
+});
+</script>
+Error Event
+<script>
+// example event listener
+$('input').on('error', function(event) {
+  console.log(event.detail);
+  /*
+  {
+    status: 429,
+    message: 'Rate limit reached'
+  }
+  */
+});
+</script>
+OAuth
+These endpoints are used to authenticate to OAuth Apps you've created in Emailable. OAuth apps allow you to authenticate your users with Emailable and make API requests on their behalf.
+
+Emailable implements the OAuth 2 Authorization Code flow.
+
+Errors are handled as specified by the OAuth 2 spec.
+
+Authorize
+To initiate the OAuth flow, your application should link to the authorize endpoint with the necessary parameters.
+
+If any parameters are incorrect or if a required parameter is missing, the rendered page will not prompt the user to authorize. Instead, it will display an error page containing an error description.
+
+HTTP Request
+GET https://api.emailable.com/oauth/authorize
+
+Parameters
+Parameter	Required	Description
+response_type	true	The string code
+client_id	true	Your OAuth App's client ID
+redirect_uri	true	Your OAuth App's redirect URI
+state	false	An arbitrary string included in the request that the server returns unchanged, allowing the client to verify the response and prevent CSRF.
+Response
+If the request succeeds, the user will be redirected to your redirect URI with an authorization code. You will also receive a state string if you provided one. The authorization code expires 10 minutes after it is issued.
+
+Attribute	Description
+code	The authorization code generated by the server.
+state	The state string, if one was provided in the request.
+Access Token
+curl -X POST "https://api.emailable.com/oauth/token" \
+-d "grant_type=authorization_code" \
+-d "code=example-code" \
+-d "client_id=example-client-id" \
+-d "client_secret=example-client-secret" \
+-d "redirect_uri=https://example.com/oauth/callback"
+The above command returns JSON structured like this:
+
+{
+  "access_token": "example-access-token",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "refresh_token": "example-refresh-token",
+  "scope": "all",
+  "created_at": 1743861442
+}
+This endpoint is used to request an access token and a refresh token using an authorization code and your OAuth client credentials.
+
+HTTP Request
+POST https://api.emailable.com/oauth/token
+
+Parameters
+Parameter	Required	Description
+grant_type	true	The string authorization_code
+code	true	The authorization code received from the authorization request
+client_id	true	Your OAuth App's client ID
+client_secret	true	Your OAuth App's client secret
+redirect_uri	true	Your OAuth App's redirect URI
+Response
+If the request succeeds, you will receive a JSON response containing an access token and a refresh token. The access token is what you will use to authenticate requests to the Emailable API, as described in Authentication.
+
+Attribute	Description
+access_token	The access token used to authenticate the user
+refresh_token	The refresh token that can be used to request new access tokens
+token_type	The string Bearer
+expires_in	An integer representing the number of seconds before the access token expires.
+scope	The string all. We do not currently implement scopes, so you can disregard this parameter.
+created_at	An integer timestamp indicating when the access token was created.
+Refresh Token
+curl -X POST "https://api.emailable.com/oauth/token" \
+-d "grant_type=refresh_token" \
+-d "refresh_token=example-refresh-token" \
+-d "client_id=example-client-id" \
+-d "client_secret=example-client-secret"
+The above command returns JSON structured like this:
+
+{
+  "access_token": "example-access-token",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "refresh_token": "example-refresh-token",
+  "scope": "all",
+  "created_at": 1746745624
+}
+This endpoint is used to request a new access token using a refresh token and your OAuth client credentials.
+
+HTTP Request
+POST https://api.emailable.com/oauth/token
+
+Parameters
+Parameter	Required	Description
+grant_type	true	The string refresh_token
+refresh_token	true	The refresh token issued to the client
+client_id	true	Your OAuth App's client ID
+client_secret	true	Your OAuth App's client secret
+Response
+If the request succeeds, you will receive a JSON response containing a new access token and a new refresh token.
+
+Attribute	Description
+access_token	The access token used to authenticate the user
+refresh_token	The refresh token that can be used to request new access tokens
+token_type	The string Bearer
+expires_in	An integer representing the number of seconds before the access token expires.
+scope	The string all. We do not currently implement scopes, so you can disregard this parameter.
+created_at	An integer timestamp indicating when the access token was created.
+Revoke
+curl -X POST "https://app.emailable.com/oauth/revoke" \
+-d "token=example-access-token" \
+-d "client_id=example-client-id" \
+-d "client_secret=example-client-secret"
+The above command returns JSON structured like this:
+
+{}
+You can use this endpoint to revoke an access token, making it so it can no longer be used to authenticate requests.
+
+HTTP Request
+POST https://app.emailable.com/oauth/revoke
+
+Parameters
+Parameter	Required	Description
+token	true	The access token to revoke
+client_id	true	Your OAuth App's client ID
+client_secret	true	Your OAuth App's client secret
+Response
+If the request succeeds, you will receive an empty JSON response.
+
+Rate Limits
+{
+  "message": "Rate Limit Exceeded"
+}
+When rate limits are exceeded, the 429 status code will be returned.
+
+There are different rate limits for different API endpoints. These rate limits are shown below. Enterprise accounts may request higher rate limits.
+
+Endpoint	Method	Standard	Enterprise
+/v1/verify	GET/POST	25 per second	Custom
+/v1/batch	GET/POST	5 per second	Custom
+/v1/account	GET	5 per second	Custom
+Status Codes
+{
+  "message": "API key is required"
+}
+The Emailable API uses the following status codes:
+
+Code	Response	Meaning
+249	Try Again	Your request is taking longer than normal. Please send your request again.
+400	Bad Request	Your request is structured incorrectly.
+401	Unauthorized	You did not send an API key.
+402	Payment Required	You don't have enough credits to complete this request.
+403	Forbidden	Your API key is invalid, you did not provide the required authentication parameters, you provided a captcha_response that failed to verify, or your request failed to authenticate.
+404	Not Found	The specified resource does not exist.
+429	Too Many Requests	You're requesting an endpoint too often.
+500	Internal Server Error	A server error occurred. Please try again later, or contact support if you're having trouble.
+503	Service Unavailable	We're temporarily offline for maintenance. Please try again later.

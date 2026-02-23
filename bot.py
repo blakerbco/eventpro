@@ -145,18 +145,32 @@ EMAILABLE_API_KEY = os.environ.get("EMAILABLE_API_KEY", "")
 
 def validate_email_emailable(email: str) -> str:
     """Call Emailable API. Returns: deliverable, risky, undeliverable, catch-all, unknown."""
-    if not EMAILABLE_API_KEY or not email:
+    if not EMAILABLE_API_KEY:
+        print(f"[EMAILABLE] SKIP — no API key set", flush=True)
+        return "unknown"
+    if not email:
+        print(f"[EMAILABLE] SKIP — empty email", flush=True)
         return "unknown"
     try:
+        print(f"[EMAILABLE] Calling API for: {email} (key: {EMAILABLE_API_KEY[:10]}...)", flush=True)
         resp = requests.get(
             "https://api.emailable.com/v1/verify",
             params={"email": email, "api_key": EMAILABLE_API_KEY},
             timeout=10,
         )
+        print(f"[EMAILABLE] HTTP {resp.status_code} for {email}", flush=True)
         if resp.status_code == 200:
-            return resp.json().get("state", "unknown")
-        return "unknown"
-    except Exception:
+            data = resp.json()
+            state = data.get("state", "unknown")
+            score = data.get("score", "?")
+            reason = data.get("reason", "?")
+            print(f"[EMAILABLE] {email} -> state={state}, score={score}, reason={reason}", flush=True)
+            return state
+        else:
+            print(f"[EMAILABLE] ERROR {resp.status_code}: {resp.text[:200]}", flush=True)
+            return "unknown"
+    except Exception as e:
+        print(f"[EMAILABLE] EXCEPTION for {email}: {e}", flush=True)
         return "unknown"
 
 
