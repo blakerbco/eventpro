@@ -2363,7 +2363,11 @@ INDEX_HTML = """<!DOCTYPE html>
   .stat.notfound .num { color: #f87171; }
   .stat.uncertain .num { color: #fbbf24; }
 
-  .terminal { background: #000000; border: 1px solid #262626; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto; font-size: 13px; line-height: 1.6; }
+  .terminal { background: #000000; border: 1px solid #262626; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto; font-size: 13px; line-height: 1.6; scrollbar-width:thin; scrollbar-color:#eab308 #000; }
+  .terminal::-webkit-scrollbar { width:8px; }
+  .terminal::-webkit-scrollbar-track { background:#000; }
+  .terminal::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
+  .terminal::-webkit-scrollbar-thumb:hover { background:#ffd900; }
   .terminal .line { padding: 2px 0; }
   .terminal .line.processing { color: #a3a3a3; }
   .terminal .line.found { color: #4ade80; }

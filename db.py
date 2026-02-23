@@ -889,7 +889,8 @@ EXCLUSIVE_LEAD_PRICE_CENTS = 250  # $2.50 flat
 
 def purchase_exclusive_lead(user_id: int, job_id: str, nonprofit_name: str,
                             event_title: str, event_url: str) -> bool:
-    """Purchase exclusivity for a specific event lead. Returns True on success."""
+    """Purchase exclusivity for a specific event lead. Returns True on success.
+    Refunds the original lead_fee tier charge so lock price replaces (not adds to) it."""
     conn = _get_conn()
     cur = conn.cursor()
     # Check if already exclusive
@@ -901,14 +902,42 @@ def purchase_exclusive_lead(user_id: int, job_id: str, nonprofit_name: str,
         cur.close()
         return False
 
-    # Check balance
-    cur.execute("SELECT balance_cents FROM wallets WHERE user_id = %s", (user_id,))
-    bal = _fetchone(cur)
-    if not bal or bal["balance_cents"] < EXCLUSIVE_LEAD_PRICE_CENTS:
-        cur.close()
-        return False
+    # Find and refund the original lead_fee for this nonprofit in this job
+    refund_cents = 0
+    cur.execute(
+        "SELECT id, amount_cents FROM transactions "
+        "WHERE user_id = %s AND job_id = %s AND type = 'lead_fee' "
+        "AND description LIKE %s LIMIT 1",
+        (user_id, job_id, f"%{nonprofit_name[:30]}%"),
+    )
+    original_fee = _fetchone(cur)
+    if original_fee:
+        refund_cents = abs(original_fee["amount_cents"])
+        print(f"[LOCK] Refunding original lead fee: ${refund_cents/100:.2f} for {nonprofit_name}", flush=True)
 
-    # Charge wallet
+    # Net charge = lock price minus refund
+    net_charge = EXCLUSIVE_LEAD_PRICE_CENTS - refund_cents
+
+    # Check balance (net_charge could be negative if tier fee > lock price, but that shouldn't happen)
+    if net_charge > 0:
+        cur.execute("SELECT balance_cents FROM wallets WHERE user_id = %s", (user_id,))
+        bal = _fetchone(cur)
+        if not bal or bal["balance_cents"] < net_charge:
+            cur.close()
+            return False
+
+    # Refund original tier fee
+    if refund_cents > 0:
+        cur.execute("UPDATE wallets SET balance_cents = balance_cents + %s WHERE user_id = %s",
+                    (refund_cents, user_id))
+        cur.execute(
+            "INSERT INTO transactions (user_id, type, amount_cents, description, job_id) "
+            "VALUES (%s, 'lead_refund', %s, %s, %s)",
+            (user_id, refund_cents,
+             f"Tier fee refund (lock replaces): {nonprofit_name[:40]}", job_id),
+        )
+
+    # Charge lock price
     cur.execute("UPDATE wallets SET balance_cents = balance_cents - %s WHERE user_id = %s",
                 (EXCLUSIVE_LEAD_PRICE_CENTS, user_id))
     cur.execute(
