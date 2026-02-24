@@ -3956,6 +3956,9 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
   .ebtn:hover { border-color:#eab308; color:#eab308; }
   .ebtn.primary { background:#eab308; border-color:#eab308; color:#000; }
   .ebtn.primary:hover { filter:brightness(1.1); }
+  .dist-tab { padding:5px 12px; border:1px solid #333; border-radius:6px; background:#1a1a1a; color:#a3a3a3; font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer; transition:all .2s; }
+  .dist-tab:hover { border-color:#eab308; color:#f5f5f5; }
+  .dist-tab.active { background:#eab308; color:#000; border-color:#eab308; }
   .hidden { display:none !important; }
   @media(max-width:600px) {
     .stats-row { grid-template-columns:repeat(2,1fr); }
@@ -3978,7 +3981,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
   <div class="dropzone" id="dropzone">
     <div class="dz-icon">&#128269;</div>
     <h3>Drop JSON files here</h3>
-    <p class="sub">or click to browse &mdash; up to 5 MB per file</p>
+    <p class="sub">or click to browse &mdash; up to 10 MB per file</p>
     <span class="cap">accepts .json arrays or objects</span>
     <input type="file" id="fileInput" accept=".json" multiple>
   </div>
@@ -4015,6 +4018,14 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
         <div class="combo-body" id="comboBody"></div>
       </div>
     </div>
+    <div class="section" id="valueDistSection" class="hidden">
+      <div class="section-title">Value Distribution <span id="distFieldLabel" style="color:#a3a3a3;font-weight:400;"></span></div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;" id="distFieldTabs"></div>
+      <div class="ftable-wrap">
+        <div class="ftable-header"><span>Value breakdown for selected field</span></div>
+        <div class="ftable-body" id="distBody"></div>
+      </div>
+    </div>
     <div class="export-row">
       <button class="ebtn" id="exportJsonBtn">Export Report JSON</button>
       <button class="ebtn" id="exportCsvBtn">Export Report CSV</button>
@@ -4026,7 +4037,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
 <script>
 (function(){
   "use strict";
-  var MAX_SIZE=5*1024*1024;var files={};var activeFile=null;var currentSort="name";
+  var MAX_SIZE=10*1024*1024;var files={};var activeFile=null;var currentSort="name";
   var dropzone=document.getElementById("dropzone");var fileInput=document.getElementById("fileInput");
   var dashboard=document.getElementById("dashboard");var fileTabs=document.getElementById("fileTabs");
 
@@ -4039,7 +4050,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
     for(var i=0;i<fl.length;i++){
       var f=fl[i];
       if(!f.name.endsWith(".json")){showToast(f.name+" is not a .json file");continue;}
-      if(f.size>MAX_SIZE){showToast(f.name+" exceeds 5 MB limit");continue;}
+      if(f.size>MAX_SIZE){showToast(f.name+" exceeds 10 MB limit");continue;}
       (function(file){
         var reader=new FileReader();
         reader.onload=function(ev){
@@ -4126,7 +4137,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
     document.getElementById("stErrors").textContent=data.discardedErrors||0;
     document.getElementById("fieldCountLabel").textContent="("+data.fieldNames.length+" fields)";
     document.getElementById("comboCountLabel").textContent="("+data.combos.length+" patterns)";
-    renderFieldTable();renderCombos();
+    renderFieldTable();renderCombos();renderDistTabs();
   }
 
   function renderFieldTable(){
@@ -4176,6 +4187,58 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
       var ce=document.createElement("div");ce.className="combo-count";ce.textContent=c.count;row.appendChild(ce);
       var pce=document.createElement("div");pce.className="combo-pct";pce.textContent=pct+"%";row.appendChild(pce);
       body.appendChild(row);
+    }
+  }
+
+  var DIST_FIELDS=["auction_type","status","email_status","confidence_score","event_type"];
+  var activeDistField=null;
+
+  function renderDistTabs(){
+    var data=files[activeFile];if(!data)return;
+    var tabs=document.getElementById("distFieldTabs");tabs.innerHTML="";
+    var available=[];
+    for(var i=0;i<DIST_FIELDS.length;i++){
+      if(data.fieldNames.indexOf(DIST_FIELDS[i])!==-1)available.push(DIST_FIELDS[i]);
+    }
+    if(available.length===0){document.getElementById("valueDistSection").style.display="none";return;}
+    document.getElementById("valueDistSection").style.display="";
+    if(!activeDistField||available.indexOf(activeDistField)===-1)activeDistField=available[0];
+    for(var j=0;j<available.length;j++){(function(field){
+      var btn=document.createElement("button");btn.className="dist-tab"+(field===activeDistField?" active":"");
+      btn.textContent=field;btn.addEventListener("click",function(){activeDistField=field;renderDistTabs();renderDistValues();});
+      tabs.appendChild(btn);
+    })(available[j]);}
+    renderDistValues();
+  }
+
+  function renderDistValues(){
+    var data=files[activeFile];if(!data||!activeDistField)return;
+    var counts={};var total=data.records.length;
+    for(var i=0;i<total;i++){
+      var val=data.records[i][activeDistField];
+      var key=(val===undefined||val===null||String(val).trim()==="")?"(empty)":String(val).trim().toLowerCase();
+      if(!counts[key])counts[key]=0;counts[key]++;
+    }
+    var sorted=[];for(var k in counts){sorted.push({value:k,count:counts[k]});}
+    sorted.sort(function(a,b){return b.count-a.count;});
+    document.getElementById("distFieldLabel").textContent="("+sorted.length+" unique values)";
+    var body=document.getElementById("distBody");body.innerHTML="";
+    var head=document.createElement("div");head.className="frow-head frow";
+    head.innerHTML="<span>Value</span><span>Count</span><span>%</span><span>Distribution</span>";body.appendChild(head);
+    var colors={"live":"#4ADE80","silent":"#60a5fa","both":"#A78BFA","online":"#eab308","unknown":"#F87171","(empty)":"#525252",
+      "found":"#4ADE80","3rdpty_found":"#60a5fa","not_found":"#FB923C","uncertain":"#F87171","error":"#EF4444",
+      "deliverable":"#4ADE80","undeliverable":"#F87171","risky":"#FB923C","unknown":"#F87171"};
+    for(var i=0;i<sorted.length;i++){
+      var s=sorted[i];var pct=total>0?Math.round((s.count/total)*100):0;
+      var row=document.createElement("div");row.className="frow";
+      var n=document.createElement("div");n.className="frow-name";n.textContent=s.value;
+      var c=colors[s.value]||"#eab308";n.style.color=c;row.appendChild(n);
+      var p=document.createElement("div");p.className="frow-pop";p.textContent=s.count;row.appendChild(p);
+      var m=document.createElement("div");m.className="frow-miss";m.style.color="#a3a3a3";m.textContent=pct+"%";row.appendChild(m);
+      var bw=document.createElement("div");bw.style.cssText="display:flex;align-items:center;gap:8px;";
+      var bar=document.createElement("div");bar.className="frow-bar";bar.style.flex="1";
+      var fill=document.createElement("div");fill.style.cssText="height:100%;border-radius:4px;background:"+c+";width:"+pct+"%;transition:width .6s ease;";
+      bar.appendChild(fill);bw.appendChild(bar);row.appendChild(bw);body.appendChild(row);
     }
   }
 
