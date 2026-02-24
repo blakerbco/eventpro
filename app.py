@@ -402,14 +402,17 @@ def _research_one(
         cached["email_status"] = ""
         contact_email = cached.get("contact_email", "").strip()
         if contact_email:
+            progress_q.put({"type": "email_validating", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
             print(f"[EMAILABLE-CACHE] Calling for: {contact_email}", flush=True)
             email_state = validate_email_emailable(contact_email)
             cached["email_status"] = email_state
             print(f"[EMAILABLE-CACHE] {contact_email} => {email_state}", flush=True)
+            progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
             if email_state != "deliverable":
                 cached["contact_email"] = ""
                 cached["contact_name"] = ""
                 tier, price = "event_verified", 75
+                progress_q.put({"type": "email_purged", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
 
         title = cached.get("event_title", "")
 
@@ -486,14 +489,17 @@ def _research_one(
     result["email_status"] = ""
     contact_email = result.get("contact_email", "").strip()
     if contact_email:
+        progress_q.put({"type": "email_validating", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
         print(f"[EMAILABLE-FRESH] Calling for: {contact_email}", flush=True)
         email_state = validate_email_emailable(contact_email)
         result["email_status"] = email_state
         print(f"[EMAILABLE-FRESH] {contact_email} => {email_state}", flush=True)
+        progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
         if email_state != "deliverable":
             result["contact_email"] = ""
             result["contact_name"] = ""
             tier, price = "event_verified", 75
+            progress_q.put({"type": "email_purged", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
 
     # Skip lead fee if tier not in selected_tiers
     _sel = selected_tiers or ["decision_maker", "outreach_ready", "event_verified"]
@@ -2575,10 +2581,12 @@ INDEX_HTML = """<!DOCTYPE html>
         <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$0.75</span>
       </div>
       <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Charged only if an event page is found</div>
+      <div style="margin:2px 0 0 26px;font-size:11px;color:#737373;font-style:italic;">Includes events where email validation failed</div>
     </label>
 
     <p style="margin:12px 0 4px;font-size:12.5px;color:#a3a3a3;text-align:center;">No event found = No charge</p>
-    <p style="margin:0 0 16px;font-size:11.5px;color:#525252;text-align:center;">Research fee applies to all nonprofits searched</p>
+    <p style="margin:0 0 4px;font-size:11.5px;color:#525252;text-align:center;">Research fee applies to all nonprofits searched</p>
+    <p style="margin:0 0 16px;font-size:11.5px;color:#525252;text-align:center;">Select multiple tiers &mdash; each lead is only charged once at its highest matching tier</p>
     <p id="tierError" style="display:none;margin:0 0 10px;font-size:13px;color:#ef4444;text-align:center;">Please select at least one tier.</p>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -2954,6 +2962,22 @@ async function _doSearch(selectedTiers) {
           const rS = data.remaining % 60;
           document.getElementById('etaElapsed').textContent = 'Elapsed: ' + eM + 'm ' + (eS < 10 ? '0' : '') + eS + 's';
           document.getElementById('etaRemaining').textContent = '~' + rM + 'm ' + (rS < 10 ? '0' : '') + rS + 's remaining';
+          break;
+
+        case 'email_validating':
+          log('[' + data.index + '/' + data.total + '] Validating email: ' + data.email + '...', 'processing');
+          break;
+
+        case 'email_result':
+          if (data.result === 'deliverable') {
+            log('[' + data.index + '/' + data.total + '] Email verified: deliverable', 'found');
+          } else {
+            log('[' + data.index + '/' + data.total + '] Email result: ' + data.result, 'not_found');
+          }
+          break;
+
+        case 'email_purged':
+          log('[' + data.index + '/' + data.total + '] Contact purged — bad email removed from result', 'error');
           break;
 
         case 'heartbeat':
