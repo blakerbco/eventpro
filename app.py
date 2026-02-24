@@ -56,7 +56,7 @@ from db import (
     get_balance, add_funds, charge_research_fee, charge_lead_fee,
     has_sufficient_balance, get_transactions, get_research_fee_cents,
     update_password, get_spending_summary, get_job_breakdowns,
-    create_search_job, complete_search_job, fail_search_job,
+    create_search_job, complete_search_job, fail_search_job, save_job_checkpoint,
     get_user_jobs, cleanup_expired_jobs, cleanup_stale_running_jobs,
     get_user_by_email, create_reset_token, validate_reset_token,
     consume_reset_token,
@@ -130,6 +130,21 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # Store active jobs: job_id -> { status, results, progress_queue, ... }
 jobs: Dict[str, Dict[str, Any]] = {}
+
+
+class EventQueue:
+    """Queue that stores all events for SSE replay on reconnect."""
+    def __init__(self):
+        self.events = []        # append-only event store
+        self._q = queue.Queue() # for blocking .get()
+
+    def put(self, event):
+        if event is not None:
+            self.events.append(event)
+        self._q.put(event)
+
+    def get(self, timeout=None):
+        return self._q.get(timeout=timeout)
 
 
 def get_irs_db():
@@ -353,7 +368,7 @@ def _inject_sidebar(html, active):
 # ─── Research Worker (runs in background thread with its own event loop) ─────
 
 def _research_one(
-    nonprofit: str, index: int, total: int, progress_q: queue.Queue,
+    nonprofit: str, index: int, total: int, progress_q,
     user_id: Optional[int] = None, job_id: str = "", is_admin: bool = False,
     is_trial: bool = False, balance_exhausted: list = None,
     selected_tiers: list = None,
@@ -530,7 +545,7 @@ def _research_one(
 
 
 def _run_job(
-    nonprofits: List[str], job_id: str, progress_q: queue.Queue,
+    nonprofits: List[str], job_id: str, progress_q,
     user_id: Optional[int] = None, is_admin: bool = False, is_trial: bool = False,
     selected_tiers: list = None,
 ):
@@ -587,6 +602,20 @@ def _run_job(
             selected_tiers=selected_tiers,
         )
         all_results.append(result)
+
+        # Checkpoint every 10 items to DB (survives SSE drops + server restarts)
+        if idx % 10 == 0:
+            try:
+                checkpoint_data = json.dumps({
+                    "checkpoint": True,
+                    "processed": idx,
+                    "total": total,
+                    "results": all_results,
+                })
+                save_job_checkpoint(job_id, checkpoint_data)
+                print(f"[CHECKPOINT] {job_id}: saved {idx}/{total} results", flush=True)
+            except Exception as e:
+                print(f"[CHECKPOINT WARN] {job_id}: {e}", flush=True)
 
         # Pause between domains (like the working script)
         if idx < total:
@@ -721,7 +750,7 @@ def _run_job(
 
 
 def _job_worker(
-    nonprofits: List[str], job_id: str, progress_q: queue.Queue,
+    nonprofits: List[str], job_id: str, progress_q,
     user_id: Optional[int] = None, is_admin: bool = False, is_trial: bool = False,
     selected_tiers: list = None,
 ):
@@ -729,12 +758,11 @@ def _job_worker(
     try:
         _run_job(nonprofits, job_id, progress_q, user_id=user_id, is_admin=is_admin, is_trial=is_trial, selected_tiers=selected_tiers or ["decision_maker", "outreach_ready", "event_verified"])
     except Exception as e:
+        print(f"[JOB ERROR] {job_id}: {type(e).__name__}: {e}", flush=True)
         progress_q.put({"type": "error", "message": str(e)})
         progress_q.put(None)
         jobs[job_id]["status"] = "error"
         fail_search_job(job_id, str(e))
-    finally:
-        loop.close()
 
 
 # ─── Routes: Auth ────────────────────────────────────────────────────────────
@@ -1083,6 +1111,8 @@ def billing_page():
     html = html.replace("{{TOTAL_SPENT}}", f"${summary['total_spent']/100:.2f}")
     html = html.replace("{{RESEARCH_FEES}}", f"${summary['research_fees']/100:.2f}")
     html = html.replace("{{LEAD_FEES}}", f"${summary['lead_fees']/100:.2f}")
+    html = html.replace("{{EXCLUSIVE_FEES}}", f"${summary['exclusive_fees']/100:.2f}")
+    html = html.replace("{{REFUNDS}}", f"${summary['refunds']/100:.2f}")
     html = html.replace("{{TOTAL_TOPUPS}}", f"${summary['total_topups']/100:.2f}")
     html = html.replace("{{JOB_COUNT}}", str(summary["job_count"]))
     html = html.replace("{{JOB_ROWS}}", job_rows)
@@ -1235,7 +1265,7 @@ def start_search():
                 }), 402
 
     job_id = f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(4)}"
-    progress_q: queue.Queue = queue.Queue()
+    progress_q = EventQueue()
 
     jobs[job_id] = {
         "status": "running",
@@ -1280,17 +1310,50 @@ def stream_progress(job_id):
 
     progress_q = jobs[job_id]["progress_queue"]
 
-    def generate():
-        while True:
-            try:
-                event = progress_q.get(timeout=120)
-                if event is None:
-                    break
-                yield f"data: {json.dumps(event)}\n\n"
-            except queue.Empty:
-                yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+    # Replay from Last-Event-ID if reconnecting (0 = start from beginning)
+    last_id = request.headers.get("Last-Event-ID", type=int, default=0)
 
-    return Response(generate(), mimetype="text/event-stream")
+    def generate():
+        # Tell browser to reconnect after 3s on drop
+        yield "retry: 3000\n\n"
+
+        # Use events list as single source of truth (avoids dual-consumer queue race)
+        cursor = last_id  # events are 1-indexed: cursor=0 means start, cursor=N means skip first N
+        last_heartbeat = time.time()
+
+        while True:
+            # Send any new events that have accumulated
+            had_data = False
+            while cursor < len(progress_q.events):
+                evt = progress_q.events[cursor]
+                yield f"id: {cursor + 1}\ndata: {json.dumps(evt)}\n\n"
+                cursor += 1
+                had_data = True
+
+            # Check if job is done
+            job_status = jobs.get(job_id, {}).get("status", "")
+            if job_status in ("complete", "error"):
+                # Final drain of any remaining events
+                while cursor < len(progress_q.events):
+                    evt = progress_q.events[cursor]
+                    yield f"id: {cursor + 1}\ndata: {json.dumps(evt)}\n\n"
+                    cursor += 1
+                break
+
+            # Heartbeat every ~15s to keep proxy alive
+            if not had_data:
+                now = time.time()
+                if now - last_heartbeat >= 15:
+                    yield ": heartbeat\n\n"
+                    last_heartbeat = now
+                time.sleep(1)
+            else:
+                last_heartbeat = time.time()
+
+    resp = Response(generate(), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
 
 
 @app.route("/api/stop/<job_id>", methods=["POST"])
@@ -1303,6 +1366,29 @@ def stop_job(job_id):
         return jsonify({"error": "Job not running"}), 400
     job["stop_requested"] = True
     return jsonify({"ok": True})
+
+
+@app.route("/api/job-status/<job_id>")
+@login_required
+def job_status(job_id):
+    """Lightweight polling endpoint — fallback when SSE reconnects fail."""
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    resp = {"status": job["status"], "job_id": job_id}
+    if job["status"] == "complete" and job.get("results"):
+        resp["summary"] = job["results"].get("summary", {})
+        resp["csv_file"] = f"{job_id}.csv"
+        resp["json_file"] = f"{job_id}.json"
+        resp["xlsx_file"] = f"{job_id}.xlsx"
+        if job.get("user_id"):
+            resp["balance"] = get_balance(job["user_id"])
+        billing = job["results"].get("billing")
+        if billing:
+            resp["billing"] = billing
+    elif job["status"] == "error":
+        resp["error"] = "Job failed"
+    return jsonify(resp)
 
 
 @app.route("/api/download/<job_id>/<fmt>")
@@ -2270,6 +2356,14 @@ BILLING_HTML = """<!DOCTYPE html>
       <div class="amount gold">{{LEAD_FEES}}</div>
     </div>
     <div class="summary-card">
+      <div class="label">Locked Leads</div>
+      <div class="amount gold">{{EXCLUSIVE_FEES}}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Tier Refunds</div>
+      <div class="amount green">{{REFUNDS}}</div>
+    </div>
+    <div class="summary-card">
       <div class="label">Total Top-Ups</div>
       <div class="amount blue">{{TOTAL_TOPUPS}}</div>
     </div>
@@ -2462,8 +2556,7 @@ INDEX_HTML = """<!DOCTYPE html>
         <span style="font-weight:700;color:#4ade80;font-size:15px;">Decision Maker</span>
         <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$1.75</span>
       </div>
-      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Named contact + verified email + full event details</div>
-      <div style="margin:2px 0 0 26px;font-size:11.5px;color:#737373;">Best for: Phone campaigns &amp; personalized outreach</div>
+      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Charged only if a named contact and email are found</div>
     </label>
 
     <label style="display:block;cursor:pointer;padding:14px;border:1px solid #262626;border-radius:8px;margin-bottom:10px;transition:border-color 0.15s;" id="tierLabel_outreach_ready" onmouseenter="this.style.borderColor='#404040'" onmouseleave="this.style.borderColor=document.getElementById('tier_outreach_ready').checked?'#eab308':'#262626'">
@@ -2472,8 +2565,7 @@ INDEX_HTML = """<!DOCTYPE html>
         <span style="font-weight:700;color:#60a5fa;font-size:15px;">Outreach Ready</span>
         <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$1.25</span>
       </div>
-      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Verified email + event details (no contact name)</div>
-      <div style="margin:2px 0 0 26px;font-size:11.5px;color:#737373;">Best for: Email campaigns &amp; cold outreach</div>
+      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Charged only if a verified email is found</div>
     </label>
 
     <label style="display:block;cursor:pointer;padding:14px;border:1px solid #262626;border-radius:8px;margin-bottom:10px;transition:border-color 0.15s;" id="tierLabel_event_verified" onmouseenter="this.style.borderColor='#404040'" onmouseleave="this.style.borderColor=document.getElementById('tier_event_verified').checked?'#eab308':'#262626'">
@@ -2482,11 +2574,11 @@ INDEX_HTML = """<!DOCTYPE html>
         <span style="font-weight:700;color:#facc15;font-size:15px;">Event Verified</span>
         <span style="margin-left:auto;color:#d4d4d4;font-weight:600;">$0.75</span>
       </div>
-      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Confirmed event with date &amp; URL (no contact info)</div>
-      <div style="margin:2px 0 0 26px;font-size:11.5px;color:#737373;">Best for: Building prospect lists &amp; DIY research</div>
+      <div style="margin:6px 0 0 26px;font-size:12.5px;color:#a3a3a3;">Charged only if an event page is found</div>
     </label>
 
-    <p style="margin:12px 0 16px;font-size:12px;color:#525252;text-align:center;">You're never charged for nonprofits with no events found.</p>
+    <p style="margin:12px 0 4px;font-size:12.5px;color:#a3a3a3;text-align:center;">No event found = No charge</p>
+    <p style="margin:0 0 16px;font-size:11.5px;color:#525252;text-align:center;">Research fee applies to all nonprofits searched</p>
     <p id="tierError" style="display:none;margin:0 0 10px;font-size:13px;color:#ef4444;text-align:center;">Please select at least one tier.</p>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -2523,6 +2615,7 @@ let processed = 0;
 let totalNonprofits = 0;
 let currentJobId = null;
 let currentEvtSource = null;
+let sseReconnectCount = 0;
 
 // Auto-fill from IRS database selection
 const irsData = sessionStorage.getItem('irs_nonprofits');
@@ -2706,7 +2799,10 @@ async function _doSearch(selectedTiers) {
 
     currentEvtSource = new EventSource('/api/progress/' + job_id);
 
+    sseReconnectCount = 0;
+
     currentEvtSource.onmessage = (e) => {
+      sseReconnectCount = 0;  // Reset on every successful message
       const data = JSON.parse(e.data);
 
       switch (data.type) {
@@ -2866,15 +2962,58 @@ async function _doSearch(selectedTiers) {
     };
 
     currentEvtSource.onerror = () => {
-      log('Connection lost. Check results below if available.', 'error');
-      searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
-      if (currentEvtSource) { currentEvtSource.close(); currentEvtSource = null; }
+      sseReconnectCount++;
+      if (sseReconnectCount <= 20) {
+        // Let EventSource auto-reconnect (built-in). Don't call .close()!
+        log('Connection interrupted — reconnecting (' + sseReconnectCount + '/20)...', 'info');
+      } else {
+        // Give up on SSE, fall back to polling
+        log('SSE reconnect failed after 20 attempts. Falling back to polling...', 'error');
+        if (currentEvtSource) { currentEvtSource.close(); currentEvtSource = null; }
+        _pollForCompletion(currentJobId);
+      }
     };
 
   } catch (err) {
     log('Request failed: ' + err.message, 'error');
     searchBtn.disabled = false; document.getElementById('searchDots').style.display = 'none';
   }
+}
+
+function _pollForCompletion(jobId) {
+  if (!jobId) return;
+  log('Polling for job completion...', 'info');
+  const pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/job-status/' + jobId);
+      if (!res.ok) { clearInterval(pollTimer); return; }
+      const data = await res.json();
+      if (data.status === 'complete') {
+        clearInterval(pollTimer);
+        log('Job complete (via polling)!', 'complete');
+        if (data.summary) {
+          log('Found: ' + (data.summary.found || 0) + ' | 3rd Party: ' + (data.summary['3rdpty_found'] || 0) +
+              ' | Not Found: ' + (data.summary.not_found || 0) + ' | Uncertain: ' + (data.summary.uncertain || 0), 'complete');
+        }
+        if (!IS_ADMIN && data.billing) {
+          balanceCents = data.balance || 0;
+          balDisplay.textContent = '$' + (balanceCents / 100).toFixed(2);
+        }
+        const cjid = data.job_id || jobId;
+        downloadSection.style.display = 'block';
+        document.getElementById('downloadCsv').href = '/api/download/' + cjid + '/csv';
+        document.getElementById('downloadJson').href = '/api/download/' + cjid + '/json';
+        document.getElementById('downloadXlsx').href = '/api/download/' + cjid + '/xlsx';
+        searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
+      } else if (data.status === 'error') {
+        clearInterval(pollTimer);
+        log('Job failed (server error).', 'error');
+        searchBtn.disabled = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('searchDots').style.display = 'none';
+      }
+    } catch (e) {
+      // Network error during poll — keep trying
+    }
+  }, 10000);
 }
 
 function syntaxHighlight(json) {

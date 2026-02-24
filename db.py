@@ -363,6 +363,16 @@ def get_spending_summary(user_id: int) -> Dict[str, Any]:
     )
     leads = cur.fetchone()[0]
     cur.execute(
+        "SELECT COALESCE(SUM(ABS(amount_cents)), 0) FROM transactions WHERE user_id = %s AND type = 'exclusive_lead'",
+        (user_id,),
+    )
+    exclusive = cur.fetchone()[0]
+    cur.execute(
+        "SELECT COALESCE(SUM(ABS(amount_cents)), 0) FROM transactions WHERE user_id = %s AND type = 'lead_refund'",
+        (user_id,),
+    )
+    refunds = cur.fetchone()[0]
+    cur.execute(
         "SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE user_id = %s AND type = 'topup'",
         (user_id,),
     )
@@ -376,8 +386,10 @@ def get_spending_summary(user_id: int) -> Dict[str, Any]:
     return {
         "research_fees": research,
         "lead_fees": leads,
+        "exclusive_fees": exclusive,
+        "refunds": refunds,
         "total_topups": topups,
-        "total_spent": research + leads,
+        "total_spent": research + leads + exclusive - refunds,
         "job_count": job_count,
     }
 
@@ -546,6 +558,23 @@ def complete_search_job(job_id: str, found_count: int, billable_count: int,
     )
     conn.commit()
     cur.close()
+
+
+def save_job_checkpoint(job_id: str, results_json: str):
+    """Save partial results as a checkpoint to the DB (survives connection drops)."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE search_jobs SET results_summary = %s WHERE job_id = %s",
+            (results_json, job_id),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[CHECKPOINT ERROR] {job_id}: {e}", flush=True)
+    finally:
+        cur.close()
 
 
 def fail_search_job(job_id: str, error: str = ""):
