@@ -961,8 +961,8 @@ def wallet_topup():
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid amount"}), 400
 
-    if amount_dollars < 250 or amount_dollars > 9999:
-        return jsonify({"error": "Amount must be between $250 and $9,999"}), 400
+    if amount_dollars < 50 or amount_dollars > 9999:
+        return jsonify({"error": "Amount must be between $50 and $9,999"}), 400
 
     amount_cents = int(amount_dollars * 100)
     user_id = session["user_id"]
@@ -2088,9 +2088,9 @@ WALLET_HTML = """<!DOCTYPE html>
   <div class="topup-section">
     <h3>Add Funds</h3>
     <div class="amount-row">
-      <input type="number" id="topupAmount" placeholder="Amount in USD" min="250" max="9999" step="1" value="500">
+      <input type="number" id="topupAmount" placeholder="Amount in USD" min="50" max="9999" step="1" value="100">
     </div>
-    <p class="topup-hint">Minimum $250, maximum $9,999 per top-up</p>
+    <p class="topup-hint">Minimum $50, maximum $9,999 per top-up</p>
     <div id="payment-element"></div>
     <div id="payment-message"></div>
     <div id="payment-success"></div>
@@ -2126,8 +2126,8 @@ let processing = false;
 
 async function initPayment() {
   const amount = parseFloat(document.getElementById('topupAmount').value);
-  if (!amount || amount < 250 || amount > 9999) {
-    showError('Amount must be between $250 and $9,999');
+  if (!amount || amount < 50 || amount > 9999) {
+    showError('Amount must be between $50 and $9,999');
     return false;
   }
   const btn = document.getElementById('payBtn');
@@ -4818,7 +4818,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How do I add funds to my account? <span class="arrow">+</span></div>
-      <div class="faq-a">We use Stripe for secure payments. Go to the Wallet page, enter an amount between $250 and $9,999, and complete checkout. Your balance updates instantly. All funds are non-refundable but never expire.</div>
+      <div class="faq-a">We use Stripe for secure payments. Go to the Wallet page, enter an amount between $50 and $9,999, and complete checkout. Your balance updates instantly. All funds are non-refundable but never expire.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's included in the premium nonprofit database? <span class="arrow">+</span></div>
