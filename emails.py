@@ -22,7 +22,7 @@ def _base_template(title: str, heading: str, body_html: str, cta_text: str = "",
             <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 24px 0;">
                 <tr>
                     <td align="center" style="border-radius: 6px;" bgcolor="#FFD700">
-                        <a href="{cta_url}" target="_blank" style="font-size: 14px; font-family: Arial, sans-serif; color: #000000; text-decoration: none; border-radius: 6px; padding: 10px 20px; display: inline-block; font-weight: bold;">{cta_text}</a>
+                        <a href="{cta_url}" target="_blank" style="font-size: 13px; font-family: Arial, sans-serif; color: #000000; text-decoration: none; border-radius: 6px; padding: 8px 16px; display: inline-block; font-weight: bold;">{cta_text}</a>
                     </td>
                 </tr>
             </table>"""
@@ -83,7 +83,7 @@ def _p(text: str) -> str:
 
 
 def _send(to: str, subject: str, html: str):
-    """Send email via Resend. Fails silently to avoid breaking app flow."""
+    """Send email via Resend. Logs errors to avoid silent failures."""
     try:
         resend.Emails.send({
             "from": RESEND_FROM,
@@ -91,8 +91,8 @@ def _send(to: str, subject: str, html: str):
             "subject": subject,
             "html": html,
         })
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send '{subject}' to {to}: {type(e).__name__}: {e}", flush=True)
 
 
 # ─── Email Functions ──────────────────────────────────────────────────────────
@@ -132,6 +132,30 @@ def send_welcome(email: str, is_trial: bool = False):
             body,
             cta_text="Access Your Dashboard",
             cta_url=f"{DOMAIN}/database",
+        ),
+    )
+
+
+def send_verification_email(email: str, verify_url: str):
+    """Send email verification link to new user."""
+    body = (
+        _p("Thanks for signing up for Auction Intel!")
+        + _p("Please verify your email address by clicking the button below. This link will expire in <strong>24 hours</strong>.")
+        + _p(
+            '<span style="color: #888888; font-size: 14px;">'
+            "If you didn't create an account, you can safely ignore this email.</span>"
+        )
+    )
+
+    _send(
+        email,
+        "Verify Your Email — Auction Intel",
+        _base_template(
+            "Verify Your Email",
+            "Verify Your Email",
+            body,
+            cta_text="Verify Email",
+            cta_url=verify_url,
         ),
     )
 

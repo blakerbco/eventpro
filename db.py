@@ -185,6 +185,41 @@ def init_db():
     except Exception:
         conn.rollback()
 
+    # Migration: add email_verified column to users
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    # Backfill: mark all existing users as verified so they don't get locked out
+    try:
+        cur.execute("UPDATE users SET email_verified = 1 WHERE email_verified = 0 OR email_verified IS NULL")
+        backfilled = cur.rowcount
+        conn.commit()
+        if backfilled:
+            print(f"[DB] Backfilled email_verified=1 for {backfilled} existing user(s)", flush=True)
+    except Exception as e:
+        print(f"[DB] Backfill email_verified error: {e}", flush=True)
+        conn.rollback()
+
+    # Create email_verification_tokens table
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                token TEXT UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Create email_verification_tokens error: {e}", flush=True)
+        conn.rollback()
+
     # Remove stale fallback admin account if real admin is configured
     admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "").strip().lower()
     admin_password = os.environ.get("AUCTIONFINDER_PASSWORD", "")
@@ -232,6 +267,10 @@ def init_db():
     if blake:
         cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake["id"],))
         conn.commit()
+
+    # Ensure all admin users are always email-verified
+    cur.execute("UPDATE users SET email_verified = 1 WHERE is_admin = 1 AND (email_verified = 0 OR email_verified IS NULL)")
+    conn.commit()
 
     cur.close()
 
@@ -295,14 +334,15 @@ def authenticate(email: str, password: str) -> Optional[Dict[str, Any]]:
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, email, password_hash, is_admin, is_trial FROM users WHERE email = %s",
+        "SELECT id, email, password_hash, is_admin, is_trial, email_verified FROM users WHERE email = %s",
         (email,),
     )
     row = _fetchone(cur)
     cur.close()
     if row and check_password_hash(row["password_hash"], password):
         return {"id": row["id"], "email": row["email"], "is_admin": bool(row["is_admin"]),
-                "is_trial": bool(row["is_trial"])}
+                "is_trial": bool(row["is_trial"]),
+                "email_verified": bool(row.get("email_verified"))}
     return None
 
 
@@ -311,14 +351,15 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, email, is_admin, is_trial FROM users WHERE id = %s",
+        "SELECT id, email, is_admin, is_trial, email_verified FROM users WHERE id = %s",
         (user_id,),
     )
     row = _fetchone(cur)
     cur.close()
     if row:
         return {"id": row["id"], "email": row["email"], "is_admin": bool(row["is_admin"]),
-                "is_trial": bool(row["is_trial"])}
+                "is_trial": bool(row["is_trial"]),
+                "email_verified": bool(row.get("email_verified"))}
     return None
 
 
@@ -733,6 +774,61 @@ def consume_reset_token(token: str):
     cur = conn.cursor()
     cur.execute("UPDATE password_reset_tokens SET used = 1 WHERE token = %s", (token,))
     conn.commit()
+    cur.close()
+
+
+# ─── Email Verification Tokens ───────────────────────────────────────────────
+
+def create_verification_token(user_id: int) -> str:
+    """Generate a secure email verification token with 24-hour expiry. Returns token string."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+    cur.execute(
+        "INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
+        (user_id, token, expires_at),
+    )
+    conn.commit()
+    cur.close()
+    return token
+
+
+def validate_verification_token(token: str) -> Optional[int]:
+    """Check token exists, not expired, not used. Returns user_id or None."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT user_id, expires_at, used FROM email_verification_tokens WHERE token = %s",
+        (token,),
+    )
+    row = _fetchone(cur)
+    cur.close()
+    if not row or row["used"]:
+        return None
+    expires = row["expires_at"]
+    if isinstance(expires, str):
+        expires = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    elif expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires:
+        return None
+    return row["user_id"]
+
+
+def consume_verification_token(token: str):
+    """Mark verification token as used and set user's email_verified = 1."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT user_id FROM email_verification_tokens WHERE token = %s AND used = 0",
+        (token,),
+    )
+    row = _fetchone(cur)
+    if row:
+        cur.execute("UPDATE email_verification_tokens SET used = 1 WHERE token = %s", (token,))
+        cur.execute("UPDATE users SET email_verified = 1 WHERE id = %s", (row["user_id"],))
+        conn.commit()
     cur.close()
 
 

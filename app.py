@@ -60,6 +60,7 @@ from db import (
     get_user_jobs, cleanup_expired_jobs, cleanup_stale_running_jobs,
     get_user_by_email, create_reset_token, validate_reset_token,
     consume_reset_token,
+    create_verification_token, validate_verification_token, consume_verification_token,
     create_ticket, get_ticket, get_tickets_for_user, get_all_tickets,
     get_ticket_messages, add_ticket_message, update_ticket_status,
     mark_messages_read_by_user, mark_messages_read_by_admin,
@@ -207,6 +208,9 @@ def login_required(f):
             if request.headers.get("Accept", "").startswith("text/event-stream"):
                 return Response("Unauthorized", status=401)
             return redirect(url_for("login_page"))
+        # Block unverified non-admin users
+        if not session.get("email_verified") and not session.get("is_admin"):
+            return redirect(url_for("verify_email_pending"))
         return f(*args, **kwargs)
     return decorated
 
@@ -840,13 +844,16 @@ def register_submit():
     session["is_admin"] = False
     is_trial = promo_code.strip().upper() == "26AUCTION26"
     session["is_trial"] = is_trial
+    session["email_verified"] = False
 
     try:
-        emails.send_welcome(email, is_trial=is_trial)
-    except Exception:
-        pass
+        token = create_verification_token(user_id)
+        verify_url = f"{DOMAIN}/verify-email?token={token}"
+        emails.send_verification_email(email, verify_url)
+    except Exception as e:
+        print(f"[REGISTER] Failed to send verification email: {type(e).__name__}: {e}", flush=True)
 
-    return redirect(url_for("wallet_page"))
+    return redirect(url_for("verify_email_pending"))
 
 
 @app.route("/login", methods=["GET"])
@@ -867,6 +874,9 @@ def login_submit():
         session["user_id"] = user["id"]
         session["is_admin"] = user["is_admin"]
         session["is_trial"] = user.get("is_trial", False)
+        session["email_verified"] = user.get("email_verified", False)
+        if not user.get("email_verified") and not user.get("is_admin"):
+            return redirect(url_for("verify_email_pending"))
         return redirect(url_for("database_page"))
     return LOGIN_HTML.replace("<!-- error -->", '<p class="error">Invalid email or password</p>')
 
@@ -875,6 +885,76 @@ def login_submit():
 def logout():
     session.clear()
     return redirect(url_for("login_page"))
+
+
+# ─── Routes: Email Verification ──────────────────────────────────────────────
+
+@app.route("/verify-email-pending")
+def verify_email_pending():
+    if not session.get("user_id"):
+        return redirect(url_for("login_page"))
+    if session.get("email_verified") or session.get("is_admin"):
+        return redirect(url_for("database_page"))
+    return VERIFY_EMAIL_PENDING_HTML
+
+
+@app.route("/resend-verification", methods=["POST"])
+def resend_verification():
+    uid = session.get("user_id")
+    if not uid:
+        return redirect(url_for("login_page"))
+    ip = _get_client_ip()
+    # 3 resend attempts per IP per 15 minutes
+    if _rate_limit(f"verify_resend:{ip}", 3, 900):
+        return VERIFY_EMAIL_PENDING_HTML.replace(
+            "<!-- message -->",
+            '<p class="error">Too many resend attempts. Please wait a few minutes.</p>'
+        ), 429
+    user = get_user(uid)
+    if user and not user.get("email_verified"):
+        try:
+            token = create_verification_token(uid)
+            verify_url = f"{DOMAIN}/verify-email?token={token}"
+            emails.send_verification_email(user["email"], verify_url)
+        except Exception as e:
+            print(f"[RESEND VERIFY] Failed: {type(e).__name__}: {e}", flush=True)
+    return VERIFY_EMAIL_PENDING_HTML.replace(
+        "<!-- message -->",
+        '<p class="success">Verification email sent! Check your inbox.</p>'
+    )
+
+
+@app.route("/verify-email")
+def verify_email():
+    token = request.args.get("token", "")
+    if not token:
+        return FORGOT_PASSWORD_HTML.replace(
+            "<!-- message -->",
+            '<p class="error">Invalid verification link.</p>'
+        )
+    user_id = validate_verification_token(token)
+    if not user_id:
+        return FORGOT_PASSWORD_HTML.replace(
+            "<!-- message -->",
+            '<p class="error">This verification link has expired or already been used. Please log in and request a new one.</p>'
+        )
+    consume_verification_token(token)
+    # Update session if this is the currently logged-in user
+    if session.get("user_id") == user_id:
+        session["email_verified"] = True
+    # Send welcome email now that they're verified
+    user = get_user(user_id)
+    if user:
+        try:
+            is_trial = user.get("is_trial", False)
+            emails.send_welcome(user["email"], is_trial=is_trial)
+        except Exception as e:
+            print(f"[VERIFY] Failed to send welcome email: {type(e).__name__}: {e}", flush=True)
+    # Redirect to login so they can start using the app
+    return LOGIN_HTML.replace(
+        "<!-- error -->",
+        '<p class="success">Email verified! You can now log in.</p>'
+    )
 
 
 # ─── Routes: Password Reset ──────────────────────────────────────────────────
@@ -2382,6 +2462,36 @@ FORGOT_PASSWORD_HTML = f"""<!DOCTYPE html>
   <button type="submit">Send Reset Link</button>
   <p class="link"><a href="/login">Back to login</a></p>
 </form>
+</body>
+</html>"""
+
+VERIFY_EMAIL_PENDING_HTML = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUCTIONFINDER - Verify Email</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>{_BASE_STYLE}
+  body {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
+</style>
+</head>
+<body>
+<div class="auth-box">
+  <img src="/static/logo_dark.png" alt="Auction Intel" style="height:48px;margin-bottom:16px;">
+  <p class="sub">Check your email</p>
+  <!-- message -->
+  <p style="color:#a3a3a3;font-size:14px;line-height:1.6;margin-bottom:20px;">
+    We sent a verification link to your email address. Click the link to activate your account.
+  </p>
+  <p style="color:#737373;font-size:12px;margin-bottom:20px;">
+    The link expires in 24 hours. Check your spam folder if you don't see it.
+  </p>
+  <form method="POST" action="/resend-verification" style="margin:0;">
+    <button type="submit">Resend Verification Email</button>
+  </form>
+  <p class="link" style="margin-top:16px;"><a href="/logout">Sign out</a></p>
+</div>
 </body>
 </html>"""
 
