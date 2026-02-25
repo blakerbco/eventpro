@@ -402,19 +402,13 @@ def _research_one(
         cached["_api_calls"] = 0
         cached["query_domain"] = nonprofit
 
-        # Gate: only confirmed auctions count as "found"
-        cached_auction = str(cached.get("auction_type", "")).strip().lower()
-        if cached.get("status") in ("found", "3rdpty_found") and cached_auction not in ("live", "silent", "both"):
-            cached["status"] = "not_found"
-            print(f"[AUCTION GATE] {nonprofit}: cached, no confirmed auction_type, marking not_found", flush=True)
-
         status = cached.get("status", "uncertain")
         if status in ("not_found", "uncertain", "error"):
             tier, price = "not_billable", 0
         else:
             tier, price = classify_lead_tier(cached)
 
-        # Validate email via Emailable (skip if gate already marked not_found)
+        # Validate email via Emailable
         cached["email_status"] = ""
         contact_email = cached.get("contact_email", "").strip()
         if contact_email and status in ("found", "3rdpty_found"):
@@ -498,19 +492,13 @@ def _research_one(
     result = _poe_result_to_full(events[0], nonprofit)
     result["_api_calls"] = 1
 
-    # Gate: only confirmed auctions count as "found"
-    auction_type = str(result.get("auction_type", "")).strip().lower()
-    if result.get("status") in ("found", "3rdpty_found") and auction_type not in ("live", "silent", "both"):
-        result["status"] = "not_found"
-        print(f"[AUCTION GATE] {nonprofit}: no confirmed auction_type (was '{auction_type}'), marking not_found", flush=True)
-
     status = result.get("status", "uncertain")
     if status in ("not_found", "uncertain", "error"):
         tier, price = "not_billable", 0
     else:
         tier, price = classify_lead_tier(result)
 
-    # Validate email via Emailable (skip if gate already marked not_found)
+    # Validate email via Emailable
     result["email_status"] = ""
     contact_email = result.get("contact_email", "").strip()
     if contact_email and status in ("found", "3rdpty_found"):
