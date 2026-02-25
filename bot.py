@@ -206,14 +206,17 @@ def _has_valid_url(result: Dict[str, Any]) -> bool:
 
 def classify_lead_tier(result: Dict[str, Any]) -> tuple:
     """Returns (tier_name, price_cents) based on fields present.
-    3-tier system: decision_maker ($1.75), outreach_ready ($1.25), event_verified ($0.75)."""
+    3-tier system: decision_maker ($1.75), outreach_ready ($1.25), event_verified ($0.75).
+    Gates: must have event_title, event_url, event_date, evidence_date, AND evidence_auction."""
     has_title = bool(result.get("event_title", "").strip())
     has_date = bool(result.get("event_date", "").strip())
     has_url = _has_valid_url(result)
+    has_date_evidence = bool(result.get("evidence_date", "").strip())
+    has_auction_evidence = bool(result.get("evidence_auction", "").strip())
     has_name = bool(result.get("contact_name", "").strip())
     has_email = _is_valid_email(result.get("contact_email", ""))
 
-    if not has_title or not has_date or not has_url:
+    if not has_title or not has_date or not has_url or not has_date_evidence or not has_auction_evidence:
         return ("not_billable", 0)
 
     if has_email and has_name:
