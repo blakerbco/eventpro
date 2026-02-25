@@ -1,0 +1,5 @@
+Use this directly under the payment/wallet top-up button:
+Wallet top-up confirmation checkbox line
+
+Checkbox text (copy/paste):
+☐ I understand wallet credits are non-refundable (except where required by law) and will be used for research and lead charges according to the app’s billing rules.

@@ -1,0 +1,156 @@
+# Auction Intel Privacy Policy
+
+**Effective Date:** 02/25/2026
+**Last Updated:** 02/25/2025
+
+Auction Intel (“**Auction Intel**,” “**we**,” “**us**,” or “**our**”) respects your privacy. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use our website, platform, and services (collectively, the “**Services**”).
+
+By using the Services, you agree to this Privacy Policy.
+
+## 1. Information We Collect
+
+We may collect the following categories of information:
+
+### 1.1 Account and Contact Information
+
+When you create an account or contact us, we may collect:
+
+* Name
+* Email address
+* Company name
+* Phone number
+* Login credentials (or authentication-related data)
+
+### 1.2 Payment and Billing Information
+
+When you add wallet funds or make payments, payment transactions may be processed by third-party payment processors (such as Stripe). We may receive transaction metadata such as:
+
+* Payment status
+* Payment amount
+* Transaction identifiers
+* Last 4 digits / card brand (if provided by processor)
+* Billing-related records
+
+We do **not** store full payment card numbers on our servers.
+
+### 1.3 Usage and Technical Information
+
+We may collect:
+
+* IP address
+* Browser type and device information
+* Pages visited
+* Feature usage
+* Search activity and platform interactions
+* Timestamps and log data
+* Cookies and similar technologies (see Section 7)
+
+### 1.4 Inputs and Research Requests
+
+We collect information you submit to use the Services, including:
+
+* Nonprofit names
+* Domains / event page links
+* Search filters
+* Research requests
+* Export requests
+
+### 1.5 Generated Results and Stored Data
+
+We may store generated outputs/results, including lead records and associated metadata, for the retention period described in the product (for example, up to 180 days, where stated).
+
+## 2. How We Use Information
+
+We use information to:
+
+* Provide, operate, and maintain the Services
+* Process wallet top-ups and billing transactions
+* Generate and deliver search results and exports
+* Verify event-related data and support product functionality
+* Provide customer support and respond to inquiries
+* Monitor performance, security, and fraud prevention
+* Improve and develop features
+* Enforce our Terms and comply with legal obligations
+* Communicate service-related notices, updates, and administrative messages
+
+We may also send product updates or marketing communications where permitted by law. You can opt out of marketing emails at any time.
+
+## 3. How We Share Information
+
+We may share information with:
+
+### 3.1 Service Providers
+
+Third-party vendors who help us operate the Services, such as hosting providers, analytics providers, communications providers, and payment processors (e.g., Stripe).
+
+### 3.2 Legal Compliance and Protection
+
+We may disclose information if required by law or if we reasonably believe disclosure is necessary to:
+
+* comply with legal process,
+* protect our rights or property,
+* prevent fraud or abuse,
+* protect the safety of users or others.
+
+### 3.3 Business Transfers
+
+If Auction Intel is involved in a merger, acquisition, financing, sale of assets, or bankruptcy transaction, information may be transferred as part of that transaction.
+
+We do not sell your personal information for money.
+
+## 4. Data Retention
+
+We retain personal information for as long as needed to provide the Services, comply with legal obligations, resolve disputes, and enforce agreements.
+
+Result/output retention may follow the retention period described in the product (for example, 180 days for certain stored results, where stated). After that period, results may be deleted automatically.
+
+## 5. Data Security
+
+We use reasonable administrative, technical, and organizational safeguards designed to protect personal information. However, no system is 100% secure, and we cannot guarantee absolute security.
+
+## 6. Your Choices and Rights
+
+Depending on your location, you may have rights regarding your personal information, such as the right to request access, correction, deletion, or a copy of certain information.
+
+You may also:
+
+* update certain account information in your account settings (if available),
+* opt out of marketing emails using the unsubscribe link,
+* contact us to request account/data assistance.
+
+To make a privacy request, contact us using the contact details below.
+
+## 7. Cookies and Similar Technologies
+
+We may use cookies and similar technologies to:
+
+* keep you signed in,
+* remember preferences,
+* analyze traffic and product usage,
+* improve performance and user experience.
+
+You can control cookies through your browser settings, though some features may not function properly if cookies are disabled.
+
+## 8. Third-Party Services and Links
+
+The Services may contain links to third-party websites or use third-party services (including payment processing providers). We are not responsible for the privacy practices of third parties. Please review their privacy policies separately.
+
+## 9. Children’s Privacy
+
+The Services are not directed to children under 13, and we do not knowingly collect personal information from children under 13.
+
+## 10. International Users
+
+If you access the Services from outside the United States, you understand that your information may be transferred to and processed in the United States and other jurisdictions where our service providers operate.
+
+## 11. Changes to This Privacy Policy
+
+We may update this Privacy Policy from time to time. If we make material changes, we will post the updated version and revise the “Last Updated” date.
+
+## 12. Contact Us
+
+Auction Intel
+Email:support @ auctionintel.us
+Phone: 303-719-4851
+
+If you have questions or requests regarding this Privacy Policy, contact us at the email above.

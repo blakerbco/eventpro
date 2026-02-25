@@ -39,7 +39,7 @@ ALLOWLISTED_PLATFORMS = [
 ]
 
 CSV_COLUMNS = [
-    "nonprofit_name", "event_title", "event_type", "evidence_date",
+    "nonprofit_name", "query_domain", "event_title", "event_type", "evidence_date",
     "auction_type", "event_date", "event_url", "confidence_score",
     "evidence_auction", "contact_name", "contact_email", "email_status",
     "contact_role", "organization_address", "organization_phone_maps",
@@ -266,6 +266,7 @@ def _poe_result_to_full(poe_data: dict, nonprofit: str) -> Dict[str, Any]:
     """Map Poe bot JSON response fields to our CSV_COLUMNS format."""
     result = {col: "" for col in CSV_COLUMNS}
     result["nonprofit_name"] = _strip_citations(poe_data.get("nonprofit_name", nonprofit))
+    result["query_domain"] = nonprofit
     result["event_title"] = _strip_citations(poe_data.get("event_title", ""))
     result["event_type"] = _strip_citations(poe_data.get("event_type", ""))
     result["event_date"] = _strip_citations(poe_data.get("event_date", ""))
@@ -308,6 +309,7 @@ def _poe_result_to_full(poe_data: dict, nonprofit: str) -> Dict[str, Any]:
 def _error_result(nonprofit: str, error: str, raw: str = "") -> Dict[str, Any]:
     result = {col: "" for col in CSV_COLUMNS}
     result["nonprofit_name"] = nonprofit
+    result["query_domain"] = nonprofit
     result["confidence_score"] = 0.0
     result["status"] = "uncertain"
     result["event_summary"] = f"Error during research: {error}"

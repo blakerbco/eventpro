@@ -395,6 +395,14 @@ def _research_one(
     if cached:
         cached["_source"] = "cache"
         cached["_api_calls"] = 0
+        cached["query_domain"] = nonprofit
+
+        # Gate: only confirmed auctions count as "found"
+        cached_auction = str(cached.get("auction_type", "")).strip().lower()
+        if cached.get("status") == "found" and cached_auction not in ("live", "silent", "both"):
+            cached["status"] = "not_found"
+            print(f"[AUCTION GATE] {nonprofit}: cached, no confirmed auction_type, marking not_found", flush=True)
+
         status = cached.get("status", "uncertain")
         tier, price = classify_lead_tier(cached)
 
@@ -481,6 +489,12 @@ def _research_one(
     # Use first event as the primary result
     result = _poe_result_to_full(events[0], nonprofit)
     result["_api_calls"] = 1
+
+    # Gate: only confirmed auctions count as "found"
+    auction_type = str(result.get("auction_type", "")).strip().lower()
+    if result.get("status") == "found" and auction_type not in ("live", "silent", "both"):
+        result["status"] = "not_found"
+        print(f"[AUCTION GATE] {nonprofit}: no confirmed auction_type (was '{auction_type}'), marking not_found", flush=True)
 
     tier, price = classify_lead_tier(result)
     status = result.get("status", "uncertain")
@@ -1612,8 +1626,7 @@ def irs_search():
         _add_amount_filter(conditions, params, col, data.get(key, ""))
 
     where = " AND ".join(conditions) if conditions else "1=1"
-    is_trial = session.get("is_trial", False)
-    table = "trial_nonprofits" if is_trial else "tax_year_2019_search"
+    table = "confirmed_auction_nonprofits"
     query = f"""
         SELECT
             ein AS "EIN", organizationname AS "OrganizationName", website AS "Website",
@@ -1869,6 +1882,348 @@ def support_update_status(ticket_id):
     return redirect(url_for("support_ticket", ticket_id=ticket_id))
 
 
+# ─── Routes: Legal / Footer Pages ───────────────────────────────────────────
+
+_LEGAL_STYLE = """
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000; color: #f5f5f5; }
+  .legal-wrap { max-width: 780px; margin: 60px auto; padding: 0 24px 80px; }
+  .legal-wrap h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+  .legal-wrap .effective { font-size: 13px; color: #737373; margin-bottom: 32px; }
+  .legal-wrap h2 { font-size: 18px; font-weight: 600; margin-top: 32px; margin-bottom: 10px; color: #eab308; }
+  .legal-wrap h3 { font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 8px; color: #d4d4d4; }
+  .legal-wrap p, .legal-wrap li { font-size: 14px; color: #a3a3a3; line-height: 1.8; }
+  .legal-wrap ul { padding-left: 24px; margin-bottom: 12px; }
+  .legal-wrap a { color: #eab308; text-decoration: none; }
+  .legal-wrap a:hover { text-decoration: underline; }
+  .back-link { display: inline-block; margin-bottom: 24px; font-size: 13px; color: #737373; }
+  .back-link:hover { color: #eab308; }
+"""
+
+_DNS_FORM_STYLE = """
+  .dns-form { background: #0a0a0a; border: 1px solid #262626; border-radius: 12px; padding: 28px; margin-top: 28px; }
+  .dns-form label { display: block; font-size: 13px; color: #a3a3a3; margin-bottom: 6px; font-weight: 600; }
+  .dns-form input, .dns-form textarea, .dns-form select {
+    width: 100%; padding: 10px 14px; background: #000; border: 1px solid #333; border-radius: 8px;
+    color: #f5f5f5; font-size: 14px; margin-bottom: 14px; outline: none; font-family: inherit;
+  }
+  .dns-form input:focus, .dns-form textarea:focus, .dns-form select:focus { border-color: #eab308; }
+  .dns-form textarea { min-height: 100px; resize: vertical; }
+  .dns-form select option { background: #111; }
+  .dns-form button {
+    padding: 12px 28px; background: #ffd900; color: #000; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 4px;
+  }
+  .dns-form button:hover { background: #ca8a04; }
+  .dns-form .form-note { font-size: 12px; color: #525252; margin-top: 12px; }
+  .dns-form .success-msg { color: #4ade80; font-size: 14px; margin-top: 12px; display: none; }
+"""
+
+
+@app.route("/terms")
+def terms_page():
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service - Auction Intel</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>{_LEGAL_STYLE}</style></head><body>
+<div class="legal-wrap">
+<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<h1>Terms of Service</h1>
+<p class="effective">Effective Date: February 25, 2026</p>
+
+<h2>1. Acceptance of Terms</h2>
+<p>By accessing or using Auction Intel ("Services"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Services.</p>
+
+<h2>2. Description of Services</h2>
+<p>Auction Intel provides nonprofit event research tools, including web-based search, lead generation, database access, and related analytics. Results are generated using automated research and may include publicly available information.</p>
+
+<h2>3. Account Registration</h2>
+<p>You must create an account to use paid features. You are responsible for maintaining the confidentiality of your credentials and for all activity under your account. You must provide accurate information and promptly update it if it changes.</p>
+
+<h2>4. Wallet, Payments, and Billing</h2>
+<p>Auction Intel uses a prepaid wallet system. Funds added to your wallet are <strong>non-refundable</strong> except where required by law. Research fees are charged per nonprofit processed, whether or not a qualifying lead is found. Lead fees are charged according to the tier and billability rules displayed in the product. See our <a href="/refund-policy">Refund Policy</a> for details.</p>
+
+<h2>5. Acceptable Use</h2>
+<p>You agree not to:</p>
+<ul>
+<li>Use the Services for spam, harassment, or unlawful purposes</li>
+<li>Scrape, resell, or redistribute data obtained from the Services without authorization</li>
+<li>Attempt to reverse-engineer, interfere with, or compromise the platform</li>
+<li>Create multiple accounts to abuse free trial credits</li>
+<li>Misrepresent your identity or affiliation</li>
+</ul>
+
+<h2>6. Intellectual Property</h2>
+<p>All content, design, and technology of the Services are owned by Auction Intel or its licensors. You may use results generated for your own internal business purposes. You may not reproduce or redistribute the platform itself.</p>
+
+<h2>7. Data and Privacy</h2>
+<p>Your use of the Services is subject to our <a href="/privacy-policy">Privacy Policy</a>. We process data as described therein.</p>
+
+<h2>8. Disclaimers</h2>
+<p>The Services are provided "as is" without warranties of any kind, express or implied. We do not guarantee the accuracy, completeness, or timeliness of any results. Event information, contact details, and other data may be outdated or incorrect.</p>
+
+<h2>9. Limitation of Liability</h2>
+<p>To the maximum extent permitted by law, Auction Intel shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, arising out of or related to your use of the Services.</p>
+
+<h2>10. Termination</h2>
+<p>We may suspend or terminate your account at any time for violation of these Terms or for any other reason at our discretion. You may close your account by contacting <a href="mailto:support@auctionintel.us">support@auctionintel.us</a>. Unused wallet credits are non-refundable upon termination except where required by law.</p>
+
+<h2>11. Modifications</h2>
+<p>We may update these Terms at any time. Continued use of the Services after changes constitutes acceptance of the revised Terms.</p>
+
+<h2>12. Governing Law</h2>
+<p>These Terms are governed by the laws of the State of Colorado, without regard to conflict of law principles.</p>
+
+<h2>13. Contact</h2>
+<p>Auction Intel<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+</div></body></html>"""
+
+
+@app.route("/privacy-policy")
+def privacy_policy_page():
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy - Auction Intel</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>{_LEGAL_STYLE}</style></head><body>
+<div class="legal-wrap">
+<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<h1>Privacy Policy</h1>
+<p class="effective">Effective Date: February 25, 2026</p>
+
+<p>Auction Intel ("we," "us," or "our") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use our website, platform, and services (collectively, the "Services").</p>
+
+<h2>1. Information We Collect</h2>
+<h3>1.1 Account and Contact Information</h3>
+<p>When you create an account or contact us, we may collect: name, email address, company name, phone number, and login credentials.</p>
+
+<h3>1.2 Payment and Billing Information</h3>
+<p>Payment transactions are processed by third-party processors (such as Stripe). We may receive transaction metadata (payment status, amount, transaction IDs, last 4 digits/card brand). We do <strong>not</strong> store full payment card numbers.</p>
+
+<h3>1.3 Usage and Technical Information</h3>
+<p>We may collect: IP address, browser type, device info, pages visited, feature usage, search activity, timestamps, log data, and cookies.</p>
+
+<h3>1.4 Inputs and Research Requests</h3>
+<p>We collect information you submit, including nonprofit names, domains, search filters, research requests, and export requests.</p>
+
+<h3>1.5 Generated Results and Stored Data</h3>
+<p>We may store generated outputs/results and lead records for the retention period described in the product (e.g., up to 180 days).</p>
+
+<h2>2. How We Use Information</h2>
+<p>We use information to: provide and operate the Services; process billing; generate search results; provide support; monitor security; improve features; enforce our Terms; and communicate service-related notices.</p>
+
+<h2>3. How We Share Information</h2>
+<h3>3.1 Service Providers</h3>
+<p>Third-party vendors who help us operate the Services (hosting, analytics, payment processors like Stripe).</p>
+<h3>3.2 Legal Compliance</h3>
+<p>We may disclose information if required by law or to protect our rights, prevent fraud, or protect user safety.</p>
+<h3>3.3 Business Transfers</h3>
+<p>Information may be transferred as part of a merger, acquisition, or sale of assets.</p>
+<p>We do not sell your personal information for money.</p>
+
+<h2>4. Data Retention</h2>
+<p>We retain personal information as long as needed to provide the Services, comply with legal obligations, and enforce agreements. Result data may be deleted after the stated retention period (e.g., 180 days).</p>
+
+<h2>5. Data Security</h2>
+<p>We use reasonable safeguards to protect personal information. However, no system is 100% secure.</p>
+
+<h2>6. Your Choices and Rights</h2>
+<p>Depending on your location, you may have rights to request access, correction, deletion, or a copy of your information. Contact us at <a href="mailto:support@auctionintel.us">support@auctionintel.us</a> to make a privacy request.</p>
+
+<h2>7. Cookies</h2>
+<p>We use cookies to keep you signed in, remember preferences, and analyze usage. You can control cookies through your browser settings.</p>
+
+<h2>8. Third-Party Services</h2>
+<p>The Services may link to third-party websites. We are not responsible for their privacy practices.</p>
+
+<h2>9. Children's Privacy</h2>
+<p>The Services are not directed to children under 13. We do not knowingly collect information from children under 13.</p>
+
+<h2>10. International Users</h2>
+<p>If you access the Services from outside the United States, your information may be transferred to and processed in the United States.</p>
+
+<h2>11. Changes</h2>
+<p>We may update this Privacy Policy from time to time. Material changes will be posted with a revised date.</p>
+
+<h2>12. Contact</h2>
+<p>Auction Intel<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+</div></body></html>"""
+
+
+@app.route("/refund-policy")
+def refund_policy_page():
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Refund Policy - Auction Intel</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>{_LEGAL_STYLE}</style></head><body>
+<div class="legal-wrap">
+<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<h1>Refund Policy</h1>
+<p class="effective">Effective Date: February 25, 2026</p>
+
+<h2>1. Wallet Credits Are Non-Refundable</h2>
+<p>All funds added to your Auction Intel wallet are <strong>non-refundable</strong>, except where required by applicable law. This includes wallet top-ups used for research fees, lead fees, and other in-platform charges.</p>
+
+<h2>2. No Expiration of Wallet Credits</h2>
+<p>Wallet credits do <strong>not</strong> expire unless otherwise stated in writing by Auction Intel.</p>
+
+<h2>3. Research Fees Are Charged for Work Performed</h2>
+<p>Research fees are charged per nonprofit researched, whether or not a qualifying event lead is found. This is because Auction Intel performs compute- and web-research work for each nonprofit processed.</p>
+
+<h2>4. Lead Charges and Billability Rules</h2>
+<p>Lead charges are applied according to the tier(s) selected and the platform's billability rules shown in the product at the time of the search. Where the product states a verified event page link is required for a billable lead, leads without a qualifying link are not charged.</p>
+
+<h2>5. Mistaken Charges / Billing Errors</h2>
+<p>If you believe you were charged in error (duplicate charge, technical malfunction, or billing bug), contact support within <strong>14 days</strong> of the charge with: your account email, date/time of charge, amount, search/job ID (if available), and a description of the issue. We will review and may issue a correction, credit adjustment, or refund at our discretion.</p>
+
+<h2>6. Promotional and Free Trial Credits</h2>
+<p>Promotional credits, trial credits, and bonus credits are not redeemable for cash, are non-transferable, may expire per promotion terms, and may be revoked if issued in error or abused.</p>
+
+<h2>7. Chargebacks</h2>
+<p>Before initiating a chargeback, please contact us so we can resolve the issue. Fraudulent or abusive chargebacks may result in account suspension or termination.</p>
+
+<h2>8. Contact</h2>
+<p>Auction Intel<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+</div></body></html>"""
+
+
+@app.route("/contact")
+def contact_dmca_page():
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact / DMCA / Abuse - Auction Intel</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>{_LEGAL_STYLE}</style></head><body>
+<div class="legal-wrap">
+<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<h1>Contact, DMCA &amp; Abuse Policy</h1>
+<p class="effective">Effective Date: February 25, 2026</p>
+
+<p>Auction Intel ("we," "us," "our") provides tools to help users discover nonprofit event information and related contact data.</p>
+
+<h2>1. Contact Us</h2>
+<p>For questions, support, billing issues, or general inquiries:</p>
+<p>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+
+<h2>2. Report Abuse or Misuse</h2>
+<p>If you believe the platform is being used for spam, harassment, unlawful activity, or other misuse, contact us at <a href="mailto:support@auctionintel.us">support@auctionintel.us</a> with:</p>
+<ul>
+<li>Your name and contact info</li>
+<li>A description of the issue</li>
+<li>Relevant URLs, screenshots, or examples</li>
+<li>The account email (if known)</li>
+</ul>
+<p>We may investigate and take action, including warning, suspending, or terminating accounts.</p>
+
+<h2>3. Copyright (DMCA) Notices</h2>
+<p>If you believe content accessible through our Services infringes your copyright, send a notice to <a href="mailto:support@auctionintel.us">support@auctionintel.us</a> with the subject line "DMCA Notice" and include:</p>
+<ul>
+<li>Identification of the copyrighted work claimed to be infringed</li>
+<li>Identification of the material and where it appears (URL and details)</li>
+<li>Your name, address, phone number, and email</li>
+<li>A statement of good-faith belief the use is not authorized</li>
+<li>A statement under penalty of perjury that the notice is accurate and you are authorized to act</li>
+<li>Your physical or electronic signature</li>
+</ul>
+<p>If you believe a DMCA notice was submitted in error, you may send a counter-notice to the same email.</p>
+
+<h2>4. Law Enforcement Requests</h2>
+<p>Law enforcement may submit requests to <a href="mailto:support@auctionintel.us">support@auctionintel.us</a>. We will respond as required by law and may require valid legal process.</p>
+</div></body></html>"""
+
+
+@app.route("/do-not-sell")
+def do_not_sell_page():
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Do Not Sell or Share My Information - Auction Intel</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>{_LEGAL_STYLE}{_DNS_FORM_STYLE}</style></head><body>
+<div class="legal-wrap">
+<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<h1>Do Not Sell or Share My Information</h1>
+<p class="effective">Effective Date: February 25, 2026</p>
+
+<p>Auction Intel respects privacy requests from individuals and nonprofit representatives. If you believe your personal information appears in Auction Intel results, you may request that we remove or suppress your information, correct inaccurate information, or opt out of the sale or sharing of your personal information.</p>
+
+<h2>Who Can Submit a Request</h2>
+<ul>
+<li>The person whose information appears in Auction Intel results</li>
+<li>An authorized representative of a nonprofit/organization requesting review of listed contact information</li>
+</ul>
+
+<h2>Submit a Request</h2>
+<div class="dns-form">
+  <form id="dnsForm" onsubmit="return submitDNS(event)">
+    <label for="dns_name">Your Full Name *</label>
+    <input type="text" id="dns_name" name="name" required placeholder="Jane Smith">
+
+    <label for="dns_email">Your Email Address *</label>
+    <input type="email" id="dns_email" name="email" required placeholder="jane@example.com">
+
+    <label for="dns_type">Request Type *</label>
+    <select id="dns_type" name="request_type" required>
+      <option value="">Select a request type...</option>
+      <option value="remove">Remove / Suppress My Information</option>
+      <option value="do_not_sell">Do Not Sell or Share My Personal Information</option>
+      <option value="correct">Correct My Information</option>
+    </select>
+
+    <label for="dns_org">Nonprofit / Organization Name (if applicable)</label>
+    <input type="text" id="dns_org" name="organization" placeholder="Example Foundation">
+
+    <label for="dns_info">Information to be removed, corrected, or opted out *</label>
+    <textarea id="dns_info" name="info_description" required placeholder="Describe the information (e.g., name, email, phone number) and where it appears..."></textarea>
+
+    <label for="dns_urls">Relevant URLs or event page links (if known)</label>
+    <input type="text" id="dns_urls" name="urls" placeholder="https://...">
+
+    <button type="submit">Submit Request</button>
+    <p class="form-note">We may contact you at the email provided to verify your identity before processing. Requests are typically reviewed within 10 business days.</p>
+    <p class="success-msg" id="dnsSuccess">Your request has been submitted. We will contact you at the email address provided.</p>
+  </form>
+</div>
+
+<h2 style="margin-top:36px;">What Happens After You Submit</h2>
+<ul>
+<li>We review the request and verify details as needed</li>
+<li>We may remove, suppress, correct, or otherwise process the requested information</li>
+<li>We will respond to you at the email address provided</li>
+</ul>
+
+<h2>Important Limitations</h2>
+<p>In some cases, we may retain limited information as required for legal compliance, security and fraud prevention, billing and audit records, or internal recordkeeping. Backups may persist for a limited period before being overwritten.</p>
+
+<h2>No Discrimination</h2>
+<p>We will not deny service or provide a different level/quality of service solely because you submitted a privacy request, except as permitted by law.</p>
+
+<h2>Contact</h2>
+<p>If you prefer to submit your request by email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Subject line: <strong>Privacy Request</strong>, <strong>Remove My Information</strong>, or <strong>Do Not Sell or Share</strong><br>Phone: 303-719-4851</p>
+</div>
+
+<script>
+function submitDNS(e) {{
+  e.preventDefault();
+  var f = document.getElementById('dnsForm');
+  var name = document.getElementById('dns_name').value.trim();
+  var email = document.getElementById('dns_email').value.trim();
+  var type = document.getElementById('dns_type').value;
+  var org = document.getElementById('dns_org').value.trim();
+  var info = document.getElementById('dns_info').value.trim();
+  var urls = document.getElementById('dns_urls').value.trim();
+  if (!name || !email || !type || !info) {{ alert('Please fill in all required fields.'); return false; }}
+  var subject = encodeURIComponent('Privacy Request: ' + type + ' - ' + name);
+  var body = encodeURIComponent('Name: ' + name + '\\nEmail: ' + email + '\\nRequest Type: ' + type + '\\nOrganization: ' + (org || 'N/A') + '\\nInformation: ' + info + '\\nURLs: ' + (urls || 'N/A'));
+  window.location.href = 'mailto:support@auctionintel.us?subject=' + subject + '&body=' + body;
+  document.getElementById('dnsSuccess').style.display = 'block';
+  return false;
+}}
+</script>
+</body></html>"""
+
+
 # ─── HTML Templates ──────────────────────────────────────────────────────────
 
 _BASE_STYLE = """
@@ -2091,6 +2446,10 @@ WALLET_HTML = """<!DOCTYPE html>
       <input type="number" id="topupAmount" placeholder="Amount in USD" min="50" max="9999" step="1" value="100">
     </div>
     <p class="topup-hint">Minimum $50, maximum $9,999 per top-up</p>
+    <label class="topup-ack" style="display:flex;align-items:flex-start;gap:10px;margin:14px 0 16px;cursor:pointer;">
+      <input type="checkbox" id="topupAck" style="accent-color:#eab308;margin-top:3px;min-width:16px;min-height:16px;">
+      <span style="font-size:12px;color:#a3a3a3;line-height:1.5;">I understand wallet credits are non-refundable (except where required by law) and will be used for research and lead charges according to the app's <a href="/refund-policy" target="_blank" style="color:#eab308;">billing rules</a>.</span>
+    </label>
     <div id="payment-element"></div>
     <div id="payment-message"></div>
     <div id="payment-success"></div>
@@ -2125,6 +2484,10 @@ let clientSecret = null;
 let processing = false;
 
 async function initPayment() {
+  if (!document.getElementById('topupAck').checked) {
+    showError('Please acknowledge the non-refundable wallet policy before continuing.');
+    return false;
+  }
   const amount = parseFloat(document.getElementById('topupAmount').value);
   if (!amount || amount < 50 || amount > 9999) {
     showError('Amount must be between $50 and $9,999');
@@ -3182,8 +3545,8 @@ DATABASE_HTML = """<!DOCTYPE html>
   <div class="filters">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <h2>Search Nonprofit Database</h2>
-        <p class="subtitle">276,000 nonprofit organizations with pre-extracted event keywords | Filter and send to Auction Finder</p>
+        <h2>Confirmed Auction Database</h2>
+        <p class="subtitle">Verified nonprofit organizations with confirmed auction events | Filter and send to Auction Finder</p>
       </div>
       <button onclick="toggleFilters()" id="toggleBtn" style="padding:6px 14px;background:#262626;color:#a3a3a3;border:1px solid #333;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;">Hide Filters</button>
     </div>
@@ -3250,27 +3613,7 @@ DATABASE_HTML = """<!DOCTYPE html>
       <div class="fg"><label>Event Name Search</label><input type="text" id="fEventKw" placeholder="Free text in Event1/Event2 name"></div>
       <div class="fg"><label>Mission/Activity Keyword</label><input type="text" id="fMissionKw" placeholder="e.g. children, arts, health"></div>
     </div>
-    <p style="font-size:10px;color:#64748b;margin-top:6px;">Quick filters (matches Event1Keyword / Event2Keyword):</p>
-    <div class="checkboxes">
-      <label><input type="checkbox" id="fAuction"> Auction</label>
-      <label><input type="checkbox" id="fGala"> Gala</label>
-      <label><input type="checkbox" id="fGolf"> Golf</label>
-      <label><input type="checkbox" id="fDinner"> Dinner</label>
-      <label><input type="checkbox" id="fBall"> Ball</label>
-      <label><input type="checkbox" id="fRaffle"> Raffle</label>
-      <label><input type="checkbox" id="fBenefit"> Benefit</label>
-      <label><input type="checkbox" id="fFundraiser"> Fundraiser</label>
-      <label><input type="checkbox" id="fFestival"> Festival</label>
-      <label><input type="checkbox" id="fRun"> Run/Race</label>
-      <label><input type="checkbox" id="fArt"> Art</label>
-      <label><input type="checkbox" id="fTournament"> Tournament</label>
-      <label><input type="checkbox" id="fCasino"> Casino</label>
-      <label><input type="checkbox" id="fShow"> Show</label>
-      <label><input type="checkbox" id="fNight"> Night</label>
-    </div>
-    <div class="checkboxes" style="margin-top:8px;">
-      <label><input type="checkbox" id="fWebsite" checked> Has Website</label>
-    </div>
+    <p style="font-size:10px;color:#64748b;margin-top:6px;">All organizations in this database have confirmed auction events.</p>
 
     <div class="section-title">Settings</div>
     <div class="filter-grid">
@@ -3406,22 +3749,7 @@ function searchIRS() {
     event_keyword: document.getElementById('fEventKw').value,
     mission_keyword: document.getElementById('fMissionKw').value,
     limit: document.getElementById('fLimit').value,
-    has_auction: document.getElementById('fAuction').checked,
-    has_gala: document.getElementById('fGala').checked,
-    has_raffle: document.getElementById('fRaffle').checked,
-    has_ball: document.getElementById('fBall').checked,
-    has_dinner: document.getElementById('fDinner').checked,
-    has_benefit: document.getElementById('fBenefit').checked,
-    has_tournament: document.getElementById('fTournament').checked,
-    has_golf: document.getElementById('fGolf').checked,
-    has_fundraiser: document.getElementById('fFundraiser').checked,
-    has_festival: document.getElementById('fFestival').checked,
-    has_run: document.getElementById('fRun').checked,
-    has_art: document.getElementById('fArt').checked,
-    has_casino: document.getElementById('fCasino').checked,
-    has_show: document.getElementById('fShow').checked,
-    has_night: document.getElementById('fNight').checked,
-    has_website: document.getElementById('fWebsite').checked,
+    has_website: true,
     total_revenue: document.getElementById('fTotalRevenue').value,
     gross_receipts: document.getElementById('fGrossReceipts').value,
     net_income: document.getElementById('fNetIncome').value,
@@ -3576,7 +3904,7 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - File Merger</title>
+<title>AUCTION INTEL - File Merger</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -3603,16 +3931,20 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
   .file-list-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
   .file-list-header h3 { font-size:13px; font-weight:600; color:#a3a3a3; }
   .file-count { font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#262626; color:#eab308; }
-  .file-list { display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; }
+  .file-list { display:flex; flex-direction:column; gap:6px; max-height:320px; overflow-y:auto; padding-right:4px; }
   .file-list::-webkit-scrollbar { width:4px; }
-  .file-list::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
-  .file-item { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#1a1a1a; border:1px solid #262626; border-radius:8px; }
-  .file-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; background:#262626; color:#eab308; flex-shrink:0; }
+  .file-list::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
+  .file-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; background:#1a1a1a; border:1px solid #262626; border-radius:8px; }
+  .file-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; background:#262626; color:#eab308; flex-shrink:0; margin-top:2px; }
   .mode-json .file-icon { color:#7c3aed; }
   .file-info { flex:1; min-width:0; }
   .file-name { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .file-meta { font-size:11px; color:#737373; }
-  .file-remove { width:28px; height:28px; border-radius:6px; border:none; background:transparent; color:#737373; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+  .file-domain-row { display:flex; align-items:center; gap:6px; margin-top:5px; }
+  .file-domain-label { font-size:10px; font-weight:600; color:#737373; white-space:nowrap; letter-spacing:0.3px; text-transform:uppercase; }
+  .file-domain-input { flex:1; min-width:0; padding:4px 8px; border:1px solid #333; border-radius:6px; background:#262626; color:#eab308; font-family:'SF Mono','Consolas',monospace; font-size:12px; font-weight:500; outline:none; transition:border-color 0.2s, box-shadow 0.2s; }
+  .file-domain-input:focus { border-color:#eab308; box-shadow:0 0 0 2px rgba(234,179,8,0.15); }
+  .file-remove { width:28px; height:28px; border-radius:6px; border:none; background:transparent; color:#737373; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; align-self:flex-start; margin-top:2px; }
   .file-remove:hover { background:#3a1a1a; color:#f87171; }
 
   .actions { display:flex; gap:8px; margin-top:16px; }
@@ -3642,7 +3974,7 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
   .preview-toggle:hover { color:#f5f5f5; }
   .preview-box { background:#0a0a0a; border:1px solid #262626; border-radius:8px; padding:12px; max-height:240px; overflow:auto; font-size:11px; line-height:1.6; color:#a3a3a3; white-space:pre; word-break:break-all; }
   .preview-box::-webkit-scrollbar { width:4px; height:4px; }
-  .preview-box::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
+  .preview-box::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
 
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; }
   .modal-box { background:#1a1a1a; border:1px solid #333; border-radius:12px; padding:20px; max-width:360px; width:100%; }
@@ -3667,7 +3999,7 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
 <div class="main-content">
 <div class="container">
   <h2>File Merger</h2>
-  <p class="subtitle">Upload multiple CSV or JSON result files and merge them into a single download.</p>
+  <p class="subtitle">Upload multiple CSV or JSON result files, tag each with a query domain, and merge into a single download.</p>
 
   <div class="mode-tabs">
     <button class="mode-tab active-csv" id="tabCsv" onclick="switchMode('csv')">CSV Merger</button>
@@ -3720,8 +4052,8 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
 <script>
 (function() {
   var currentMode = 'csv';
-  var csvFiles = [];
-  var jsonFiles = [];
+  var csvEntries = [];   // [{file, domain}]
+  var jsonEntries = [];  // [{file, domain}]
   var mergedBlobUrl = null;
 
   var dropZone = document.getElementById('dropZone');
@@ -3771,11 +4103,12 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
     renderFileList();
   };
 
-  function getFiles() { return currentMode === 'csv' ? csvFiles : jsonFiles; }
-  function setFiles(f) { if (currentMode === 'csv') csvFiles = f; else jsonFiles = f; }
+  function getEntries() { return currentMode === 'csv' ? csvEntries : jsonEntries; }
+  function setEntries(e) { if (currentMode === 'csv') csvEntries = e; else jsonEntries = e; }
+  function domainFromName(name) { return name.replace(/\\.[^.]+$/, ''); }
 
   function addFiles(newFiles) {
-    var current = getFiles();
+    var current = getEntries();
     var remaining = 20 - current.length;
     if (remaining <= 0) { showStatus('error', 'Maximum 20 files. Remove some first.'); return; }
     var ext = currentMode === 'csv' ? '.csv' : '.json';
@@ -3784,12 +4117,12 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
       var f = newFiles[i];
       if (f.name.toLowerCase().endsWith(ext)) {
         var dup = false;
-        for (var j = 0; j < current.length; j++) { if (current[j].name === f.name) { dup = true; break; } }
-        if (!dup) accepted.push(f); else rejected++;
+        for (var j = 0; j < current.length; j++) { if (current[j].file.name === f.name) { dup = true; break; } }
+        if (!dup) accepted.push({ file: f, domain: domainFromName(f.name) }); else rejected++;
       } else { rejected++; }
     }
     if (rejected > 0) showStatus('error', rejected + ' file(s) skipped (wrong type or duplicate).');
-    if (accepted.length > 0) { setFiles(current.concat(accepted)); clearResults(); renderFileList(); }
+    if (accepted.length > 0) { setEntries(current.concat(accepted)); clearResults(); renderFileList(); }
   }
 
   fileInput.addEventListener('change', function(e) { if (e.target.files.length > 0) { addFiles(Array.from(e.target.files)); e.target.value = ''; } });
@@ -3800,29 +4133,48 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
   function fmtSize(b) { if (b < 1024) return b+' B'; if (b < 1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
 
   function renderFileList() {
-    var files = getFiles();
-    if (files.length === 0) { fileListSection.style.display='none'; actionsArea.style.display='none'; return; }
+    var entries = getEntries();
+    if (entries.length === 0) { fileListSection.style.display='none'; actionsArea.style.display='none'; return; }
     fileListSection.style.display = 'block';
     actionsArea.style.display = 'flex';
-    fileCount.textContent = files.length + ' / 20';
-    btnMerge.disabled = files.length < 2;
+    fileCount.textContent = entries.length + ' / 20';
+    btnMerge.disabled = entries.length < 2;
     fileListSection.className = 'file-list-section ' + (currentMode==='csv'?'mode-csv':'mode-json');
     var html = '';
-    for (var i = 0; i < files.length; i++) {
-      html += '<div class="file-item"><div class="file-icon">'+(currentMode==='csv'?'CSV':'{ }')+'</div><div class="file-info"><div class="file-name">'+escapeHtml(files[i].name)+'</div><div class="file-meta">'+fmtSize(files[i].size)+'</div></div><button class="file-remove" onclick="removeFile('+i+')" title="Remove">&times;</button></div>';
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      html += '<div class="file-item">' +
+        '<div class="file-icon">'+(currentMode==='csv'?'CSV':'{ }')+'</div>' +
+        '<div class="file-info">' +
+          '<div class="file-name">'+escapeHtml(entry.file.name)+'</div>' +
+          '<div class="file-meta">'+fmtSize(entry.file.size)+'</div>' +
+          '<div class="file-domain-row">' +
+            '<span class="file-domain-label">domain:</span>' +
+            '<input class="file-domain-input" type="text" value="'+escapeHtml(entry.domain)+'" ' +
+              'data-index="'+i+'" onchange="updateDomain(this)" oninput="updateDomain(this)" />' +
+          '</div>' +
+        '</div>' +
+        '<button class="file-remove" onclick="removeFile('+i+')" title="Remove">&times;</button>' +
+      '</div>';
     }
     fileList.innerHTML = html;
   }
 
-  window.removeFile = function(i) { var f=getFiles(); f.splice(i,1); setFiles(f); clearResults(); renderFileList(); };
+  window.updateDomain = function(el) {
+    var idx = parseInt(el.getAttribute('data-index'), 10);
+    var entries = getEntries();
+    if (entries[idx]) entries[idx].domain = el.value;
+  };
+
+  window.removeFile = function(i) { var e=getEntries(); e.splice(i,1); setEntries(e); clearResults(); renderFileList(); };
 
   window.confirmClear = function() {
-    var files = getFiles(); if (files.length===0) return;
+    var entries = getEntries(); if (entries.length===0) return;
     var ov = document.createElement('div'); ov.className='modal-overlay';
-    ov.innerHTML='<div class="modal-box"><h3>Clear All Files?</h3><p>Remove all '+files.length+' '+currentMode.toUpperCase()+' file(s) and results.</p><div class="modal-actions"><button class="modal-btn modal-btn-cancel" id="mc">Cancel</button><button class="modal-btn modal-btn-confirm" id="mk">Clear All</button></div></div>';
+    ov.innerHTML='<div class="modal-box"><h3>Clear All Files?</h3><p>Remove all '+entries.length+' '+currentMode.toUpperCase()+' file(s) and results.</p><div class="modal-actions"><button class="modal-btn modal-btn-cancel" id="mc">Cancel</button><button class="modal-btn modal-btn-confirm" id="mk">Clear All</button></div></div>';
     document.body.appendChild(ov);
     document.getElementById('mc').onclick=function(){ov.remove();};
-    document.getElementById('mk').onclick=function(){ov.remove();setFiles([]);clearResults();renderFileList();};
+    document.getElementById('mk').onclick=function(){ov.remove();setEntries([]);clearResults();renderFileList();};
     ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
   };
 
@@ -3836,30 +4188,80 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
   function rowToCSV(row){return row.map(function(c){if(c.indexOf(',')!==-1||c.indexOf('"')!==-1||c.indexOf('\\n')!==-1)return '"'+c.replace(/"/g,'""')+'"';return c;}).join(',');}
 
   window.mergeFiles = async function() {
-    var files=getFiles(); if(files.length<2)return;
+    var entries=getEntries(); if(entries.length<2)return;
     clearResults(); btnMerge.disabled=true; mergeLabel.textContent='Merging...';
-    try { if(currentMode==='csv') await mergeCSV(files); else await mergeJSON(files); } catch(e) { showStatus('error',e.message||'Merge error.'); }
+    try { if(currentMode==='csv') await mergeCSV(entries); else await mergeJSON(entries); } catch(e) { showStatus('error',e.message||'Merge error.'); }
     mergeLabel.textContent=currentMode==='csv'?'Merge CSV Files':'Merge JSON Files'; btnMerge.disabled=false;
   };
 
-  async function mergeCSV(files) {
-    var all=[]; for(var i=0;i<files.length;i++){var t=await readFile(files[i]);all.push({name:files[i].name,text:t});}
-    var first=parseCSV(all[0].text); if(first.length===0)throw new Error('First file is empty.');
-    var hdr=first[0],hdrStr=hdr.join(',').toLowerCase().trim();
-    var merged=first.slice(1).filter(function(r){return r.length>1||(r.length===1&&r[0].trim()!=='');});
-    for(var j=1;j<all.length;j++){var rows=parseCSV(all[j].text);if(rows.length===0)continue;if(rows[0].join(',').toLowerCase().trim()!==hdrStr)throw new Error('Header mismatch in "'+all[j].name+'"');var dr=rows.slice(1).filter(function(r){return r.length>1||(r.length===1&&r[0].trim()!=='');});merged=merged.concat(dr);}
-    var lines=[rowToCSV(hdr)];for(var k=0;k<merged.length;k++)lines.push(rowToCSV(merged[k]));var out=lines.join('\\n');
-    showStatus('success','Merged '+files.length+' files \\u2014 '+merged.length+' total rows.');
-    createDownload(out,'merged.csv','text/csv','Download Merged CSV ('+merged.length+' rows)');
-    showPreview(out,'csv',merged.length);
+  async function mergeCSV(entries) {
+    var allParsed=[];
+    for(var i=0;i<entries.length;i++){var t=await readFile(entries[i].file);allParsed.push({name:entries[i].file.name,domain:entries[i].domain,rows:parseCSV(t)});}
+    if(allParsed[0].rows.length===0)throw new Error('First file "'+allParsed[0].name+'" is empty.');
+    var header=allParsed[0].rows[0];
+    var headerStr=header.join(',').toLowerCase().trim();
+
+    // Columns to exclude from output
+    var excludeCols=['event_time','venue_name','venue_address'];
+    var excludeIndices=[];
+    for(var ei=0;ei<header.length;ei++){
+      var colLower=header[ei].trim().toLowerCase();
+      for(var ec=0;ec<excludeCols.length;ec++){if(colLower===excludeCols[ec]){excludeIndices.push(ei);break;}}
+    }
+
+    // Build filtered header (without excluded columns)
+    var filteredHeader=[];
+    for(var fh=0;fh<header.length;fh++){if(excludeIndices.indexOf(fh)===-1)filteredHeader.push(header[fh]);}
+
+    // Build merged rows with excluded columns removed and query_domain appended
+    var mergedRows=[];
+    for(var f=0;f<allParsed.length;f++){
+      var p=allParsed[f];
+      if(p.rows.length===0)continue;
+      if(f>0){var thisHeader=p.rows[0].join(',').toLowerCase().trim();if(thisHeader!==headerStr)throw new Error('Header mismatch in "'+p.name+'". Expected: '+header.join(', '));}
+      var dataRows=p.rows.slice(1).filter(function(r){return r.length>1||(r.length===1&&r[0].trim()!=='');});
+      for(var d=0;d<dataRows.length;d++){
+        var filteredRow=[];
+        for(var c=0;c<dataRows[d].length;c++){if(excludeIndices.indexOf(c)===-1)filteredRow.push(dataRows[d][c]);}
+        filteredRow.push(p.domain);
+        mergedRows.push(filteredRow);
+      }
+    }
+
+    // Build output with query_domain column
+    var outputHeader=filteredHeader.concat(['query_domain']);
+    var lines=[rowToCSV(outputHeader)];
+    for(var k=0;k<mergedRows.length;k++)lines.push(rowToCSV(mergedRows[k]));
+    var out=lines.join('\\n');
+
+    showStatus('success','Merged '+entries.length+' files \\u2014 '+mergedRows.length+' rows (with query_domain).');
+    createDownload(out,'merged.csv','text/csv','Download Merged CSV ('+mergedRows.length+' rows)');
+    showPreview(out,'csv',mergedRows.length);
   }
 
-  async function mergeJSON(files) {
-    var all=[];for(var i=0;i<files.length;i++){var t=await readFile(files[i]);var p;try{p=JSON.parse(t);}catch(e){throw new Error('Invalid JSON in "'+files[i].name+'"');}if(Array.isArray(p))all=all.concat(p);else if(typeof p==='object'&&p!==null)all.push(p);else throw new Error('"'+files[i].name+'" unsupported JSON.');}
-    var out=JSON.stringify(all,null,2);
-    showStatus('success','Merged '+files.length+' files \\u2014 '+all.length+' total items.');
-    createDownload(out,'merged.json','application/json','Download Merged JSON ('+all.length+' items)');
-    showPreview(out,'json',all.length);
+  async function mergeJSON(entries) {
+    var allData=[];
+    var jsonExclude=['event_time','venue_name','venue_address'];
+    for(var i=0;i<entries.length;i++){
+      var t=await readFile(entries[i].file);
+      var domain=entries[i].domain;
+      var parsed;try{parsed=JSON.parse(t);}catch(e){throw new Error('Invalid JSON in "'+entries[i].file.name+'"');}
+      var items;
+      if(Array.isArray(parsed))items=parsed;
+      else if(typeof parsed==='object'&&parsed!==null)items=[parsed];
+      else throw new Error('"'+entries[i].file.name+'" unsupported JSON.');
+      for(var j=0;j<items.length;j++){
+        if(typeof items[j]==='object'&&items[j]!==null){
+          for(var je=0;je<jsonExclude.length;je++){delete items[j][jsonExclude[je]];}
+          items[j].query_domain=domain;
+        }
+      }
+      allData=allData.concat(items);
+    }
+    var out=JSON.stringify(allData,null,2);
+    showStatus('success','Merged '+entries.length+' files \\u2014 '+allData.length+' items (with query_domain).');
+    createDownload(out,'merged.json','application/json','Download Merged JSON ('+allData.length+' items)');
+    showPreview(out,'json',allData.length);
   }
 
   function createDownload(content,filename,mime,label){if(mergedBlobUrl)URL.revokeObjectURL(mergedBlobUrl);var blob=new Blob([content],{type:mime});mergedBlobUrl=URL.createObjectURL(blob);downloadLink.href=mergedBlobUrl;downloadLink.download=filename;downloadLabel.textContent=label;downloadArea.className='download-area visible';}
@@ -4327,7 +4729,7 @@ GETTING_STARTED_HTML = """<!DOCTYPE html>
     <div class="step-num">1</div>
     <div class="step-content">
       <h3>Search the Nonprofit Database</h3>
-      <p>Go to the <a href="/database">Database</a> page to search over 300,000 nonprofits. Filter by <strong>state, city, region, event type</strong> (gala, auction, golf, etc.), and <strong>prospect tier</strong> (A+, A, B+, C). Use the financial filters to narrow by revenue, fundraising income, or event gross receipts.</p>
+      <p>Go to the <a href="/database">Database</a> page to browse our curated database of nonprofits with confirmed auction events. Filter by <strong>state, city, region, event type</strong>, and <strong>prospect tier</strong> (A+, A, B+, C). Use the financial filters to narrow by revenue, fundraising income, or event gross receipts.</p>
       <p style="margin-top:8px;">Select the organizations you want to research and click <strong>"Send to Auction Finder"</strong> to add them to your search queue.</p>
       <p style="margin-top:8px;color:#737373;font-size:13px;"><strong style="color:#eab308;">Search tip:</strong> If you are not getting the number of results you require, simply edit or remove a filter.</p>
     </div>
@@ -4626,7 +5028,10 @@ LANDING_HTML = """<!DOCTYPE html>
   .footer-contact .label { font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
   .footer-contact a { display: block; font-size: 13px; color: #a3a3a3; margin-bottom: 4px; }
   .footer-contact a:hover { color: #eab308; }
-  .footer-copy { text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #1a1a1a; font-size: 12px; color: #525252; }
+  .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #1a1a1a; }
+  .footer-links a { font-size: 12px; color: #525252; text-decoration: none; }
+  .footer-links a:hover { color: #eab308; }
+  .footer-copy { text-align: center; margin-top: 16px; font-size: 12px; color: #525252; }
 
   /* Hamburger — hidden on desktop */
   .hamburger { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
@@ -4671,6 +5076,7 @@ LANDING_HTML = """<!DOCTYPE html>
     .footer { padding: 40px 20px 32px; }
     .footer-inner { flex-direction: column; gap: 24px; }
     .footer-contact { text-align: left; }
+    .footer-links { gap: 6px 16px; }
   }
 </style>
 </head>
@@ -4932,6 +5338,13 @@ LANDING_HTML = """<!DOCTYPE html>
       <a href="mailto:support@auctionintel.us">support@auctionintel.us</a>
       <a href="tel:3037194851">303-719-4851</a>
     </div>
+  </div>
+  <div class="footer-links">
+    <a href="/terms">Terms of Service</a>
+    <a href="/privacy-policy">Privacy Policy</a>
+    <a href="/refund-policy">Refund Policy</a>
+    <a href="/do-not-sell">Do Not Sell My Info</a>
+    <a href="/contact">Contact / DMCA / Abuse</a>
   </div>
   <div class="footer-copy">&copy; 2026 Auction Intel. All rights reserved.</div>
 </div>

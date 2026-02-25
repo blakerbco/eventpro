@@ -1,0 +1,63 @@
+# Auction Intel Refund Policy
+
+**Effective Date:** 02/25/2026
+**Last Updated:** 02/25/2025
+
+This Refund Policy explains how refunds and wallet credits work for Auction Intel.
+
+## 1. Wallet Credits Are Non-Refundable
+
+All funds added to your Auction Intel wallet are **non-refundable**, except where required by applicable law.
+
+This includes wallet top-ups used for:
+
+* nonprofit research fees,
+* lead fees,
+* and other in-platform charges.
+
+## 2. No Expiration of Wallet Credits
+
+Wallet credits do **not** expire unless otherwise stated in writing by Auction Intel.
+
+## 3. Research Fees Are Charged for Work Performed
+
+Research fees are charged per nonprofit researched, whether or not a qualifying event lead is found. This is because Auction Intel performs compute- and web-research work for each nonprofit processed.
+
+## 4. Lead Charges and Billability Rules
+
+Lead charges are applied according to the tier(s) selected and the platform’s billability rules shown in the product at the time of the search.
+
+Where the product states a verified event page link is required for a billable lead, leads without a qualifying verified event page link are not charged as billable leads.
+
+## 5. Mistaken Charges / Billing Errors
+
+If you believe you were charged in error (for example, duplicate charging, technical malfunction, or a billing bug), contact support within **14 days** of the charge and include:
+
+* your account email,
+* date/time of charge,
+* amount charged,
+* search/job ID (if available),
+* and a brief description of the issue.
+
+We will review the request in good faith. If we confirm a billing error, we may issue a correction, wallet credit adjustment, or refund at our discretion (or as required by law).
+
+## 6. Promotional Credits and Free Trial Credits
+
+Promotional credits, trial credits, and bonus credits:
+
+* are not redeemable for cash,
+* are non-transferable,
+* may expire if stated in the promotion terms,
+* and may be revoked if issued in error or used in violation of the Terms.
+
+## 7. Chargebacks
+
+Before initiating a chargeback, please contact us so we can review and attempt to resolve the issue quickly. Fraudulent or abusive chargebacks may result in account suspension or termination.
+
+## 8. Contact for Billing Questions
+
+Auction Intel
+Email: [support@auctionintel.us](mailto:support@auctionintel.us)
+Phone: 303-719-4851
+
+For billing support, please contact us at the email above.
