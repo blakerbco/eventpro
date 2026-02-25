@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "total_nonprofits": 10,
+    "processing_time_seconds": 36.72,
+    "model": "Auctionintel.app",
+    "timestamp": "2026-02-25T20:32:50.015180+00:00"
+  },
+  "summary": {
+    "found": 1,
+    "3rdpty_found": 0,
+    "not_found": 8,
+    "uncertain": 1
+  },
+  "billing": {
+    "research_fees": 40,
+    "lead_fees": {
+      "event_verified": {
+        "count": 2,
+        "price_each": 75,
+        "total": 150
+      },
+      "decision_maker": {
+        "count": 2,
+        "price_each": 175,
+        "total": 350
+      }
+    },
+    "total_charged": 540
+  },
+  "results": [
+    {
+      "nonprofit_name": "Help 2 Others (H2O) Foundation",
+      "event_title": "Help 2 Others Birthday Celebration",
+      "event_type": "festival",
+      "evidence_date": "Help 2 Others Birthday Celebration. Join us for the Help 2 Others Foundation 22nd Birthday Celebration. House Eleven 5229 1st Ave N, Birmingham, AL 35212. Date March 12, 2026. Time 6:00 PM - 8:00 PM.",
+      "auction_type": "",
+      "event_date": "03/12/2026",
+      "event_url": "https://h2obham.org/events/",
+      "confidence_score": 1.0,
+      "evidence_auction": "",
+      "contact_name": "",
+      "contact_email": "",
+      "email_status": "",
+      "contact_role": "",
+      "organization_address": "10 55th Street South, Suite A Birmingham, AL 35212",
+      "organization_phone_maps": "(205) 778-1900",
+      "contact_source_url": "https://h2obham.org/events/",
+      "event_summary": "The Help 2 Others Birthday Celebration is a special night honoring 22 years of service and community impact in Birmingham . The event supports the foundation's mission of providing water bill assistance and plumbing repairs to local families in need . Another upcoming event is the 24th Annual Golf Tournament scheduled for September 3, 2026, at Bent Brook Golf Course .",
+      "status": "not_found",
+      "_processed_at": "2026-02-25T20:18:52.425920+00:00",
+      "_source": "cache",
+      "_api_calls": 0,
+      "query_domain": "h2ofoundation.net"
+    },
+    {
+      "nonprofit_name": "REALTORS® for Kids, Inc.",
+      "event_title": "2026 Annual Auction – The Roaring 20's",
+      "event_type": "auction",
+      "evidence_date": "2026 Annual Auction – The Roaring 20's. Join us April 10 from 6:00-9:00PM at the Lodge at Deadwood for our annual benefi...",
+      "auction_type": "both",
+      "event_date": "04/10/2026",
+      "event_url": "https://realtorsforkids.org/events/",
+      "confidence_score": 1.0,
+      "evidence_auction": "2026 Annual Auction – The Roaring 20's. Join us April 10 from 6:00-9:00PM at the Lodge at Deadwood for our annual benefi...",
+      "contact_name": "",
+      "contact_email": "",
+      "email_status": "",
+      "contact_role": "",
+      "organization_address": "1230 North Avenue, Suite #1, Spearfish, SD 57783",
+      "organization_phone_maps": "(605) 722-0181",
+      "contact_source_url": "https://realtorsforkids.org/contact-us/",
+      "event_summary": "The 2026 Annual Auction – The Roaring 20's is a benefit event scheduled for April 10, 2026, at the Lodge at Deadwood from 6:00 PM to 9:00 PM . The organization also lists a '2026 Annual Raffle' on their events page, though specific dates for the raffle drawing are not yet detailed . These events support the organization's mission to provide financial assistance to children in the Northern and Southern Black Hills for medical, educational, and basic needs .",
+      "status": "found",
+      "_processed_at": "2026-02-25T20:19:08.296202+00:00",
+      "_source": "cache",
+      "_api_calls": 0,
+      "query_domain": "realtorsforkids.org"
+    },
+    {
+      "nonprofit_name": "Kaukauna Ghosts Fastpitch",
+      "event_title": "Denny Lauer Spring Classic",
+      "event_type": "festival",
+      "evidence_date": "June 20th - June 21st, 2026 - 8U-10U-12U",
+      "auction_type": "",
+      "event_date": "06/20/2026",
+      "event_url": "https://kaukaunaghostfastpitch.sportngin.com/register/form/140563231",
+      "confidence_score": 1.0,
+      "evidence_auction": "",
+      "contact_name": "Jesse Michalski",
+      "contact_email": "michalskij@kgfboard.org",
+      "email_status": "deliverable",
+      "contact_role": "Sponsorship Contact",
+      "organization_address": "1701 E. County Highway CE, Kaukauna, WI 54130",
+      "organization_phone_maps": "",
+      "contact_source_url": "https://www.kaukaunaghostsfastpitch.com/",
+      "event_summary": "The Denny Lauer Spring Classic is an annual softball tournament hosted by Kaukauna Ghosts Fastpitch, featuring competitive teams from across the Midwest . The event supports the organization's mission to promote girls' softball in the Kaukauna Area School District through youth and high school programs . The organization also typically hosts the 'Spooktacular' tournament in late September .",
+      "status": "not_found",
+      "_processed_at": "2026-02-25T20:19:33.865977+00:00",
+      "_source": "cache",
+      "_api_calls": 0,
+      "query_domain": "kaukaunaghostsfastpitch.com"
+    },
+    {
+      "nonprofit_name": "Roseau Youth Hockey Association",
+      "event_title": "RYH Annual Meeting and Election",
+      "event_type": "other",
+      "evidence_date": "Next Meeting: W, March 26th @ 5:30 pm @ the Legion! (work session). W, April 16 @ 6:00 pm @ Gene's -- Annual Meeting and Election!",
+      "auction_type": "",
+      "event_date": "04/16/2026",
+      "event_url": "https://www.roseauyouthhockey.org/about/board-of-directors/32029",
+      "confidence_score": 0.95,
+      "evidence_auction": "",
+      "contact_name": "Keith Severson",
+      "contact_email": "keith.severson@gmail.com",
+      "email_status": "deliverable",
+      "contact_role": "RYH Administrator/Registrar",
+      "organization_address": "606 Center Street East, Roseau, MN 56751",
+      "organization_phone_maps": "(218) 626-5996",
+      "contact_source_url": "https://www.roseauyouthhockey.org/about/new-to-roseau-youth-hockey-contact-us/32898",
+      "event_summary": "The Roseau Youth Hockey Association (RYH) will hold its Annual Meeting and Election on April 16, 2026, at 6:00 pm at Gene's . This meeting serves as a key organizational event where board elections are held and the public is welcome to attend . While the organization also lists a work session meeting on March 26, 2026, the Annual Meeting is the primary scheduled governance and community event found for the spring of 2026 .",
+      "status": "not_found",
+      "_processed_at": "2026-02-25T20:21:08.995751+00:00",
+      "_source": "cache",
+      "_api_calls": 0,
+      "query_domain": "roseauhockeyonline.com"
+    }
+  ]
+}

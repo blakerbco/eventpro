@@ -242,11 +242,12 @@ def _inject_nav_badge(html: str) -> str:
 # ─── Sidebar Navigation ─────────────────────────────────────────────────────
 
 _SIDEBAR_CSS = """
-  .sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; background:#0a0a0a; border-right:1px solid #1a1a1a; display:flex; flex-direction:column; z-index:100; overflow-y:auto; transition:transform 0.3s ease; scrollbar-width:thin; scrollbar-color:#eab308 #000; }
-  .sidebar::-webkit-scrollbar { width:8px; }
-  .sidebar::-webkit-scrollbar-track { background:#000; }
-  .sidebar::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
-  .sidebar::-webkit-scrollbar-thumb:hover { background:#ffd900; }
+  * { scrollbar-width:thin; scrollbar-color:#eab308 #0a0a0a; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-track { background:#0a0a0a; }
+  ::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:#ffd900; }
+  .sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; background:#0a0a0a; border-right:1px solid #1a1a1a; display:flex; flex-direction:column; z-index:100; overflow-y:auto; transition:transform 0.3s ease; }
   .sidebar-logo { padding:20px 24px; border-bottom:1px solid #1a1a1a; }
   .sidebar-logo img { height:44px; }
   .sidebar-section { padding:16px 12px 4px; }
@@ -399,24 +400,27 @@ def _research_one(
 
         # Gate: only confirmed auctions count as "found"
         cached_auction = str(cached.get("auction_type", "")).strip().lower()
-        if cached.get("status") == "found" and cached_auction not in ("live", "silent", "both"):
+        if cached.get("status") in ("found", "3rdpty_found") and cached_auction not in ("live", "silent", "both"):
             cached["status"] = "not_found"
             print(f"[AUCTION GATE] {nonprofit}: cached, no confirmed auction_type, marking not_found", flush=True)
 
         status = cached.get("status", "uncertain")
-        tier, price = classify_lead_tier(cached)
+        if status in ("not_found", "uncertain", "error"):
+            tier, price = "not_billable", 0
+        else:
+            tier, price = classify_lead_tier(cached)
 
-        # Validate email via Emailable
+        # Validate email via Emailable (skip if gate already marked not_found)
         cached["email_status"] = ""
         contact_email = cached.get("contact_email", "").strip()
-        if contact_email:
+        if contact_email and status in ("found", "3rdpty_found"):
             progress_q.put({"type": "email_validating", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
             print(f"[EMAILABLE-CACHE] Calling for: {contact_email}", flush=True)
             email_state = validate_email_emailable(contact_email)
             cached["email_status"] = email_state
             print(f"[EMAILABLE-CACHE] {contact_email} => {email_state}", flush=True)
             progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
-            if email_state != "deliverable":
+            if email_state not in ("deliverable", "risky"):
                 cached["contact_email"] = ""
                 cached["contact_name"] = ""
                 tier, price = "event_verified", 75
@@ -492,24 +496,27 @@ def _research_one(
 
     # Gate: only confirmed auctions count as "found"
     auction_type = str(result.get("auction_type", "")).strip().lower()
-    if result.get("status") == "found" and auction_type not in ("live", "silent", "both"):
+    if result.get("status") in ("found", "3rdpty_found") and auction_type not in ("live", "silent", "both"):
         result["status"] = "not_found"
         print(f"[AUCTION GATE] {nonprofit}: no confirmed auction_type (was '{auction_type}'), marking not_found", flush=True)
 
-    tier, price = classify_lead_tier(result)
     status = result.get("status", "uncertain")
+    if status in ("not_found", "uncertain", "error"):
+        tier, price = "not_billable", 0
+    else:
+        tier, price = classify_lead_tier(result)
 
-    # Validate email via Emailable
+    # Validate email via Emailable (skip if gate already marked not_found)
     result["email_status"] = ""
     contact_email = result.get("contact_email", "").strip()
-    if contact_email:
+    if contact_email and status in ("found", "3rdpty_found"):
         progress_q.put({"type": "email_validating", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
         print(f"[EMAILABLE-FRESH] Calling for: {contact_email}", flush=True)
         email_state = validate_email_emailable(contact_email)
         result["email_status"] = email_state
         print(f"[EMAILABLE-FRESH] {contact_email} => {email_state}", flush=True)
         progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
-        if email_state != "deliverable":
+        if email_state not in ("deliverable", "risky"):
             result["contact_email"] = ""
             result["contact_name"] = ""
             tier, price = "event_verified", 75
@@ -1885,7 +1892,11 @@ def support_update_status(ticket_id):
 # ─── Routes: Legal / Footer Pages ───────────────────────────────────────────
 
 _LEGAL_STYLE = """
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-width:thin; scrollbar-color:#eab308 #0a0a0a; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-track { background:#0a0a0a; }
+  ::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:#ffd900; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000; color: #f5f5f5; }
   .legal-wrap { max-width: 780px; margin: 60px auto; padding: 0 24px 80px; }
   .legal-wrap h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
@@ -2227,7 +2238,11 @@ function submitDNS(e) {{
 # ─── HTML Templates ──────────────────────────────────────────────────────────
 
 _BASE_STYLE = """
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-width:thin; scrollbar-color:#eab308 #0a0a0a; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-track { background:#0a0a0a; }
+  ::-webkit-scrollbar-thumb { background:#eab308; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:#ffd900; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000000; color: #f5f5f5; }
   .auth-box { background: #000000; border: 1px solid #262626; border-radius: 12px; padding: 40px; width: 420px; text-align: center; }
   .auth-box p.sub { color: #a3a3a3; margin-bottom: 24px; font-size: 14px; }
@@ -2853,6 +2868,7 @@ INDEX_HTML = """<!DOCTYPE html>
   .download-section a.json-btn { background: #7c3aed; }
   .download-section a.xlsx-btn { background: #2563eb; }
   .download-section button.view-btn { background: #0891b2; }
+  .download-section button.new-search-btn { background: #404040; color: #f5f5f5; }
 
   .json-viewer { display: none; margin-top: 16px; background: #000000; border: 1px solid #262626; border-radius: 8px; padding: 16px; max-height: 500px; overflow: auto; }
   .json-viewer pre { font-size: 12px; line-height: 1.5; color: #f5f5f5; white-space: pre-wrap; word-break: break-word; }
@@ -2909,6 +2925,7 @@ INDEX_HTML = """<!DOCTYPE html>
         <a href="#" id="downloadJson" class="json-btn">Download JSON</a>
         <a href="#" id="downloadXlsx" class="xlsx-btn">Download XLSX</a>
         <button class="view-btn" onclick="toggleJsonViewer()">View Results (JSON)</button>
+        <button class="new-search-btn" onclick="newSearch()">New Search</button>
       </div>
       <div class="json-viewer" id="jsonViewer"><pre id="jsonContent"></pre></div>
     </div>
@@ -3328,19 +3345,8 @@ async function _doSearch(selectedTiers) {
           break;
 
         case 'email_validating':
-          log('[' + data.index + '/' + data.total + '] Validating email: ' + data.email + '...', 'processing');
-          break;
-
         case 'email_result':
-          if (data.result === 'deliverable') {
-            log('[' + data.index + '/' + data.total + '] Email verified: deliverable', 'found');
-          } else {
-            log('[' + data.index + '/' + data.total + '] Email result: ' + data.result, 'not_found');
-          }
-          break;
-
         case 'email_purged':
-          log('[' + data.index + '/' + data.total + '] Contact purged — bad email removed from result', 'error');
           break;
 
         case 'heartbeat':
@@ -3436,6 +3442,26 @@ async function toggleJsonViewer() {
   } catch (err) {
     content.textContent = 'Failed to load results: ' + err.message;
   }
+}
+
+function newSearch() {
+  if (currentEvtSource) { currentEvtSource.close(); currentEvtSource = null; }
+  currentJobId = null;
+  terminal.innerHTML = '';
+  counts = { found: 0, '3rdpty_found': 0, not_found: 0, uncertain: 0, error: 0 };
+  processed = 0;
+  totalNonprofits = 0;
+  updateStats();
+  updateProgress();
+  progressSection.style.display = 'none';
+  downloadSection.style.display = 'none';
+  document.getElementById('billingSummary').style.display = 'none';
+  document.getElementById('jsonViewer').style.display = 'none';
+  document.getElementById('etaDisplay').style.display = 'none';
+  document.getElementById('searchDots').style.display = 'none';
+  searchBtn.disabled = false;
+  inputEl.value = '';
+  inputEl.focus();
 }
 
 async function makeExclusive(btn, nonprofit, title, url) {
