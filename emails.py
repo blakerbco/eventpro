@@ -1,12 +1,12 @@
 """
 AUCTIONFINDER — Email Templates & Sending
 
-All transactional emails use the Auction Intel professional branded template
-and are sent via Resend API. All visual styles are INLINED for email client
-compatibility. The <style> block only handles @font-face and @media queries.
+All transactional and drip-campaign emails use the designer's mobile-ready
+template (inline styles, tiny @media block). Sent via Resend API.
 """
 
 import os
+from datetime import datetime, timezone
 import resend
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
@@ -14,22 +14,22 @@ RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "Auction Intel Admin <admin@au
 DOMAIN = os.environ.get("APP_DOMAIN", "http://localhost:5000")
 LOGO_URL = "https://content.app-sources.com/s/18152366670198361/uploads/RC/5-2077317.svg"
 
-# Minimal CSS — only what can't be inlined (@font-face, @media, preheader hide)
+# Minimal CSS — only @media for mobile (everything else is inlined)
 _PRO_CSS = """
-.email_summary{display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;}
-body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
-table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
-img{-ms-interpolation-mode:bicubic;border:0;height:auto;line-height:100%;outline:none;text-decoration:none;}
-@media only screen{
-@font-face{font-family:'Open Sans';font-style:normal;font-weight:400;src:local("Open Sans Regular"),local("OpenSans-Regular"),url(https://fonts.gstatic.com/s/opensans/v14/cJZKeOuBrn4kERxqtaUH3VtXRa8TVwTICgirnJhmVJw.woff2) format("woff2");}
-@font-face{font-family:'Open Sans';font-style:normal;font-weight:700;src:local("Open Sans Bold"),local("OpenSans-Bold"),url(https://fonts.gstatic.com/s/opensans/v14/k3k702ZOKiLJc3WVjuplzOgdm0LZdjqr5-oayXSOefg.woff2) format("woff2");}
-td,p,a,li,h1,h2,h3,h4,h5,h6,strong{font-family:"Open Sans",Arial,Helvetica,sans-serif !important;}
-}
-@media(max-width:689px){
-.col_50{display:block !important;max-width:100% !important;}
-.mobile_center{text-align:center !important;}
+@media screen and (max-width:620px){
+.container{width:100% !important;max-width:100% !important;}
+.px{padding-left:16px !important;padding-right:16px !important;}
+.pt{padding-top:16px !important;}
+.pb{padding-bottom:16px !important;}
+.btn a{display:block !important;width:100% !important;box-sizing:border-box !important;text-align:center !important;}
 }
 """
+
+# Inline style shortcuts
+_FS = "font-family:Arial,Helvetica,sans-serif;"
+_CS = "color:rgba(255,255,255,.78);"
+_CW = "color:#ffffff;"
+_CG = "color:#f5c542;"
 
 
 # ─── Template & Helpers ──────────────────────────────────────────────────────
@@ -37,121 +37,99 @@ td,p,a,li,h1,h2,h3,h4,h5,h6,strong{font-family:"Open Sans",Arial,Helvetica,sans-
 def _base_template(title: str, heading: str, body_html: str,
                    cta_text: str = "", cta_url: str = "",
                    summary: str = "") -> str:
-    """Wrap email content in the professional Auction Intel template.
-    All visual styles are inlined for maximum email client compatibility."""
+    """Wrap email content in the designer's mobile-ready Auction Intel template."""
+    today = datetime.now(timezone.utc).strftime("%b %d, %Y")
 
     cta_block = ""
     if cta_text and cta_url:
         cta_block = (
-            '<table role="presentation" align="left" cellspacing="0" cellpadding="0" border="0" style="Margin:24px 0 10px 0;">'
-            "<tbody><tr>"
-            '<td style="background-color:#f5c542;border-radius:12px;text-align:center;font-weight:bold;">'
-            f'<a href="{cta_url}" target="_blank" style="display:inline-block;font-weight:800;color:#000000;text-decoration:none;padding:13px 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;">{cta_text}</a>'
-            "</td></tr></tbody></table>"
-            '<p style="Margin:0;clear:both;font-size:14px;line-height:22px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">'
-            f'If the button doesn\'t work, open: <a href="{cta_url}" style="color:#f5c542;text-decoration:underline;">{cta_url}</a>'
-            "</p>"
+            '<table role="presentation" class="btn" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0 10px 0;">'
+            "<tr>"
+            '<td bgcolor="#f5c542" style="border-radius:12px;">'
+            f'<a href="{cta_url}" target="_blank" style="display:inline-block;padding:12px 16px;{_FS}font-size:14px;font-weight:800;color:#000000;text-decoration:none;border-radius:12px;">'
+            f"{cta_text}</a>"
+            "</td></tr></table>"
+            f'<p style="margin:0;{_FS}font-size:12px;line-height:18px;{_CS}">'
+            f'If the button doesn\'t work, open: <a href="{cta_url}" style="{_CG}text-decoration:underline;">{cta_url}</a></p>'
         )
 
     summary_div = ""
     lead_block = ""
     if summary:
-        summary_div = f'<div class="email_summary">{summary}</div>'
-        lead_block = (
-            '<p style="Margin-top:0;Margin-bottom:16px;font-size:19px;line-height:31px;'
-            f'color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">{summary}</p>'
+        summary_div = (
+            '<div style="display:none;font-size:1px;color:#f5f5f0;line-height:1px;'
+            f'max-height:0;max-width:0;opacity:0;overflow:hidden;">{summary}</div>'
         )
+        lead_block = f'<p style="margin:0 0 16px 0;{_FS}font-size:14px;line-height:20px;{_CS}">{summary}</p>'
 
     return (
-        '<!doctype html>'
-        '<html lang="en" style="min-width:100%;background-color:#f5f5f0;">'
-        "<head>"
-        '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">'
-        '<meta name="format-detection" content="telephone=no">'
-        '<meta name="format-detection" content="date=no">'
-        '<meta name="format-detection" content="address=no">'
-        '<meta name="format-detection" content="email=no">'
-        '<meta http-equiv="X-UA-Compatible" content="IE=edge">'
+        "<!doctype html>"
+        '<html lang="en"><head>'
+        '<meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<meta http-equiv="x-ua-compatible" content="ie=edge">'
         '<meta name="x-apple-disable-message-reformatting">'
         f"<title>{title}</title>"
-        '<style type="text/css">'
-        + _PRO_CSS +
-        "</style></head>"
-
-        # Body
-        '<body style="-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;'
-        'min-width:100%;background-color:#f5f5f0;height:100% !important;'
-        'margin:0 !important;padding:0 !important;width:100% !important;">'
+        '<style>' + _PRO_CSS + '</style>'
+        '<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch>'
+        "<o:AllowPNG/></o:OfficeDocumentSettings></xml><![endif]-->"
+        "</head>"
+        '<body style="margin:0;padding:0;background:#f5f5f0;">'
         + summary_div +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f0;"><tr>'
+        '<td align="center" class="px pt pb" style="padding:26px 12px;">'
 
-        # ── Header ──
-        '<table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td style="font-size:0;text-align:center;line-height:100%;background-color:#f5f5f0;padding:32px 16px 0 16px;">'
-        '<table role="presentation" align="center" style="max-width:800px;Margin:0 auto;" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td style="font-size:0;text-align:center;background-color:#000000;border-radius:16px 16px 0 0;border-top:4px solid #f5c542;padding:16px;">'
-        '<div style="font-size:0;text-align:center;max-width:624px;Margin:0 auto;">'
+        # Container
+        '<table role="presentation" class="container" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px;max-width:600px;">'
 
-        # Logo
-        '<div class="col_50" style="vertical-align:top;display:inline-block;width:100%;max-width:400px;">'
-        '<table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td class="mobile_center" style="vertical-align:top;padding:8px 16px;text-align:left;">'
-        '<p style="line-height:100%;clear:both;Margin:0;">'
-        f'<a href="https://auctionintel.app" target="_blank"><img src="{LOGO_URL}" width="140" alt="Auction Intel" style="max-width:140px;"></a>'
-        "</p></td></tr></tbody></table></div>"
+        # Above-card bar
+        '<tr><td class="px" style="padding:0 0 12px 0;">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>'
+        f'<td align="left" style="{_FS}font-size:12px;color:#000;">Auction Intel Notification</td>'
+        f'<td align="right" style="{_FS}font-size:12px;color:#000;">{today}</td>'
+        "</tr></table></td></tr>"
 
-        # Notification label
-        '<div class="col_50" style="vertical-align:top;display:inline-block;width:100%;max-width:400px;">'
-        '<table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td class="mobile_center" style="vertical-align:top;padding:8px 16px;text-align:right;color:rgba(255,255,255,.78);">'
-        '<p style="Margin:0;font-size:14px;line-height:22px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">Auction Intel Notification</p>'
-        "</td></tr></tbody></table></div>"
+        # Black card
+        '<tr><td style="background:#000000;border-radius:16px;overflow:hidden;border:1px solid rgba(0,0,0,.15);">'
 
-        "</div></td></tr></tbody></table></td></tr></tbody></table>"
+        # Card header — logo + label
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>'
+        '<td class="px" style="padding:18px;border-top:4px solid #f5c542;border-bottom:1px solid rgba(255,255,255,.18);">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>'
+        '<td align="left" style="padding:0;">'
+        f'<a href="https://auctionintel.app" target="_blank" style="text-decoration:none;">'
+        f'<img src="{LOGO_URL}" width="150" alt="Auction Intel" style="display:block;border:0;outline:none;text-decoration:none;height:auto;max-width:150px;"></a></td>'
+        f'<td align="right" style="padding:0;{_FS}font-size:12px;{_CS}">Auction Intel Notification</td>'
+        "</tr></table></td></tr></table>"
 
-        # ── Body ──
-        '<table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td style="font-size:0;text-align:center;line-height:100%;background-color:#f5f5f0;padding:0 16px;">'
-        '<table role="presentation" align="center" style="max-width:800px;Margin:0 auto;" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td style="font-size:0;text-align:center;background-color:#000000;padding:32px 16px;">'
-        '<div style="font-size:0;text-align:center;max-width:624px;Margin:0 auto;">'
-        '<table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td style="vertical-align:top;padding:0 16px;text-align:left;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">'
-
-        # Heading
-        f'<h2 style="Margin-top:0;Margin-bottom:8px;font-size:28px;line-height:38px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">{heading}</h2>'
+        # Card body
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>'
+        '<td class="px" style="padding:22px 18px 18px 18px;">'
+        f'<h1 style="margin:0 0 10px 0;{_FS}font-size:24px;line-height:30px;{_CW}">{heading}</h1>'
         + lead_block
         + body_html
         + cta_block +
+        "</td></tr></table>"
 
-        "</td></tr></tbody></table></div></td></tr>"
+        # Card footer
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>'
+        '<td class="px" style="padding:16px 18px;border-top:1px solid rgba(255,255,255,.18);">'
+        f'<p style="margin:0 0 8px 0;{_FS}font-size:11px;line-height:16px;{_CS}">&copy; 2026 Auction Intel. All rights reserved.</p>'
+        f'<p style="margin:0 0 8px 0;{_FS}font-size:11px;line-height:16px;{_CS}">7050 W 120th Ave Suite 50B<br>Broomfield, CO 80020</p>'
+        f'<p style="margin:0;{_FS}font-size:11px;line-height:16px;{_CS}">'
+        f'Support: <a href="mailto:support@auctionintel.us" style="{_CG}text-decoration:underline;">support@auctionintel.us</a> &bull; 303-719-4851</p>'
+        f'<p style="margin:12px 0 0 0;{_FS}font-size:10px;line-height:15px;{_CS}">This is an automated message. Please do not reply directly to this email.</p>'
+        "</td></tr></table>"
 
-        # ── Footer ──
-        "<tr>"
-        '<td style="font-size:0;text-align:center;background-color:#000000;border-radius:0 0 16px 16px;border-top:1px solid rgba(255,255,255,.18);padding:32px 16px;">'
-        '<div style="font-size:0;text-align:center;max-width:624px;Margin:0 auto;">'
-        '<table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" border="0"><tbody><tr>'
-        '<td style="vertical-align:top;padding:0 16px;text-align:center;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">'
-
-        '<p style="Margin-top:0;Margin-bottom:8px;font-size:14px;line-height:22px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">&copy; 2026 Auction Intel. All rights reserved.</p>'
-        '<p style="Margin-top:0;Margin-bottom:8px;font-size:14px;line-height:22px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">7050 W 120th Ave Suite 50B<br>Broomfield, CO 80020</p>'
-        '<p style="Margin-top:0;Margin-bottom:0;font-size:14px;line-height:22px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">'
-        'Support: <a href="mailto:support@auctionintel.us" style="color:#f5c542;text-decoration:underline;">support@auctionintel.us</a>'
-        " &nbsp;&bull;&nbsp; 303-719-4851</p>"
-        '<p style="Margin-top:16px;Margin-bottom:0;font-size:14px;line-height:22px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">This is an automated message. Please do not reply directly to this email.</p>'
-
-        "</td></tr></tbody></table></div></td></tr>"
-        "</tbody></table></td></tr></tbody></table>"
+        # Close card, container, outer table
+        "</td></tr></table></td></tr></table>"
         "</body></html>"
     )
 
 
 def _p(text: str) -> str:
-    """Wrap text in a styled paragraph with all styles inlined."""
-    return (
-        '<p style="Margin-top:0;Margin-bottom:16px;font-size:16px;line-height:26px;'
-        f'color:#ffffff;font-family:Arial,Helvetica,sans-serif;">{text}</p>'
-    )
+    """Paragraph with designer's inline styles."""
+    return f'<p style="margin:0 0 14px 0;{_FS}font-size:14px;line-height:20px;{_CS}">{text}</p>'
 
 
 def _send(to: str, subject: str, html: str):
@@ -167,26 +145,26 @@ def _send(to: str, subject: str, html: str):
         print(f"[EMAIL ERROR] Failed to send '{subject}' to {to}: {type(e).__name__}: {e}", flush=True)
 
 
-# ─── Email Functions ──────────────────────────────────────────────────────────
+# ─── Transactional Emails (01–08) ────────────────────────────────────────────
 
 def send_welcome(email: str, is_trial: bool = False):
     """Send welcome email on registration."""
     trial_note = ""
     if is_trial:
         trial_note = _p(
-            "Your free trial is active with <strong>$20.00 in credit</strong> "
+            'Your free trial is active with <strong style="color:#f5c542;">$20.00 in credit</strong> '
             "— covers both search fees and lead results. Your trial lasts 7 days, "
             "so dive in and start finding auction leads right away."
         )
 
     body = (
-        """
-        <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 20px 0;">
-            <tr><td style="padding:6px 0;font-size:15px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">&#x2022; &nbsp;Search our IRS nonprofit database with over 1.8 million organizations</td></tr>
-            <tr><td style="padding:6px 0;font-size:15px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">&#x2022; &nbsp;Run AI-powered auction event research on any list of nonprofits</td></tr>
-            <tr><td style="padding:6px 0;font-size:15px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">&#x2022; &nbsp;Get verified contacts, event dates, and auction details delivered as downloadable reports</td></tr>
-        </table>
-        """
+        _p("Your account is ready to go. Here's what you can do:")
+        + f'<p style="margin:0 0 6px 0;{_FS}font-size:14px;line-height:20px;{_CS}">'
+        '&bull; &nbsp;Search our IRS nonprofit database with over 1.8 million organizations</p>'
+        + f'<p style="margin:0 0 6px 0;{_FS}font-size:14px;line-height:20px;{_CS}">'
+        '&bull; &nbsp;Run AI-powered auction event research on any list of nonprofits</p>'
+        + f'<p style="margin:0 0 14px 0;{_FS}font-size:14px;line-height:20px;{_CS}">'
+        '&bull; &nbsp;Get verified contacts, event dates, and auction details as downloadable reports</p>'
         + trial_note
         + _p("If you have any questions, just reply to this email — we're happy to help.")
     )
@@ -210,11 +188,9 @@ def send_verification_email(email: str, verify_url: str):
     body = (
         _p("Please verify your email address by clicking the button below. This link will expire in <strong>24 hours</strong>.")
         + _p(
-            '<span style="font-size:14px;line-height:22px;color:rgba(255,255,255,.78);">'
-            "If you didn't create an account, you can safely ignore this email.</span>"
+            "If you didn't create an account, you can safely ignore this email."
         )
     )
-
     _send(
         email,
         "Verify Your Email — Auction Intel",
@@ -234,12 +210,10 @@ def send_password_reset(email: str, reset_url: str):
     body = (
         _p("Click the button below to set a new password. This link will expire in <strong>15 minutes</strong>.")
         + _p(
-            '<span style="font-size:14px;line-height:22px;color:rgba(255,255,255,.78);">'
             "If you didn't request a password reset, you can safely ignore this email. "
-            "Your password will remain unchanged.</span>"
+            "Your password will remain unchanged."
         )
     )
-
     _send(
         email,
         "Reset Your Auction Intel Password",
@@ -258,25 +232,21 @@ def send_job_complete(email: str, job_id: str, nonprofit_count: int,
                       found_count: int, billable_count: int, total_cost_cents: int):
     """Send search job completion receipt."""
     total_cost = f"${total_cost_cents / 100:.2f}"
+    _row = f"padding:8px 0;{_FS}font-size:14px;"
 
     body = (
-        '<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0;width:100%;">'
-        "<tr>"
-        '<td style="padding:12px 16px;border-radius:6px;">'
+        '<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 18px 0;width:100%;">'
+        "<tr><td style=\"padding:12px 16px;border-radius:8px;background:rgba(255,255,255,.06);\">"
         '<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="width:100%;">'
-        "<tr>"
-        '<td style="padding:8px 0;font-size:14px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">Nonprofits Searched</td>'
-        f'<td align="right" style="padding:8px 0;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">{nonprofit_count}</td>'
-        "</tr><tr>"
-        '<td style="padding:8px 0;font-size:14px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">Auction Events Found</td>'
-        f'<td align="right" style="padding:8px 0;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">{found_count}</td>'
-        "</tr><tr>"
-        '<td style="padding:8px 0;font-size:14px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">Billable Leads</td>'
-        f'<td align="right" style="padding:8px 0;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">{billable_count}</td>'
-        "</tr><tr>"
-        '<td style="padding:8px 0;border-top:1px solid #333333;font-size:14px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">Total Charged</td>'
-        f'<td align="right" style="padding:8px 0;border-top:1px solid #333333;font-size:16px;font-weight:bold;color:#f5c542;font-family:Arial,Helvetica,sans-serif;">{total_cost}</td>'
-        "</tr></table></td></tr></table>"
+        f'<tr><td style="{_row}{_CS}">Nonprofits Searched</td>'
+        f'<td align="right" style="{_row}font-weight:bold;{_CW}">{nonprofit_count}</td></tr>'
+        f'<tr><td style="{_row}{_CS}">Auction Events Found</td>'
+        f'<td align="right" style="{_row}font-weight:bold;{_CW}">{found_count}</td></tr>'
+        f'<tr><td style="{_row}{_CS}">Billable Leads</td>'
+        f'<td align="right" style="{_row}font-weight:bold;{_CW}">{billable_count}</td></tr>'
+        f'<tr><td style="{_row}border-top:1px solid rgba(255,255,255,.18);{_CS}">Total Charged</td>'
+        f'<td align="right" style="{_row}border-top:1px solid rgba(255,255,255,.18);font-size:16px;font-weight:bold;{_CG}">{total_cost}</td></tr>'
+        "</table></td></tr></table>"
         + _p("Your results are ready to download and will be available for 180 days.")
     )
 
@@ -298,19 +268,17 @@ def send_funds_receipt(email: str, amount_cents: int, new_balance_cents: int):
     """Send receipt when user adds funds via Stripe."""
     amount = f"${amount_cents / 100:.2f}"
     balance = f"${new_balance_cents / 100:.2f}"
+    _row = f"padding:8px 0;{_FS}font-size:14px;"
 
     body = (
-        '<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0;width:100%;">'
-        "<tr>"
-        '<td style="padding:12px 16px;border-radius:6px;">'
+        '<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 18px 0;width:100%;">'
+        "<tr><td style=\"padding:12px 16px;border-radius:8px;background:rgba(255,255,255,.06);\">"
         '<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="width:100%;">'
-        "<tr>"
-        '<td style="padding:8px 0;font-size:14px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">Amount Added</td>'
-        f'<td align="right" style="padding:8px 0;font-size:16px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">+{amount}</td>'
-        "</tr><tr>"
-        '<td style="padding:8px 0;border-top:1px solid #333333;font-size:14px;color:rgba(255,255,255,.78);font-family:Arial,Helvetica,sans-serif;">New Balance</td>'
-        f'<td align="right" style="padding:8px 0;border-top:1px solid #333333;font-size:16px;font-weight:bold;color:#f5c542;font-family:Arial,Helvetica,sans-serif;">{balance}</td>'
-        "</tr></table></td></tr></table>"
+        f'<tr><td style="{_row}{_CS}">Amount Added</td>'
+        f'<td align="right" style="{_row}font-size:16px;font-weight:bold;{_CW}">+{amount}</td></tr>'
+        f'<tr><td style="{_row}border-top:1px solid rgba(255,255,255,.18);{_CS}">New Balance</td>'
+        f'<td align="right" style="{_row}border-top:1px solid rgba(255,255,255,.18);font-size:16px;font-weight:bold;{_CG}">{balance}</td></tr>'
+        "</table></td></tr></table>"
         + _p("Your funds are available immediately. You can start running auction research right away.")
     )
 
@@ -329,19 +297,11 @@ def send_funds_receipt(email: str, amount_cents: int, new_balance_cents: int):
 
 
 def send_results_expiring(email: str, job_id: str, time_remaining: str, expires_label: str):
-    """Send results expiration warning.
-
-    time_remaining: human-readable string like "10 days", "7 days", "72 hours", "24 hours"
-    expires_label: short label for subject like "10 Days", "7 Days", "72 Hours", "24 Hours"
-    """
+    """Send results expiration warning."""
     body = (
         _p("Once expired, these results cannot be recovered. If you haven't already, please download your data now.")
-        + _p(
-            '<span style="font-size:14px;line-height:22px;color:rgba(255,255,255,.78);">'
-            "We retain all research results for 180 days from the date they were generated.</span>"
-        )
+        + _p("We retain all research results for 180 days from the date they were generated.")
     )
-
     _send(
         email,
         f"Results Expiring in {expires_label} — Download Now",
@@ -356,25 +316,18 @@ def send_results_expiring(email: str, job_id: str, time_remaining: str, expires_
     )
 
 
-# ─── Convenience Wrappers for Expiration Reminders ────────────────────────────
-
 def send_results_expiring_10_days(email: str, job_id: str):
     send_results_expiring(email, job_id, "10 days", "10 Days")
-
 
 def send_results_expiring_7_days(email: str, job_id: str):
     send_results_expiring(email, job_id, "7 days", "7 Days")
 
-
 def send_results_expiring_72_hours(email: str, job_id: str):
     send_results_expiring(email, job_id, "72 hours", "72 Hours")
-
 
 def send_results_expiring_24_hours(email: str, job_id: str):
     send_results_expiring(email, job_id, "24 hours", "24 Hours")
 
-
-# ─── Support Ticket Emails ────────────────────────────────────────────────────
 
 def send_ticket_created(ticket_id: int, subject: str, user_email: str, message: str):
     """Notify admin when a new support ticket is created."""
@@ -412,5 +365,142 @@ def send_ticket_reply_to_user(user_email: str, ticket_id: int, subject: str, rep
             cta_text="View Conversation",
             cta_url=f"{DOMAIN}/support/{ticket_id}",
             summary=f"You have a new reply on your support ticket #{ticket_id}.",
+        ),
+    )
+
+
+# ─── Drip Campaign (17–20) ───────────────────────────────────────────────────
+
+def send_drip_day1_how_it_works(email: str):
+    """Day 1 after signup — explain how the platform works in 3 steps."""
+    body = (
+        f'<p style="margin:0 0 4px 0;{_FS}font-size:14px;line-height:20px;{_CW}">'
+        f'<strong style="{_CG}">Step 1</strong> &mdash; <strong>Build Your List</strong></p>'
+        + _p(
+            "Search our IRS database of 1.8 million+ nonprofits. Filter by state, city, "
+            "NTEE category, or revenue size. Select the organizations you want to research "
+            "and send them to our AI search tool."
+        )
+        + f'<p style="margin:0 0 4px 0;{_FS}font-size:14px;line-height:20px;{_CW}">'
+        f'<strong style="{_CG}">Step 2</strong> &mdash; <strong>AI Researches Each Nonprofit</strong></p>'
+        + _p(
+            "Our AI scans the web for upcoming auction and gala events — surfacing event names, "
+            "dates, venues, organizer names, and verified contact information for each nonprofit "
+            "in your list."
+        )
+        + f'<p style="margin:0 0 4px 0;{_FS}font-size:14px;line-height:20px;{_CW}">'
+        f'<strong style="{_CG}">Step 3</strong> &mdash; <strong>Download Your Leads</strong></p>'
+        + _p(
+            "Results are delivered as a clean, downloadable spreadsheet with event details, "
+            "contact emails, event URLs, and lead quality ratings — ready for outreach."
+        )
+        + _p(
+            'You have <strong style="color:#f5c542;">$20.00 in free credit</strong> to get started — '
+            "enough to research hundreds of nonprofits. There's nothing to lose."
+        )
+    )
+
+    _send(
+        email,
+        "How Auction Intel Works — 3 Simple Steps",
+        _base_template(
+            "How Auction Intel Works",
+            "How Auction Intel Works",
+            body,
+            cta_text="Browse the Nonprofit Database",
+            cta_url=f"{DOMAIN}/database",
+            summary="Finding nonprofit auction events has never been easier. Here's the process in three simple steps.",
+        ),
+    )
+
+
+def send_drip_day3_first_search(email: str):
+    """Day 3 after signup — nudge to run first search before credit expires."""
+    body = (
+        _p("<strong>Here's the fastest way to get started:</strong>")
+        + _p(
+            "Run a small test search of 20\u201330 nonprofits. It costs less than $1, "
+            "takes about 2 minutes, and gives you a clear picture of the leads "
+            "Auction Intel can deliver."
+        )
+        + _p(
+            "<strong>Pro tip:</strong> Filter by your state and a specific nonprofit category — "
+            "like <em>Arts &amp; Culture</em>, <em>Education</em>, or <em>Health</em> — "
+            "to get the most relevant results for your business."
+        )
+        + _p("Your trial credit expires in 4 days. Give it a try.")
+    )
+
+    _send(
+        email,
+        "Your $20 Trial Credit Expires in 4 Days",
+        _base_template(
+            "Your Free Credit Is Waiting",
+            "Your Free Credit Is Waiting",
+            body,
+            cta_text="Run Your First Search",
+            cta_url=f"{DOMAIN}/database",
+            summary="You signed up a few days ago but haven't run your first search yet. Your $20.00 in free credit expires soon — don't let it go to waste.",
+        ),
+    )
+
+
+def send_drip_day5_social_proof(email: str):
+    """Day 5 after signup — social proof and urgency with 2 days left."""
+    body = (
+        _p(
+            "Users who target specific regions and nonprofit categories typically find "
+            "confirmed auction events for "
+            '<strong style="color:#f5c542;">15\u201325%</strong> '
+            "of organizations in their list. That means a search of 100 nonprofits often surfaces "
+            "15 to 25 verified, actionable leads — complete with event details and contact information."
+        )
+        + _p(
+            "<strong>What makes the difference:</strong> Searching by state and NTEE category. "
+            "For example, <em>\u201cColorado Arts &amp; Culture\u201d</em> or "
+            "<em>\u201cTexas Education\u201d</em> organizations consistently surface "
+            "the most actionable leads."
+        )
+        + _p(
+            "Your trial credit expires in <strong>2 days</strong>. "
+            "There's nothing to lose — use it while you can."
+        )
+    )
+
+    _send(
+        email,
+        "Users Are Finding 15–25% Auction Hit Rates",
+        _base_template(
+            "See What Others Are Finding",
+            "See What Others Are Finding",
+            body,
+            cta_text="Start Searching Now",
+            cta_url=f"{DOMAIN}/database",
+            summary="Auction Intel users are discovering nonprofit auction events across the country every day.",
+        ),
+    )
+
+
+def send_drip_day7_trial_ended(email: str):
+    """Day 7 — trial has expired, invite to add funds."""
+    body = (
+        _p(
+            "Your account is still active — you can add funds anytime and pick up right "
+            "where you left off. There are no subscriptions or monthly fees. You only pay "
+            "for the leads you use, and purchased credit <strong>never expires</strong>."
+        )
+        + _p("Any results you downloaded during your trial are yours to keep.")
+    )
+
+    _send(
+        email,
+        "Your Free Trial Has Ended",
+        _base_template(
+            "Your Free Trial Has Ended",
+            "Your Free Trial Has Ended",
+            body,
+            cta_text="Add Funds to Continue",
+            cta_url=f"{DOMAIN}/wallet",
+            summary="Your 7-day free trial has expired and any remaining trial credit has been removed from your wallet.",
         ),
     )

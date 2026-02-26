@@ -69,6 +69,7 @@ from db import (
     EXCLUSIVE_LEAD_PRICE_CENTS,
     cache_get, cache_put, flush_uncertain_cache,
     save_result_file, get_result_file,
+    get_trial_users_for_drip, get_drips_sent, record_drip_sent,
 )
 import emails
 from html import escape as html_escape
@@ -3007,9 +3008,9 @@ INDEX_HTML = """<!DOCTYPE html>
     </div>
 
     <div class="stats">
-      <div class="stat found"><div class="num" id="statFound">0</div><div class="label">Found</div></div>
+      <div class="stat found"><div class="num" id="statFound">0</div><div class="label">Auctions Found</div></div>
       <div class="stat external"><div class="num" id="statExternal">0</div><div class="label">3rd Party</div></div>
-      <div class="stat notfound"><div class="num" id="statNotFound">0</div><div class="label">Not Found</div></div>
+      <div class="stat notfound"><div class="num" id="statNotFound">0</div><div class="label">No Auction Found</div></div>
       <div class="stat uncertain"><div class="num" id="statUncertain">0</div><div class="label">Uncertain</div></div>
     </div>
 
@@ -3315,7 +3316,8 @@ async function _doSearch(selectedTiers) {
 
           const _tierDisplay = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
           const _tierColor = { decision_maker: '#4ade80', outreach_ready: '#60a5fa', event_verified: '#facc15' };
-          let msg = '[' + data.index + '/' + data.total + '] ' + status.toUpperCase() + ': ' + data.nonprofit;
+          const _statusLabels = { found: 'AUCTION FOUND', not_found: 'NO AUCTION FOUND', '3rdpty_found': '3RDPTY_FOUND', uncertain: 'UNCERTAIN', error: 'ERROR' };
+          let msg = '[' + data.index + '/' + data.total + '] ' + (_statusLabels[status] || status.toUpperCase()) + ': ' + data.nonprofit;
           if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
           if (status !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
             msg += ' [' + _tierDisplay[data.tier] + ']';
@@ -3387,8 +3389,8 @@ async function _doSearch(selectedTiers) {
           document.getElementById('etaRemaining').textContent = 'Complete!';
           document.getElementById('etaRemaining').style.color = '#4ade80';
           log('SEARCH COMPLETE in ' + data.elapsed + 's', 'complete');
-          log('Found: ' + data.summary.found + ' | 3rd Party: ' + data.summary['3rdpty_found'] +
-              ' | Not Found: ' + data.summary.not_found + ' | Uncertain: ' + data.summary.uncertain, 'complete');
+          log('Auctions Found: ' + data.summary.found + ' | 3rd Party: ' + data.summary['3rdpty_found'] +
+              ' | No Auction Found: ' + data.summary.not_found + ' | Uncertain: ' + data.summary.uncertain, 'complete');
 
           // Show billing summary for non-admin
           if (!IS_ADMIN && data.billing) {
@@ -3483,8 +3485,8 @@ function _pollForCompletion(jobId) {
         clearInterval(pollTimer);
         log('Job complete (via polling)!', 'complete');
         if (data.summary) {
-          log('Found: ' + (data.summary.found || 0) + ' | 3rd Party: ' + (data.summary['3rdpty_found'] || 0) +
-              ' | Not Found: ' + (data.summary.not_found || 0) + ' | Uncertain: ' + (data.summary.uncertain || 0), 'complete');
+          log('Auctions Found: ' + (data.summary.found || 0) + ' | 3rd Party: ' + (data.summary['3rdpty_found'] || 0) +
+              ' | No Auction Found: ' + (data.summary.not_found || 0) + ' | Uncertain: ' + (data.summary.uncertain || 0), 'complete');
         }
         if (!IS_ADMIN && data.billing) {
           balanceCents = data.balance || 0;
@@ -5489,6 +5491,53 @@ print("Database initialized.", file=sys.stderr)
 cleanup_stale_running_jobs()
 cleanup_expired_jobs()
 flush_uncertain_cache()
+
+
+# ─── Drip Campaign Scheduler ─────────────────────────────────────────────────
+
+def _run_drip_campaign():
+    """Check trial users and send drip emails based on days since signup.
+    Schedule: day 1 = how it works, day 3 = first search nudge,
+              day 5 = social proof, day 7 = trial ended."""
+    DRIP_SCHEDULE = [
+        (1, "drip_day1", emails.send_drip_day1_how_it_works),
+        (3, "drip_day3", emails.send_drip_day3_first_search),
+        (5, "drip_day5", emails.send_drip_day5_social_proof),
+        (7, "drip_day7", emails.send_drip_day7_trial_ended),
+    ]
+    try:
+        users = get_trial_users_for_drip()
+        sent_count = 0
+        for user in users:
+            days = float(user.get("days_since_signup", 0))
+            already_sent = get_drips_sent(user["id"])
+            for trigger_day, drip_key, send_fn in DRIP_SCHEDULE:
+                if days >= trigger_day and drip_key not in already_sent:
+                    try:
+                        send_fn(user["email"])
+                        record_drip_sent(user["id"], drip_key)
+                        sent_count += 1
+                        print(f"[DRIP] Sent {drip_key} to {user['email']}", flush=True)
+                    except Exception as e:
+                        print(f"[DRIP] Error sending {drip_key} to {user['email']}: {e}", flush=True)
+        if sent_count:
+            print(f"[DRIP] Cycle complete: {sent_count} email(s) sent", flush=True)
+    except Exception as e:
+        print(f"[DRIP] Scheduler error: {e}", flush=True)
+
+
+def _drip_scheduler_loop():
+    """Background loop — runs drip check every hour."""
+    while True:
+        time.sleep(3600)  # 1 hour
+        _run_drip_campaign()
+
+
+# Run once at startup, then hourly in background
+_run_drip_campaign()
+_drip_thread = threading.Thread(target=_drip_scheduler_loop, daemon=True)
+_drip_thread.start()
+print("Drip campaign scheduler started (hourly).", file=sys.stderr)
 
 print(f"Stripe configured: {'Yes' if stripe.api_key else 'No (set STRIPE_SECRET_KEY)'}", file=sys.stderr)
 print(f"Emailable configured: {'Yes (' + EMAILABLE_API_KEY[:8] + '...)' if EMAILABLE_API_KEY else 'No (set EMAILABLE_API_KEY)'}", file=sys.stderr)

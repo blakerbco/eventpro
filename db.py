@@ -220,6 +220,22 @@ def init_db():
         print(f"[DB] Create email_verification_tokens error: {e}", flush=True)
         conn.rollback()
 
+    # Create drip_emails_sent table for tracking drip campaign sends
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS drip_emails_sent (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                drip_key TEXT NOT NULL,
+                sent_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, drip_key)
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Create drip_emails_sent error: {e}", flush=True)
+        conn.rollback()
+
     # Remove stale fallback admin account if real admin is configured
     admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "").strip().lower()
     admin_password = os.environ.get("AUCTIONFINDER_PASSWORD", "")
@@ -1236,4 +1252,50 @@ def cache_put(nonprofit: str, result: Dict[str, Any]):
         (key, result_json, status, event_title, expires_at),
     )
     conn.commit()
+    cur.close()
+
+
+# ─── Drip Campaign ───────────────────────────────────────────────────────────
+
+def get_trial_users_for_drip():
+    """Get trial users eligible for drip emails with their signup age in days."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email, u.created_at,
+               EXTRACT(EPOCH FROM (NOW() - u.created_at)) / 86400 AS days_since_signup,
+               (SELECT COUNT(*) FROM search_jobs WHERE user_id = u.id) AS search_count
+        FROM users u
+        WHERE u.is_trial = 1
+          AND u.created_at > NOW() - INTERVAL '10 days'
+        ORDER BY u.created_at
+    """)
+    rows = _fetchall(cur)
+    cur.close()
+    return rows
+
+
+def get_drips_sent(user_id: int):
+    """Get set of drip_key values already sent to this user."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT drip_key FROM drip_emails_sent WHERE user_id = %s", (user_id,))
+    rows = _fetchall(cur)
+    cur.close()
+    return {r["drip_key"] for r in rows}
+
+
+def record_drip_sent(user_id: int, drip_key: str):
+    """Record that a drip email was sent. Idempotent via UNIQUE constraint."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO drip_emails_sent (user_id, drip_key) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (user_id, drip_key),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[DRIP] Error recording drip '{drip_key}' for user {user_id}: {e}", flush=True)
+        conn.rollback()
     cur.close()
