@@ -1,0 +1,18 @@
+Below is a drop-in replacement for your current LANDING_HTML = """ ... """ block inside app.py. It rebuilds the landing page to match your landing_layout.png section structure (HEADER → HERO → FEATURES → FEATURES2 → CTA → PRICING → FAQ → NEWSLETTER → FOOTER), using Tailwind via CDN + Flowbite JS data attributes for the interactive bits (mobile menu + FAQ accordion). It keeps your existing app routes (/login, /register) intact.
+
+You can paste this in app.py where LANDING_HTML is currently defined (it’s the block returned for unauthenticated users in index()). Your current landing HTML starts at LANDING_HTML = """<!DOCTYPE html>....
+
+
+What this gives you (matching your mock’s intent)
+
+Same section order + anchors: #features, #pricing, #faq, #newsletter
+
+Flowbite-style interactivity:
+
+Mobile nav uses data-collapse-toggle
+
+FAQ uses data-accordion="collapse"
+
+Hero: left headline + CTA + stats, right “login” card (posts to your existing /login)
+
+If you want, paste the .tsx / HTML components from landingpage_sections.zip here (or tell me the filenames inside it), and I’ll map your exact component content into these same section slots without changing your Flask routes.

@@ -1,0 +1,566 @@
+LANDING_HTML = """<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auction Intel — Discover nonprofit auction events at scale</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+
+  <!-- Tailwind CDN (quick + reliable for Flask single-file HTML) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:'#fffbea',100:'#fff3c4',200:'#ffe58a',300:'#ffd34d',400:'#ffbf1a',
+              500:'#f5a700',600:'#d98900',700:'#b46a00',800:'#8f5200',900:'#6f3f00'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Flowbite (JS for data-attribute components like collapse/accordion) -->
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+
+  <style>
+    /* Subtle star/dot background like your mock */
+    .ai-grid {
+      background-image:
+        radial-gradient(circle at 20% 10%, rgba(245,167,0,0.14), transparent 35%),
+        radial-gradient(circle at 80% 20%, rgba(59,130,246,0.10), transparent 40%),
+        radial-gradient(circle at 50% 80%, rgba(168,85,247,0.10), transparent 45%),
+        linear-gradient(to bottom, #050505, #000000 35%, #000000);
+    }
+    .ai-card {
+      background: rgba(10,10,10,0.75);
+      border: 1px solid rgba(38,38,38,0.9);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+      backdrop-filter: blur(10px);
+    }
+  </style>
+</head>
+
+<body class="ai-grid text-white">
+  <!-- =========================
+       HEADER
+  ========================== -->
+  <header class="sticky top-0 z-50 border-b border-neutral-800/80 bg-black/70 backdrop-blur">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-6">
+      <a href="/" class="flex items-center gap-3">
+        <img src="/static/logo_dark.png" alt="Auction Intel" class="h-9 w-auto">
+        <span class="text-sm font-semibold text-neutral-300 hidden sm:inline">AUCTION INTEL</span>
+      </a>
+
+      <!-- Desktop nav -->
+      <div class="hidden items-center gap-7 lg:flex">
+        <a href="#features" class="text-sm text-neutral-300 hover:text-white">Features</a>
+        <a href="#pricing" class="text-sm text-neutral-300 hover:text-white">Pricing</a>
+        <a href="#faq" class="text-sm text-neutral-300 hover:text-white">FAQ</a>
+        <a href="#newsletter" class="text-sm text-neutral-300 hover:text-white">Newsletter</a>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="/login"
+           class="hidden sm:inline-flex items-center justify-center rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:border-brand-500 hover:text-brand-200">
+          Log in
+        </a>
+        <a href="/register"
+           class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-black hover:bg-brand-400">
+          Start free
+        </a>
+
+        <!-- Mobile toggle -->
+        <button data-collapse-toggle="mobile-nav" type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-neutral-800 p-2 text-neutral-300 hover:bg-neutral-900 hover:text-white lg:hidden"
+                aria-controls="mobile-nav" aria-expanded="false">
+          <span class="sr-only">Open menu</span>
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile nav -->
+    <div id="mobile-nav" class="hidden border-t border-neutral-800 bg-black/80">
+      <div class="mx-auto max-w-7xl px-4 py-3 space-y-2">
+        <a href="#features" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Features</a>
+        <a href="#pricing" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Pricing</a>
+        <a href="#faq" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">FAQ</a>
+        <a href="#newsletter" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Newsletter</a>
+        <a href="/login" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Log in</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================
+       HERO
+  ========================== -->
+  <section class="mx-auto max-w-7xl px-4 pt-12 pb-10 lg:px-6 lg:pt-16">
+    <div class="grid items-start gap-8 lg:grid-cols-12">
+      <div class="lg:col-span-7">
+        <div class="inline-flex items-center gap-2 rounded-full border border-neutral-800 bg-black/60 px-3 py-1 text-xs text-neutral-300">
+          <span class="h-2 w-2 rounded-full bg-brand-500"></span>
+          Discover verified nonprofit event opportunities
+        </div>
+
+        <h1 class="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl">
+          Discover new product <span class="text-brand-400">and best possibilities</span>
+        </h1>
+        <p class="mt-4 max-w-2xl text-base leading-relaxed text-neutral-300">
+          Auction Intel helps you find upcoming nonprofit fundraising events that include a live auction,
+          silent auction, or both—at scale. Each result is grounded to an actual event page and built for outreach.
+        </p>
+
+        <div class="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <a href="/register"
+             class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-semibold text-black hover:bg-brand-400">
+            Get started free
+          </a>
+          <a href="#features"
+             class="inline-flex items-center justify-center rounded-lg border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-200 hover:border-neutral-500">
+            See features
+          </a>
+        </div>
+
+        <!-- Stats row -->
+        <div class="mt-10 grid grid-cols-3 gap-4 border-t border-neutral-900 pt-6 sm:max-w-xl">
+          <div>
+            <div class="text-2xl font-extrabold">42k</div>
+            <div class="text-xs text-neutral-400">Our Active Users</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold">3k</div>
+            <div class="text-xs text-neutral-400">Professional Creators</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold">560k</div>
+            <div class="text-xs text-neutral-400">Weekly Downloads</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right auth card (visual like mock; routes remain /login + /register) -->
+      <div class="lg:col-span-5">
+        <div class="ai-card rounded-2xl p-5 sm:p-6">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-semibold text-neutral-200">Join over <span class="text-brand-400">3,000</span> creators</p>
+            <span class="rounded-full border border-neutral-800 bg-black/50 px-3 py-1 text-xs text-neutral-400">Secure</span>
+          </div>
+
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <a href="/login" class="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800">
+              Google
+            </a>
+            <a href="/login" class="inline-flex items-center justify-center rounded-lg bg-pink-600/90 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-600">
+              Dribbble
+            </a>
+          </div>
+
+          <div class="my-4 flex items-center gap-3">
+            <div class="h-px flex-1 bg-neutral-900"></div>
+            <span class="text-xs text-neutral-500">or</span>
+            <div class="h-px flex-1 bg-neutral-900"></div>
+          </div>
+
+          <form action="/login" method="POST" class="space-y-3">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-neutral-300">Your email</label>
+              <input name="email" type="email" placeholder="name@company.com"
+                     class="w-full rounded-lg border border-neutral-800 bg-black/60 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-brand-500 focus:ring-0" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-neutral-300">Your password</label>
+              <input name="password" type="password" placeholder="••••••••"
+                     class="w-full rounded-lg border border-neutral-800 bg-black/60 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-brand-500 focus:ring-0" />
+            </div>
+
+            <div class="flex items-center justify-between">
+              <label class="inline-flex items-center gap-2 text-xs text-neutral-400">
+                <input type="checkbox" class="h-4 w-4 rounded border-neutral-700 bg-black text-brand-500 focus:ring-0" />
+                Remember me
+              </label>
+              <a href="/forgot-password" class="text-xs text-brand-300 hover:text-brand-200">Lost password?</a>
+            </div>
+
+            <button type="submit"
+                    class="w-full rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-brand-400">
+              Sign in
+            </button>
+
+            <p class="text-center text-xs text-neutral-500">
+              Not registered?
+              <a href="/register" class="text-brand-300 hover:text-brand-200">Create account</a>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================
+       SPACE
+  ========================== -->
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="h-px w-full bg-neutral-900"></div>
+  </div>
+
+  <!-- =========================
+       FEATURES
+  ========================== -->
+  <section id="features" class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="grid gap-10 lg:grid-cols-12">
+      <div class="lg:col-span-7">
+        <h2 class="text-3xl font-extrabold tracking-tight">Compare Auction Intel to other platforms on the market</h2>
+        <p class="mt-3 max-w-2xl text-neutral-300">
+          Stop guessing. Get a verified event page URL, evidence pulled from the page,
+          and outreach-ready contact fields—built for closing consignments.
+        </p>
+        <a href="/register" class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">
+          Learn what makes Auction Intel different
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="ai-card rounded-2xl p-4">
+          <p class="text-xs font-semibold text-neutral-400">SIMPLICITY AND AFFORDABILITY</p>
+          <div class="mt-3 space-y-2">
+            <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <div>
+                <p class="text-sm font-semibold">Auction Intel</p>
+                <p class="text-xs text-neutral-400">is better than Google</p>
+              </div>
+              <span class="flex h-7 w-7 items-center justify-center rounded-full border border-brand-500/40 text-brand-300">1</span>
+            </div>
+            <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <div>
+                <p class="text-sm font-semibold">Auction Intel</p>
+                <p class="text-xs text-neutral-400">is better than Spreadsheets</p>
+              </div>
+              <span class="flex h-7 w-7 items-center justify-center rounded-full border border-brand-500/40 text-brand-300">2</span>
+            </div>
+            <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <div>
+                <p class="text-sm font-semibold">Auction Intel</p>
+                <p class="text-xs text-neutral-400">is better than guesswork</p>
+              </div>
+              <span class="flex h-7 w-7 items-center justify-center rounded-full border border-brand-500/40 text-brand-300">3</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================
+       SPACE
+  ========================== -->
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="h-px w-full bg-neutral-900"></div>
+  </div>
+
+  <!-- =========================
+       FEATURES2 (icon cards grid)
+  ========================== -->
+  <section class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Secure platform, secure data</h2>
+      <p class="mt-3 text-neutral-300">Built for business teams who need repeatable sourcing, proof, and exportable results.</p>
+    </div>
+
+    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="ai-card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.5 9.4-8 10-4.5-.6-8-5-8-10V6l8-4Z" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <h3 class="text-sm font-semibold">Marketing</h3>
+        <p class="mt-2 text-xs text-neutral-400">Find auction + gala opportunities by location, revenue range, and category.</p>
+      </div>
+
+      <div class="ai-card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 3h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <h3 class="text-sm font-semibold">Legal</h3>
+        <p class="mt-2 text-xs text-neutral-400">Evidence-based results: verified URLs + supporting text pulled from the page.</p>
+      </div>
+
+      <div class="ai-card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M6 7h12M6 12h12M6 17h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Z" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <h3 class="text-sm font-semibold">Business Automation</h3>
+        <p class="mt-2 text-xs text-neutral-400">Batch research with streaming progress and clean CSV/XLSX exports.</p>
+      </div>
+
+      <div class="ai-card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M12 1v22M5 6h14M5 18h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="text-sm font-semibold">Finance</h3>
+        <p class="mt-2 text-xs text-neutral-400">Predictable, wallet-based billing with transparent lead tiers.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================
+       SPACE
+  ========================== -->
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="h-px w-full bg-neutral-900"></div>
+  </div>
+
+  <!-- =========================
+       CTA
+  ========================== -->
+  <section class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="grid items-center gap-10 lg:grid-cols-12">
+      <div class="lg:col-span-7">
+        <h2 class="text-3xl font-extrabold tracking-tight">Let’s create more tools and ideas that brings us together.</h2>
+        <p class="mt-3 max-w-2xl text-neutral-300">
+          Start with free access, run your first search, and export verified opportunities.
+          Upgrade only when you’re ready to scale.
+        </p>
+        <a href="/register" class="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-500 px-6 py-3 text-sm font-semibold text-black hover:bg-brand-400">
+          Start free trial
+        </a>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="ai-card relative overflow-hidden rounded-2xl p-8">
+          <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-500/10 blur-2xl"></div>
+          <p class="text-sm font-semibold text-neutral-200">7 DAYS</p>
+          <p class="mt-1 text-5xl font-extrabold text-brand-400">FREE</p>
+          <p class="mt-1 text-4xl font-extrabold">TRIAL</p>
+          <p class="mt-4 text-sm text-neutral-400">Includes <span class="text-brand-300 font-semibold">$20</span> free credit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================
+       SPACE
+  ========================== -->
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="h-px w-full bg-neutral-900"></div>
+  </div>
+
+  <!-- =========================
+       PRICING
+  ========================== -->
+  <section id="pricing" class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Designed for business teams like yours</h2>
+      <p class="mt-3 text-neutral-300">Simple tiers that scale with your outreach volume.</p>
+    </div>
+
+    <div class="mt-10 grid gap-4 lg:grid-cols-3">
+      <div class="ai-card rounded-2xl p-7">
+        <p class="text-sm font-semibold text-neutral-200">Starter</p>
+        <div class="mt-3 flex items-end gap-2">
+          <span class="text-4xl font-extrabold">$29</span>
+          <span class="pb-1 text-sm text-neutral-400">/ month</span>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
+          <li>• Basic exports</li>
+          <li>• Evidence-based results</li>
+          <li>• Standard support</li>
+        </ul>
+        <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-neutral-700 px-5 py-2.5 text-sm font-semibold text-neutral-100 hover:border-neutral-500">
+          Get started
+        </a>
+      </div>
+
+      <div class="ai-card rounded-2xl border border-brand-500/40 p-7">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-neutral-200">Premium</p>
+          <span class="rounded-full bg-brand-500/15 px-3 py-1 text-xs font-semibold text-brand-300">Most popular</span>
+        </div>
+        <div class="mt-3 flex items-end gap-2">
+          <span class="text-4xl font-extrabold">$199</span>
+          <span class="pb-1 text-sm text-neutral-400">/ month</span>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
+          <li>• Higher volume</li>
+          <li>• Faster workflows</li>
+          <li>• Priority support</li>
+        </ul>
+        <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-black hover:bg-brand-400">
+          Get started
+        </a>
+      </div>
+
+      <div class="ai-card rounded-2xl p-7">
+        <p class="text-sm font-semibold text-neutral-200">Enterprise</p>
+        <div class="mt-3 flex items-end gap-2">
+          <span class="text-4xl font-extrabold">$599</span>
+          <span class="pb-1 text-sm text-neutral-400">/ month</span>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
+          <li>• Team workflows</li>
+          <li>• Admin controls</li>
+          <li>• Dedicated support</li>
+        </ul>
+        <a href="/support" class="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-neutral-700 px-5 py-2.5 text-sm font-semibold text-neutral-100 hover:border-neutral-500">
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================
+       SPACE
+  ========================== -->
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="h-px w-full bg-neutral-900"></div>
+  </div>
+
+  <!-- =========================
+       FAQ (Flowbite accordion)
+  ========================== -->
+  <section id="faq" class="mx-auto max-w-4xl px-4 py-14 lg:px-6">
+    <div class="text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Frequently asked questions</h2>
+      <p class="mt-3 text-neutral-300">Everything you need to know before you start.</p>
+    </div>
+
+    <div class="mt-10" id="accordion-flush" data-accordion="collapse" data-active-classes="text-white" data-inactive-classes="text-neutral-300">
+      <h3 id="accordion-heading-1">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold"
+          data-accordion-target="#accordion-body-1" aria-expanded="true" aria-controls="accordion-body-1">
+          <span>How is this different from Google?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0 rotate-180" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="accordion-body-1" class="hidden" aria-labelledby="accordion-heading-1">
+        <div class="pb-5 text-sm text-neutral-400">
+          Auction Intel returns structured results with a verified event page URL and evidence pulled from that page—so you’re not chasing snippets or dead ends.
+        </div>
+      </div>
+
+      <h3 id="accordion-heading-2">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold"
+          data-accordion-target="#accordion-body-2" aria-expanded="false" aria-controls="accordion-body-2">
+          <span>What do I get in exports?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="accordion-body-2" class="hidden" aria-labelledby="accordion-heading-2">
+        <div class="pb-5 text-sm text-neutral-400">
+          CSV/XLSX/JSON with key fields like event title, event URL, evidence text, confidence, and contact fields when available.
+        </div>
+      </div>
+
+      <h3 id="accordion-heading-3">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold"
+          data-accordion-target="#accordion-body-3" aria-expanded="false" aria-controls="accordion-body-3">
+          <span>Can I start for free?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="accordion-body-3" class="hidden" aria-labelledby="accordion-heading-3">
+        <div class="pb-5 text-sm text-neutral-400">
+          Yes—start with the free trial and free credit. Upgrade when you’re ready to scale your outreach.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================
+       SPACE
+  ========================== -->
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="h-px w-full bg-neutral-900"></div>
+  </div>
+
+  <!-- =========================
+       NEWSLETTER
+  ========================== -->
+  <section id="newsletter" class="mx-auto max-w-4xl px-4 py-14 lg:px-6">
+    <div class="ai-card rounded-2xl p-8 text-center">
+      <h2 class="text-2xl font-extrabold">Sign up for our newsletter</h2>
+      <p class="mt-2 text-sm text-neutral-300">Stay up to date with product progress, announcements, and best practices.</p>
+
+      <form class="mx-auto mt-6 flex max-w-xl flex-col gap-3 sm:flex-row" onsubmit="return false;">
+        <input type="email" placeholder="Enter your email"
+               class="w-full flex-1 rounded-lg border border-neutral-800 bg-black/60 px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:border-brand-500 focus:ring-0" />
+        <a href="/register"
+           class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-6 py-3 text-sm font-semibold text-black hover:bg-brand-400">
+          Subscribe
+        </a>
+      </form>
+
+      <p class="mt-3 text-xs text-neutral-500">We care about the protection of your data. Read our <a class="text-brand-300 hover:text-brand-200" href="/privacy">Privacy Policy</a>.</p>
+    </div>
+  </section>
+
+  <!-- =========================
+       FOOTER
+  ========================== -->
+  <footer class="border-t border-neutral-900 bg-black/70">
+    <div class="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+      <div class="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+        <div>
+          <a href="/" class="flex items-center gap-3">
+            <img src="/static/logo_dark.png" alt="Auction Intel" class="h-9 w-auto">
+            <span class="text-sm font-semibold text-neutral-300">AUCTION INTEL</span>
+          </a>
+          <p class="mt-3 max-w-sm text-sm text-neutral-400">
+            Verified nonprofit event discovery—built for teams who want proof, exports, and scale.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Resources</p>
+            <div class="mt-3 space-y-2">
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/getting-started">Getting Started</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/support">Support</a>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Legal</p>
+            <div class="mt-3 space-y-2">
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/privacy">Privacy Policy</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/terms">Terms</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/do-not-sell">Do Not Sell</a>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Contact</p>
+            <div class="mt-3 space-y-2">
+              <a class="block text-sm text-neutral-300 hover:text-white" href="mailto:support@auctionintel.us">support@auctionintel.us</a>
+              <span class="block text-sm text-neutral-400">303-719-4851</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 flex flex-col gap-3 border-t border-neutral-900 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-xs text-neutral-500">© 2026 Auction Intel. All rights reserved.</p>
+        <div class="flex items-center gap-4 text-xs text-neutral-500">
+          <a class="hover:text-neutral-300" href="/contact">DMCA / Abuse</a>
+          <a class="hover:text-neutral-300" href="/privacy">Privacy</a>
+          <a class="hover:text-neutral-300" href="/terms">Terms</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
+"""

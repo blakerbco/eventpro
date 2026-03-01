@@ -1,0 +1,716 @@
+LANDING_HTML = """<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auction Intel — Find verified nonprofit auction events</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:'#fffbea',100:'#fff3c4',200:'#ffe58a',300:'#ffd34d',400:'#ffbf1a',
+              500:'#f5a700',600:'#d98900',700:'#b46a00',800:'#8f5200',900:'#6f3f00'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Flowbite (accordion + collapse) -->
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+
+  <style>
+    .bg-site {
+      background:
+        radial-gradient(900px 420px at 50% 0%, rgba(245, 167, 0, 0.18), transparent 60%),
+        radial-gradient(600px 340px at 15% 20%, rgba(245, 167, 0, 0.10), transparent 60%),
+        radial-gradient(700px 420px at 85% 25%, rgba(59, 130, 246, 0.08), transparent 60%),
+        linear-gradient(to bottom, #050505, #000 35%, #000);
+    }
+    .section-space {
+      border-top: 1px solid rgba(23,23,23,1);
+    }
+    .card {
+      background: rgba(10,10,10,0.75);
+      border: 1px solid rgba(38,38,38,0.9);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
+    }
+    .soft-glow {
+      position: relative;
+      isolation: isolate;
+    }
+    .soft-glow:before {
+      content: "";
+      position: absolute;
+      inset: -40px -40px -60px -40px;
+      z-index: -1;
+      background:
+        radial-gradient(420px 220px at 50% 30%, rgba(245,167,0,0.22), transparent 60%),
+        radial-gradient(320px 220px at 30% 50%, rgba(245,167,0,0.12), transparent 65%);
+      filter: blur(6px);
+      opacity: 0.9;
+    }
+    .soft-glow-purple:before {
+      background:
+        radial-gradient(520px 260px at 50% 35%, rgba(124,58,237,0.28), transparent 62%),
+        radial-gradient(360px 240px at 70% 60%, rgba(59,130,246,0.10), transparent 68%);
+    }
+  </style>
+</head>
+
+<body class="bg-site text-white">
+  <!-- =========================================================
+       HEADER (matches landing_design "HEADER")
+  ========================================================== -->
+  <header class="sticky top-0 z-50 border-b border-neutral-900/80 bg-black/70 backdrop-blur">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-6">
+      <a href="/" class="flex items-center gap-3">
+        <img src="/static/logo_dark.png" alt="Auction Intel" class="h-8 w-auto">
+      </a>
+
+      <div class="hidden items-center gap-7 lg:flex">
+        <a href="#how-it-works" class="text-sm text-neutral-300 hover:text-white">How It Works</a>
+        <a href="#features" class="text-sm text-neutral-300 hover:text-white">Features</a>
+        <a href="#pricing" class="text-sm text-neutral-300 hover:text-white">Pricing</a>
+        <a href="#faq" class="text-sm text-neutral-300 hover:text-white">FAQ</a>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="/login"
+           class="hidden sm:inline-flex items-center justify-center rounded-lg border border-neutral-800 px-4 py-2 text-sm text-neutral-200 hover:border-brand-500 hover:text-brand-200">
+          Log In
+        </a>
+        <a href="/register"
+           class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-black hover:bg-brand-400">
+          Start Free
+        </a>
+
+        <button data-collapse-toggle="mobile-nav" type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-neutral-800 p-2 text-neutral-300 hover:bg-neutral-900 hover:text-white lg:hidden"
+                aria-controls="mobile-nav" aria-expanded="false">
+          <span class="sr-only">Open menu</span>
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <div id="mobile-nav" class="hidden border-t border-neutral-900 bg-black/80">
+      <div class="mx-auto max-w-7xl px-4 py-3 space-y-2">
+        <a href="#how-it-works" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">How It Works</a>
+        <a href="#features" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Features</a>
+        <a href="#pricing" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Pricing</a>
+        <a href="#faq" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">FAQ</a>
+        <a href="/login" class="block rounded-lg px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900">Log In</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================
+       HERO (matches landing_design "HERO" — centered hero like your current page)
+  ========================================================== -->
+  <section class="mx-auto max-w-7xl px-4 pt-16 pb-10 lg:px-6">
+    <div class="soft-glow text-center">
+      <h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl">
+        Find nonprofit auction events.
+      </h1>
+      <p class="mt-2 text-lg font-semibold text-neutral-200">
+        Verified. Exportable. Ready to contact.
+      </p>
+
+      <p class="mx-auto mt-5 max-w-3xl text-sm leading-relaxed text-neutral-300 sm:text-base">
+        Auction Intel’s new Auction Finder Research Engine scans nonprofit websites to find upcoming fundraising events
+        with a live auction, a silent auction, or both. Get high-quality leads with a verified event page link, the event date,
+        event-level contacts (email/phone when available), the auction type, and more.
+      </p>
+
+      <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <a href="/register"
+           class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-6 py-3 text-sm font-semibold text-black hover:bg-brand-400">
+          Get Started Free
+        </a>
+        <a href="#how-it-works"
+           class="inline-flex items-center justify-center rounded-lg border border-neutral-800 px-6 py-3 text-sm font-semibold text-neutral-200 hover:border-neutral-600">
+          See How It Works
+        </a>
+      </div>
+
+      <div class="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-6 border-t border-neutral-900 pt-7 sm:grid-cols-4">
+        <div>
+          <div class="text-xl font-extrabold text-brand-400">300K+</div>
+          <div class="mt-1 text-[11px] uppercase tracking-wider text-neutral-500">Nonprofits in database</div>
+        </div>
+        <div>
+          <div class="text-xl font-extrabold text-brand-400">Up to 1,000</div>
+          <div class="mt-1 text-[11px] uppercase tracking-wider text-neutral-500">Nonprofits per search</div>
+        </div>
+        <div>
+          <div class="text-xl font-extrabold text-brand-400">40+</div>
+          <div class="mt-1 text-[11px] uppercase tracking-wider text-neutral-500">Filters for targeting</div>
+        </div>
+        <div>
+          <div class="text-xl font-extrabold text-brand-400">$20</div>
+          <div class="mt-1 text-[11px] uppercase tracking-wider text-neutral-500">Free credit</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       FEATURES (matches landing_design "FEATURES" block: left copy + right list)
+  ========================================================== -->
+  <section class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="grid gap-10 lg:grid-cols-12">
+      <div class="lg:col-span-7">
+        <h2 class="text-3xl font-extrabold tracking-tight">
+          Compare Auction Intel to other platforms on the market
+        </h2>
+        <p class="mt-3 max-w-2xl text-neutral-300">
+          Stop guessing. Get verified opportunities grounded in an actual event page—built for outreach.
+        </p>
+        <a href="/register"
+           class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">
+          Learn what makes Auction Intel different
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
+            <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="card rounded-2xl p-5">
+          <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Simplicity and affordability</p>
+          <div class="mt-4 space-y-3">
+            <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <div>
+                <p class="text-sm font-semibold">Auction Intel</p>
+                <p class="text-xs text-neutral-400">is better than Google</p>
+              </div>
+              <span class="flex h-7 w-7 items-center justify-center rounded-full border border-brand-500/40 text-brand-300">1</span>
+            </div>
+            <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <div>
+                <p class="text-sm font-semibold">Auction Intel</p>
+                <p class="text-xs text-neutral-400">is better than spreadsheets</p>
+              </div>
+              <span class="flex h-7 w-7 items-center justify-center rounded-full border border-brand-500/40 text-brand-300">2</span>
+            </div>
+            <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <div>
+                <p class="text-sm font-semibold">Auction Intel</p>
+                <p class="text-xs text-neutral-400">is better than guesswork</p>
+              </div>
+              <span class="flex h-7 w-7 items-center justify-center rounded-full border border-brand-500/40 text-brand-300">3</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       FEATURES2 (matches landing_design "FEATURES2" — heading + 2-row card grid)
+  ========================================================== -->
+  <section id="how-it-works" class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Secure platform, secure data</h2>
+      <p class="mt-3 text-neutral-300">
+        Stop manually researching one organization at a time. Auction Intel runs research in batches and returns verified, outreach-ready leads.
+      </p>
+    </div>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div class="card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <path d="M6 7h12M6 12h12M6 17h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Z" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-semibold">Build your list</h3>
+        <p class="mt-2 text-xs text-neutral-400">Filter by location, revenue range, and event category—or paste your own domains.</p>
+      </div>
+
+      <div class="card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2l8 4v6c0 5-3.5 9.4-8 10-4.5-.6-8-5-8-10V6l8-4Z" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-semibold">Run Auction Finder</h3>
+        <p class="mt-2 text-xs text-neutral-400">We scan nonprofit sites, trusted platforms, and the broader web for auction activity.</p>
+      </div>
+
+      <div class="card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M6 3h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-semibold">Verify the event page</h3>
+        <p class="mt-2 text-xs text-neutral-400">Every billable lead includes a real event page URL plus evidence pulled from that page.</p>
+      </div>
+
+      <div class="card rounded-2xl p-6">
+        <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <path d="M7 7h10M7 12h10M7 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-semibold">Export & start outreach</h3>
+        <p class="mt-2 text-xs text-neutral-400">Download CSV / XLSX / JSON and start contacting the right people.</p>
+      </div>
+    </div>
+
+    <!-- This second grid matches your "Built to close more consignments" block (same section visual area in your current reference) -->
+    <div class="mt-14 text-center">
+      <p class="text-xs font-semibold uppercase tracking-wider text-brand-300">Features</p>
+      <h3 class="mt-2 text-2xl font-extrabold tracking-tight">Built to close more consignments</h3>
+      <p class="mt-3 text-neutral-300">Spend less time researching and more time closing. Auction Intel delivers verified opportunities at scale—with proof.</p>
+    </div>
+
+    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="card rounded-2xl p-6">
+        <h4 class="text-sm font-semibold">Deep Verification (not snippets)</h4>
+        <p class="mt-2 text-xs text-neutral-400">
+          A multi-phase process checks the actual event page and pulls evidence text. If there’s no verified event page URL, it’s not a billable lead.
+        </p>
+      </div>
+      <div class="card rounded-2xl p-6">
+        <h4 class="text-sm font-semibold">Premium Nonprofit Database</h4>
+        <p class="mt-2 text-xs text-neutral-400">
+          Search 300K+ nonprofits by state, revenue range, and event category—including gala, auction, golf, dinner, and 20+ more.
+        </p>
+      </div>
+      <div class="card rounded-2xl p-6">
+        <h4 class="text-sm font-semibold">Batch Research at Scale</h4>
+        <p class="mt-2 text-xs text-neutral-400">
+          Run up to 1,000 organizations per search and watch results stream in as each organization is processed.
+        </p>
+      </div>
+      <div class="card rounded-2xl p-6">
+        <h4 class="text-sm font-semibold">Rich Lead Records</h4>
+        <p class="mt-2 text-xs text-neutral-400">
+          Event title, date, event page URL, auction type, confidence score, contact name, email, phone, and supporting evidence.
+        </p>
+      </div>
+      <div class="card rounded-2xl p-6">
+        <h4 class="text-sm font-semibold">Export Anywhere + 180-Day Storage</h4>
+        <p class="mt-2 text-xs text-neutral-400">
+          Download CSV/JSON/XLSX anytime. Results stay available for 180 days for re-download.
+        </p>
+      </div>
+      <div class="card rounded-2xl p-6">
+        <h4 class="text-sm font-semibold">Verified Tiers + Fair Billing</h4>
+        <p class="mt-2 text-xs text-neutral-400">
+          You only pay for leads with a verified event page link. Pricing is tiered by completeness so you never overpay.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       CTA (matches landing_design "CTA" — left text + right big graphic)
+  ========================================================== -->
+  <section class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="grid items-center gap-10 lg:grid-cols-12">
+      <div class="lg:col-span-6">
+        <p class="text-xs font-semibold uppercase tracking-wider text-brand-300">Free trial</p>
+        <h2 class="mt-2 text-3xl font-extrabold tracking-tight">$20 in free credit — on us</h2>
+        <p class="mt-3 max-w-xl text-neutral-300">
+          Covers searches and results. No credit card required.
+        </p>
+        <a href="/register"
+           class="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-500 px-6 py-3 text-sm font-semibold text-black hover:bg-brand-400">
+          Start Your Free Trial
+        </a>
+      </div>
+
+      <div class="lg:col-span-6">
+        <div class="card soft-glow soft-glow-purple rounded-2xl p-6">
+          <!-- Put your uploaded image into /static/free-trial.png -->
+          <img
+            src="/static/free-trial.png"
+            alt="7 days free trial + $20 free credit"
+            class="mx-auto w-full max-w-md h-auto"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       PRICING (matches landing_design "PRICING" — 3 cards centered + extra blocks)
+  ========================================================== -->
+  <section id="pricing" class="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+    <div class="text-center">
+      <p class="text-xs font-semibold uppercase tracking-wider text-brand-300">Pricing</p>
+      <h2 class="mt-2 text-3xl font-extrabold tracking-tight">Simple, transparent pricing</h2>
+      <p class="mt-3 text-neutral-300">
+        All tiers require a verified event page link. Wallet-based billing—no subscriptions, no commitments.
+      </p>
+    </div>
+
+    <div class="mt-10 grid gap-4 lg:grid-cols-3">
+      <div class="card rounded-2xl p-7">
+        <p class="text-sm font-semibold text-neutral-200">Decision Maker</p>
+        <div class="mt-3 flex items-end gap-2">
+          <span class="text-4xl font-extrabold">$1.75</span>
+          <span class="pb-1 text-sm text-neutral-400">/ lead</span>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
+          <li>• Named contact + verified email</li>
+          <li>• Event title & date</li>
+          <li>• Verified event page link</li>
+          <li>• Email deliverability confirmed</li>
+        </ul>
+        <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-black hover:bg-brand-400">
+          Get Started
+        </a>
+      </div>
+
+      <div class="card rounded-2xl border border-brand-500/35 p-7">
+        <p class="text-sm font-semibold text-neutral-200">Outreach Ready</p>
+        <div class="mt-3 flex items-end gap-2">
+          <span class="text-4xl font-extrabold">$1.25</span>
+          <span class="pb-1 text-sm text-neutral-400">/ lead</span>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
+          <li>• Verified email address</li>
+          <li>• Event title & date</li>
+          <li>• Verified event page link</li>
+          <li>• Email deliverability confirmed</li>
+        </ul>
+        <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-neutral-800 px-5 py-2.5 text-sm font-semibold text-neutral-100 hover:border-neutral-600">
+          Create Account
+        </a>
+      </div>
+
+      <div class="card rounded-2xl p-7">
+        <p class="text-sm font-semibold text-neutral-200">Event Verified</p>
+        <div class="mt-3 flex items-end gap-2">
+          <span class="text-4xl font-extrabold">$0.75</span>
+          <span class="pb-1 text-sm text-neutral-400">/ lead</span>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
+          <li>• Event title & date</li>
+          <li>• Verified event page link</li>
+          <li>• No contact info</li>
+        </ul>
+        <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-neutral-800 px-5 py-2.5 text-sm font-semibold text-neutral-100 hover:border-neutral-600">
+          Create Account
+        </a>
+      </div>
+    </div>
+
+    <p class="mt-8 text-center text-sm text-neutral-400">
+      <span class="text-brand-300 font-semibold">No event page link = no lead charge.</span><br>
+      Research fee: $0.04/nonprofit ($0.03 at 10K+, $0.02 at 50K+) — charged whether or not a lead is found.
+    </p>
+
+    <div class="mx-auto mt-10 grid max-w-4xl gap-4">
+      <div class="card rounded-2xl p-6">
+        <p class="text-sm font-semibold text-neutral-200">Choose Your Tiers Before Each Search</p>
+        <p class="mt-2 text-sm text-neutral-400">
+          Before every search, a popup lets you pick which lead tiers you want. Only pay for the tiers you select—unselected tiers are excluded from your results and never billed.
+        </p>
+      </div>
+
+      <div class="card rounded-2xl border border-brand-500/25 p-6">
+        <p class="text-sm font-semibold text-neutral-200">Priority Lead Lock — <span class="text-brand-300">$2.50</span></p>
+        <p class="mt-2 text-sm text-neutral-400">
+          Lock any event lead so it stops being sold to new customers going forward. For $2.50, the lead is pulled from future search results—giving you a head start over the competition.
+          This is the total price and replaces the standard lead tier fee.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       FAQ (matches landing_design "FAQ" — centered accordion)
+  ========================================================== -->
+  <section id="faq" class="mx-auto max-w-4xl px-4 py-14 lg:px-6">
+    <div class="text-center">
+      <p class="text-xs font-semibold uppercase tracking-wider text-brand-300">FAQ</p>
+      <h2 class="mt-2 text-3xl font-extrabold tracking-tight">Frequently asked questions</h2>
+      <p class="mt-3 text-neutral-300">
+        Quick answers to common questions. Can’t find what you need? <a href="/support" class="text-brand-300 hover:text-brand-200 font-semibold">Open a support ticket</a>.
+      </p>
+    </div>
+
+    <div class="mt-10" id="accordion-flush" data-accordion="collapse">
+      <!-- Q1 -->
+      <h3 id="a-h-1">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-1" aria-expanded="false" aria-controls="a-b-1">
+          <span>What types of events does Auction Intel find?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-1" class="hidden" aria-labelledby="a-h-1">
+        <div class="pb-5 text-sm text-neutral-400">Upcoming nonprofit fundraising events with live auctions, silent auctions, or both.</div>
+      </div>
+
+      <!-- Q2 -->
+      <h3 id="a-h-2">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-2" aria-expanded="false" aria-controls="a-b-2">
+          <span>How does the research engine verify that an event actually exists?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-2" class="hidden" aria-labelledby="a-h-2">
+        <div class="pb-5 text-sm text-neutral-400">Every billable lead must include a real event page URL plus supporting evidence pulled from that page.</div>
+      </div>
+
+      <!-- Q3 -->
+      <h3 id="a-h-3">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-3" aria-expanded="false" aria-controls="a-b-3">
+          <span>What if a nonprofit doesn’t have an upcoming auction?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-3" class="hidden" aria-labelledby="a-h-3">
+        <div class="pb-5 text-sm text-neutral-400">No verified event page link means no lead charge.</div>
+      </div>
+
+      <!-- Q4 -->
+      <h3 id="a-h-4">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-4" aria-expanded="false" aria-controls="a-b-4">
+          <span>How do I add funds to my account?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-4" class="hidden" aria-labelledby="a-h-4">
+        <div class="pb-5 text-sm text-neutral-400">Add funds to your wallet anytime from your dashboard—no subscriptions required.</div>
+      </div>
+
+      <!-- Q5 -->
+      <h3 id="a-h-5">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-5" aria-expanded="false" aria-controls="a-b-5">
+          <span>What’s included in the premium nonprofit database?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-5" class="hidden" aria-labelledby="a-h-5">
+        <div class="pb-5 text-sm text-neutral-400">300K+ nonprofits searchable by key attributes, plus the ability to research your own domain lists.</div>
+      </div>
+
+      <!-- Q6 -->
+      <h3 id="a-h-6">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-6" aria-expanded="false" aria-controls="a-b-6">
+          <span>How long are results stored?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-6" class="hidden" aria-labelledby="a-h-6">
+        <div class="pb-5 text-sm text-neutral-400">Results remain available for 180 days for re-download.</div>
+      </div>
+
+      <!-- Q7 -->
+      <h3 id="a-h-7">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-7" aria-expanded="false" aria-controls="a-b-7">
+          <span>Can I research nonprofits not in the database?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-7" class="hidden" aria-labelledby="a-h-7">
+        <div class="pb-5 text-sm text-neutral-400">Yes—paste your own domains to run research outside the database.</div>
+      </div>
+
+      <!-- Q8 -->
+      <h3 id="a-h-8">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-8" aria-expanded="false" aria-controls="a-b-8">
+          <span>What’s the difference between lead tiers?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-8" class="hidden" aria-labelledby="a-h-8">
+        <div class="pb-5 text-sm text-neutral-400">Tiers are priced by completeness: verified event → verified inbox → named decision maker.</div>
+      </div>
+
+      <!-- Q9 -->
+      <h3 id="a-h-9">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-9" aria-expanded="false" aria-controls="a-b-9">
+          <span>Is mailing address included?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-9" class="hidden" aria-labelledby="a-h-9">
+        <div class="pb-5 text-sm text-neutral-400">When available from trusted sources, it can be included.</div>
+      </div>
+
+      <!-- Q10 -->
+      <h3 id="a-h-10">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-10" aria-expanded="false" aria-controls="a-b-10">
+          <span>How does tier selection work?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-10" class="hidden" aria-labelledby="a-h-10">
+        <div class="pb-5 text-sm text-neutral-400">Before each run, choose tiers you want—only selected tiers appear and can be billed.</div>
+      </div>
+
+      <!-- Q11 -->
+      <h3 id="a-h-11">
+        <button type="button"
+          class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200"
+          data-accordion-target="#a-b-11" aria-expanded="false" aria-controls="a-b-11">
+          <span>What is a Priority Lead Lock?</span>
+          <svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </h3>
+      <div id="a-b-11" class="hidden" aria-labelledby="a-h-11">
+        <div class="pb-5 text-sm text-neutral-400">A one-time $2.50 purchase that removes a lead from future availability to new customers and replaces the standard tier fee.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       NEWSLETTER (matches landing_design "newsletter")
+  ========================================================== -->
+  <section class="mx-auto max-w-4xl px-4 py-14 lg:px-6">
+    <div class="card rounded-2xl p-8 text-center">
+      <h2 class="text-2xl font-extrabold">Sign up for our newsletter</h2>
+      <p class="mt-2 text-sm text-neutral-300">Stay up to date with the roadmap, announcements, and exclusive discounts.</p>
+
+      <form class="mx-auto mt-6 flex max-w-xl flex-col gap-3 sm:flex-row" onsubmit="return false;">
+        <input type="email" placeholder="Enter your email"
+               class="w-full flex-1 rounded-lg border border-neutral-800 bg-black/60 px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:border-brand-500 focus:ring-0" />
+        <a href="/register"
+           class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-6 py-3 text-sm font-semibold text-black hover:bg-brand-400">
+          Subscribe
+        </a>
+      </form>
+
+      <p class="mt-3 text-xs text-neutral-500">
+        We care about the protection of your data. Read our <a class="text-brand-300 hover:text-brand-200" href="/privacy">Privacy Policy</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- SPACE -->
+  <div class="section-space mx-auto max-w-7xl px-4 lg:px-6"></div>
+
+  <!-- =========================================================
+       FOOTER (matches landing_design "FOOTER")
+  ========================================================== -->
+  <footer class="bg-black/70">
+    <div class="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+      <div class="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+        <div>
+          <a href="/" class="flex items-center gap-3">
+            <img src="/static/logo_dark.png" alt="Auction Intel" class="h-8 w-auto">
+          </a>
+          <p class="mt-3 max-w-sm text-sm text-neutral-400">
+            Event-driven sales intelligence with verified nonprofit fundraising leads. Timing precision that turns research into revenue.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Contact</p>
+            <div class="mt-3 space-y-2">
+              <a class="block text-sm text-neutral-300 hover:text-white" href="mailto:support@auctionintel.us">support@auctionintel.us</a>
+              <span class="block text-sm text-neutral-400">303-719-4851</span>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Address</p>
+            <div class="mt-3 space-y-2">
+              <span class="block text-sm text-neutral-400">7050 W. 120th Ave, Suite 50B</span>
+              <span class="block text-sm text-neutral-400">Broomfield, CO 80020</span>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Legal</p>
+            <div class="mt-3 space-y-2">
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/terms">Terms of Service</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/privacy">Privacy Policy</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/refunds">Refund Policy</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/do-not-sell">Do Not Sell My Info</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/contact">Contact / DMCA / Abuse</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 border-t border-neutral-900 pt-6">
+        <p class="text-xs text-neutral-500">© 2026 Auction Intel. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
+"""
