@@ -6105,24 +6105,36 @@ LANDING_TEST_HTML = """<!doctype html>
       </div>
 
       <div class="lg:col-span-5">
-        <div class="ai-card rounded-2xl p-4">
-          <p class="text-xs font-semibold text-neutral-400">HOW IT WORKS</p>
-          <div class="mt-3 space-y-2">
-            <div class="rounded-xl border border-neutral-800 bg-black/40 p-4">
-              <p class="text-sm font-semibold">Build your list</p>
-              <p class="mt-1 text-xs text-neutral-400">Filter nonprofits by location, revenue range, and event category — or paste your own domains.</p>
+        <div class="ai-card rounded-2xl p-5">
+          <p class="text-xs font-semibold uppercase tracking-wider text-neutral-400">HOW IT WORKS</p>
+          <div class="mt-4 space-y-3">
+            <div class="flex items-start gap-4 rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-black">1</span>
+              <div>
+                <p class="text-sm font-semibold">Build your list</p>
+                <p class="mt-1 text-xs text-neutral-400">Filter nonprofits by location, revenue range, and event category — or paste your own domains.</p>
+              </div>
             </div>
-            <div class="rounded-xl border border-neutral-800 bg-black/40 p-4">
-              <p class="text-sm font-semibold">Run Auction Finder</p>
-              <p class="mt-1 text-xs text-neutral-400">We scan nonprofit websites, trusted event platforms, and the broader web to locate upcoming events with auction activity.</p>
+            <div class="flex items-start gap-4 rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-black">2</span>
+              <div>
+                <p class="text-sm font-semibold">Run Auction Finder</p>
+                <p class="mt-1 text-xs text-neutral-400">We scan nonprofit websites, trusted event platforms, and the broader web to locate upcoming events with auction activity.</p>
+              </div>
             </div>
-            <div class="rounded-xl border border-neutral-800 bg-black/40 p-4">
-              <p class="text-sm font-semibold">Verify the event page</p>
-              <p class="mt-1 text-xs text-neutral-400">Every billable lead must include a real event page URL plus supporting evidence pulled from that page.</p>
+            <div class="flex items-start gap-4 rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-black">3</span>
+              <div>
+                <p class="text-sm font-semibold">Verify the event page</p>
+                <p class="mt-1 text-xs text-neutral-400">Every billable lead must include a real event page URL plus supporting evidence pulled from that page.</p>
+              </div>
             </div>
-            <div class="rounded-xl border border-neutral-800 bg-black/40 p-4">
-              <p class="text-sm font-semibold">Export &amp; start outreach</p>
-              <p class="mt-1 text-xs text-neutral-400">Download results as CSV / XLSX / JSON and start contacting the right people.</p>
+            <div class="flex items-start gap-4 rounded-xl border border-neutral-800 bg-black/40 p-4">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-black">4</span>
+              <div>
+                <p class="text-sm font-semibold">Export &amp; start outreach</p>
+                <p class="mt-1 text-xs text-neutral-400">Download results as CSV / XLSX / JSON and start contacting the right people.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -6141,30 +6153,48 @@ LANDING_TEST_HTML = """<!doctype html>
       <p class="mt-3 text-neutral-300">Spend less time researching and more time closing. Auction Intel delivers verified opportunities at scale — with proof.</p>
     </div>
 
-    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       <div class="ai-card rounded-2xl p-6">
-        <h3 class="text-sm font-semibold">Deep Verification (not snippets)</h3>
-        <p class="mt-2 text-xs text-neutral-400">A multi-phase process checks the actual event page and pulls evidence text. If there is no verified event page URL it is not a billable lead.</p>
+        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </div>
+        <h3 class="mt-3 text-sm font-semibold">Deep Verification (not snippets)</h3>
+        <p class="mt-2 text-xs leading-relaxed text-neutral-400">A multi-phase process checks the actual event page and pulls evidence text. If there is no verified event page URL it is not a billable lead.</p>
       </div>
       <div class="ai-card rounded-2xl p-6">
-        <h3 class="text-sm font-semibold">Premium Nonprofit Database</h3>
-        <p class="mt-2 text-xs text-neutral-400">Search 300K+ nonprofits by state, revenue range, and event category — including gala, auction, golf, dinner, and 20+ more.</p>
+        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+        </div>
+        <h3 class="mt-3 text-sm font-semibold">Premium Nonprofit Database</h3>
+        <p class="mt-2 text-xs leading-relaxed text-neutral-400">Search 300K+ nonprofits by state, revenue range, and event category — including gala, auction, golf, dinner, and 20+ more.</p>
       </div>
       <div class="ai-card rounded-2xl p-6">
-        <h3 class="text-sm font-semibold">Batch Research at Scale</h3>
-        <p class="mt-2 text-xs text-neutral-400">Run up to 1,000 organizations per search and watch results stream in as each organization is processed.</p>
+        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <h3 class="mt-3 text-sm font-semibold">Batch Research at Scale</h3>
+        <p class="mt-2 text-xs leading-relaxed text-neutral-400">Run up to 1,000 organizations per search and watch results stream in as each organization is processed.</p>
       </div>
       <div class="ai-card rounded-2xl p-6">
-        <h3 class="text-sm font-semibold">Rich Lead Records</h3>
-        <p class="mt-2 text-xs text-neutral-400">Each lead can include event title, date, event page URL, auction type, confidence score, contact name, email, phone, and supporting evidence.</p>
+        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <h3 class="mt-3 text-sm font-semibold">Rich Lead Records</h3>
+        <p class="mt-2 text-xs leading-relaxed text-neutral-400">Each lead can include event title, date, event page URL, auction type, confidence score, contact name, email, phone, and supporting evidence.</p>
       </div>
       <div class="ai-card rounded-2xl p-6">
-        <h3 class="text-sm font-semibold">Export Anywhere + 180-Day Storage</h3>
-        <p class="mt-2 text-xs text-neutral-400">Download CSV/JSON/XLSX anytime. Results stay available for 180 days for re-download.</p>
+        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+        </div>
+        <h3 class="mt-3 text-sm font-semibold">Export Anywhere + 180-Day Storage</h3>
+        <p class="mt-2 text-xs leading-relaxed text-neutral-400">Download CSV/JSON/XLSX anytime. Results stay available for 180 days for re-download.</p>
       </div>
       <div class="ai-card rounded-2xl p-6">
-        <h3 class="text-sm font-semibold">Verified Tiers + Fair Billing</h3>
-        <p class="mt-2 text-xs text-neutral-400">You only pay for leads with a verified event page link. Pricing is tiered by completeness so you never overpay.</p>
+        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h3 class="mt-3 text-sm font-semibold">Verified Tiers + Fair Billing</h3>
+        <p class="mt-2 text-xs leading-relaxed text-neutral-400">You only pay for leads with a verified event page link. Pricing is tiered by completeness so you never overpay.</p>
       </div>
     </div>
   </section>
@@ -6183,10 +6213,8 @@ LANDING_TEST_HTML = """<!doctype html>
           Start Your Free Trial
         </a>
       </div>
-      <div class="lg:col-span-5">
-        <div class="ai-card rounded-2xl p-5 sm:p-6">
-          <img src="/static/free-trial.png" alt="7 days free trial + $20 free credit" class="w-full h-auto rounded-xl" />
-        </div>
+      <div class="lg:col-span-5 flex items-center justify-center">
+        <img src="/static/free-trial.png" alt="7 days free trial + $20 free credit" class="w-full max-w-md h-auto" />
       </div>
     </div>
   </section>
@@ -6209,11 +6237,11 @@ LANDING_TEST_HTML = """<!doctype html>
           <span class="text-4xl font-extrabold">$1.75</span>
           <span class="pb-1 text-sm text-neutral-400">/ lead</span>
         </div>
-        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
-          <li>Named contact + verified email</li>
-          <li>Event title &amp; date</li>
-          <li>Verified event page link</li>
-          <li>Email deliverability confirmed</li>
+        <ul class="mt-5 space-y-3 text-sm text-neutral-300">
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Named contact + verified email</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Event title &amp; date</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Verified event page link</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Email deliverability confirmed</li>
         </ul>
         <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-black hover:bg-brand-400">
           Create Account
@@ -6226,11 +6254,11 @@ LANDING_TEST_HTML = """<!doctype html>
           <span class="text-4xl font-extrabold">$1.25</span>
           <span class="pb-1 text-sm text-neutral-400">/ lead</span>
         </div>
-        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
-          <li>Verified email address</li>
-          <li>Event title &amp; date</li>
-          <li>Verified event page link</li>
-          <li>Email deliverability confirmed</li>
+        <ul class="mt-5 space-y-3 text-sm text-neutral-300">
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Verified email address</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Event title &amp; date</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Verified event page link</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Email deliverability confirmed</li>
         </ul>
         <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-neutral-700 px-5 py-2.5 text-sm font-semibold text-neutral-100 hover:border-neutral-500">
           Create Account
@@ -6243,10 +6271,10 @@ LANDING_TEST_HTML = """<!doctype html>
           <span class="text-4xl font-extrabold">$0.75</span>
           <span class="pb-1 text-sm text-neutral-400">/ lead</span>
         </div>
-        <ul class="mt-5 space-y-2 text-sm text-neutral-300">
-          <li>Event title &amp; date</li>
-          <li>Verified event page link</li>
-          <li>No contact info</li>
+        <ul class="mt-5 space-y-3 text-sm text-neutral-300">
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Event title &amp; date</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Verified event page link</li>
+          <li class="flex items-center gap-2"><svg class="h-4 w-4 shrink-0 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg><span class="text-neutral-500">No contact info</span></li>
         </ul>
         <a href="/register" class="mt-6 inline-flex w-full items-center justify-center rounded-lg border border-neutral-700 px-5 py-2.5 text-sm font-semibold text-neutral-100 hover:border-neutral-500">
           Create Account
