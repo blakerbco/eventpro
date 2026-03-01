@@ -70,6 +70,9 @@ from db import (
     cache_get, cache_put, flush_uncertain_cache,
     save_result_file, get_result_file,
     get_trial_users_for_drip, get_drips_sent, record_drip_sent,
+    save_single_result, get_completed_domains, get_completed_results,
+    save_job_input_domains, get_job_input_domains, get_search_job,
+    create_api_key, validate_api_key, revoke_api_key, get_user_api_keys,
 )
 import emails
 from html import escape as html_escape
@@ -212,6 +215,32 @@ def login_required(f):
         # Block unverified non-admin users
         if not session.get("email_verified") and not session.get("is_admin"):
             return redirect(url_for("verify_email_pending"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def api_auth(f):
+    """Decorator: authenticate via X-API-Key header OR session cookie."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get("X-API-Key", "")
+        if api_key:
+            uid = validate_api_key(api_key)
+            if not uid:
+                return jsonify({"error": "Invalid or revoked API key"}), 401
+            user = get_user(uid)
+            if not user:
+                return jsonify({"error": "User not found"}), 401
+            request._api_user_id = uid
+            request._api_is_admin = user.get("is_admin", False)
+            request._api_is_trial = user.get("is_trial", False)
+            return f(*args, **kwargs)
+        # Fall back to session auth
+        if not session.get("user_id"):
+            return jsonify({"error": "Authentication required. Pass X-API-Key header or login via browser."}), 401
+        request._api_user_id = session["user_id"]
+        request._api_is_admin = session.get("is_admin", False)
+        request._api_is_trial = session.get("is_trial", False)
         return f(*args, **kwargs)
     return decorated
 
@@ -460,6 +489,8 @@ def _research_one(
             "tier": tier, "tier_price": price,
             "email_status": cached.get("email_status", ""),
         })
+        if job_id:
+            save_single_result(job_id, nonprofit, cached)
         return cached
 
     # ── Call Poe bot (same as AUCTIONINTEL.APP_BOT.PY) ──
@@ -561,6 +592,8 @@ def _research_one(
         "email_status": result.get("email_status", ""),
     })
     cache_put(nonprofit, result)
+    if job_id:
+        save_single_result(job_id, nonprofit, result)
     return result
 
 
@@ -578,6 +611,9 @@ def _run_job(
 
     total = len(nonprofits)
     progress_q.put({"type": "started", "total": total, "batches": 1})
+
+    # Persist full input domain list for resume capability
+    save_job_input_domains(job_id, nonprofits)
 
     all_results: List[Dict[str, Any]] = []
     billing_summary = {"research_fees": 0, "lead_fees": {}, "total_charged": 0}
@@ -623,19 +659,20 @@ def _run_job(
         )
         all_results.append(result)
 
-        # Checkpoint every 10 items to DB (survives SSE drops + server restarts)
-        if idx % 10 == 0:
+        # Per-result saves happen in _research_one() via save_single_result()
+        # Log progress every 100 results
+        if idx % 100 == 0:
+            print(f"[PROGRESS] {job_id}: {idx}/{total} results saved", flush=True)
+            # Generate partial CSV chunk in result_files for large batches
             try:
-                checkpoint_data = json.dumps({
-                    "checkpoint": True,
-                    "processed": idx,
-                    "total": total,
-                    "results": all_results,
-                })
-                save_job_checkpoint(job_id, checkpoint_data)
-                print(f"[CHECKPOINT] {job_id}: saved {idx}/{total} results", flush=True)
+                partial_buf = io.StringIO()
+                writer = csv.DictWriter(partial_buf, fieldnames=CSV_COLUMNS, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+                writer.writeheader()
+                for r in all_results:
+                    writer.writerow({col: r.get(col, "") for col in CSV_COLUMNS})
+                save_result_file(job_id, "csv", partial_buf.getvalue().encode("utf-8"))
             except Exception as e:
-                print(f"[CHECKPOINT WARN] {job_id}: {e}", flush=True)
+                print(f"[PARTIAL CSV WARN] {job_id}: {e}", flush=True)
 
         # Pause between domains (like the working script)
         if idx < total:
@@ -721,11 +758,6 @@ def _run_job(
             save_result_file(job_id, "xlsx", f.read())
     except Exception as e:
         print(f"[WARN] Failed to save result files to DB: {e}", file=sys.stderr)
-
-    # Remove checkpoint file now that final files are saved
-    checkpoint_file = os.path.join(RESULTS_DIR, f"{job_id}_checkpoint.csv")
-    if os.path.exists(checkpoint_file):
-        os.remove(checkpoint_file)
 
     # Final event
     complete_event = {
@@ -5491,6 +5523,354 @@ print("Database initialized.", file=sys.stderr)
 cleanup_stale_running_jobs()
 cleanup_expired_jobs()
 flush_uncertain_cache()
+
+
+# ─── REST API v1 ─────────────────────────────────────────────────────────────
+
+@app.route("/api/v1/search", methods=["POST"])
+@api_auth
+def api_v1_search():
+    """Submit domains and start a research job. Returns job_id."""
+    user_id = request._api_user_id
+    is_admin = request._api_is_admin
+    is_trial = request._api_is_trial
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    raw_domains = data.get("domains", [])
+    if isinstance(raw_domains, str):
+        raw_domains = [d.strip() for d in raw_domains.replace(",", "\n").split("\n") if d.strip()]
+
+    nonprofits = parse_input("\n".join(raw_domains))
+    if not nonprofits:
+        return jsonify({"error": "No valid domains provided"}), 400
+
+    valid_tiers = {"decision_maker", "outreach_ready", "event_verified"}
+    selected_tiers = [t for t in data.get("selected_tiers", list(valid_tiers)) if t in valid_tiers]
+    if not selected_tiers:
+        selected_tiers = list(valid_tiers)
+
+    # Balance check (skip for admin)
+    if not is_admin:
+        balance = get_balance(user_id)
+        count = len(nonprofits)
+        fee_per = get_research_fee_cents(count)
+        ESTIMATED_HIT_RATE = 0.55
+        ESTIMATED_AVG_LEAD_CENTS = 125
+        research_cost = count * fee_per
+        estimated_lead_cost = int(count * ESTIMATED_HIT_RATE * ESTIMATED_AVG_LEAD_CENTS)
+        estimated_total = research_cost + estimated_lead_cost
+        if balance < estimated_total:
+            cost_per_np = fee_per + int(ESTIMATED_HIT_RATE * ESTIMATED_AVG_LEAD_CENTS)
+            max_affordable = max(1, balance // cost_per_np) if cost_per_np > 0 else count
+            return jsonify({
+                "error": f"Insufficient balance (${balance/100:.2f}). Estimated cost: ${estimated_total/100:.2f}. Can afford ~{max_affordable} domains.",
+                "affordable_count": max_affordable,
+                "balance_cents": balance,
+                "estimated_cost_cents": estimated_total,
+            }), 402
+
+    job_id = f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(4)}"
+    progress_q = EventQueue()
+
+    jobs[job_id] = {
+        "status": "running",
+        "nonprofits": nonprofits,
+        "progress_queue": progress_q,
+        "results": None,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": user_id,
+    }
+
+    create_search_job(user_id, job_id, len(nonprofits))
+
+    thread = threading.Thread(
+        target=_job_worker,
+        args=(nonprofits, job_id, progress_q),
+        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers},
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({
+        "job_id": job_id,
+        "total_domains": len(nonprofits),
+        "status": "running",
+    })
+
+
+@app.route("/api/v1/status/<job_id>")
+@api_auth
+def api_v1_status(job_id):
+    """Get job progress: processed/total, found count, ETA, balance."""
+    user_id = request._api_user_id
+    is_admin = request._api_is_admin
+
+    job = jobs.get(job_id)
+    if not job:
+        # Check DB for completed/failed jobs
+        db_job = get_search_job(job_id)
+        if db_job:
+            resp = {
+                "job_id": job_id,
+                "status": db_job["status"],
+                "total": db_job["nonprofit_count"] or 0,
+                "processed": db_job["nonprofit_count"] or 0,
+                "found": db_job["found_count"] or 0,
+            }
+            if not is_admin:
+                resp["balance_cents"] = get_balance(user_id)
+            return jsonify(resp)
+        return jsonify({"error": "Job not found"}), 404
+
+    # Count progress from event queue
+    events = job["progress_queue"].events
+    processed = sum(1 for e in events if e and e.get("type") == "result")
+    found = sum(1 for e in events if e and e.get("type") == "result" and e.get("status") in ("found", "3rdpty_found"))
+    total = len(job.get("nonprofits", []))
+
+    # Find latest ETA
+    eta_remaining = None
+    for e in reversed(events):
+        if e and e.get("type") == "eta":
+            eta_remaining = e.get("remaining")
+            break
+
+    resp = {
+        "job_id": job_id,
+        "status": job["status"],
+        "total": total,
+        "processed": processed,
+        "found": found,
+        "eta_seconds": eta_remaining,
+    }
+    if not is_admin:
+        resp["balance_cents"] = get_balance(user_id)
+
+    if job["status"] == "complete" and job.get("results"):
+        resp["summary"] = job["results"].get("summary", {})
+
+    return jsonify(resp)
+
+
+@app.route("/api/v1/results/<job_id>")
+@api_auth
+def api_v1_results(job_id):
+    """Download results in csv, json, or xlsx format."""
+    fmt = request.args.get("format", "csv")
+    if fmt not in ("csv", "json", "xlsx"):
+        return jsonify({"error": "Invalid format. Use csv, json, or xlsx."}), 400
+
+    # Try in-memory job first
+    job = jobs.get(job_id)
+    if job and job["status"] != "complete":
+        # Job still running — return partial results from job_results table
+        results = get_completed_results(job_id)
+        if not results:
+            return jsonify({"error": "Job still running, no results yet"}), 202
+
+    # Try disk, then DB
+    filepath = os.path.join(RESULTS_DIR, f"{job_id}.{fmt}")
+    if os.path.exists(filepath):
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=f"auction_results_{job_id}.{fmt}",
+        )
+
+    content = get_result_file(job_id, fmt)
+    if content is None:
+        return jsonify({"error": "Results not found"}), 404
+
+    mime_types = {
+        "csv": "text/csv",
+        "json": "application/json",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+    return Response(
+        content,
+        mimetype=mime_types.get(fmt, "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'attachment; filename="auction_results_{job_id}.{fmt}"'
+        },
+    )
+
+
+@app.route("/api/v1/stop/<job_id>", methods=["POST"])
+@api_auth
+def api_v1_stop(job_id):
+    """Stop a running job."""
+    if job_id not in jobs:
+        return jsonify({"error": "Job not found or already finished"}), 404
+    job = jobs[job_id]
+    if job.get("status") != "running":
+        return jsonify({"error": "Job not running"}), 400
+    job["stop_requested"] = True
+    return jsonify({"ok": True, "message": "Stop requested. Job will finish current domain and halt."})
+
+
+@app.route("/api/v1/resume/<job_id>", methods=["POST"])
+@api_auth
+def api_v1_resume(job_id):
+    """Resume an interrupted job. Creates a new child job for remaining domains."""
+    user_id = request._api_user_id
+    is_admin = request._api_is_admin
+    is_trial = request._api_is_trial
+
+    # Load original domains
+    original_domains = get_job_input_domains(job_id)
+    if not original_domains:
+        return jsonify({"error": "Cannot resume: original domain list not found for this job."}), 404
+
+    # Load completed domains
+    completed = get_completed_domains(job_id)
+    remaining = [d for d in original_domains if d not in completed]
+
+    if not remaining:
+        return jsonify({"error": "Nothing to resume — all domains already processed.", "completed": len(completed)}), 200
+
+    # Check for selected_tiers from request body
+    data = request.get_json(silent=True) or {}
+    valid_tiers = {"decision_maker", "outreach_ready", "event_verified"}
+    selected_tiers = [t for t in data.get("selected_tiers", list(valid_tiers)) if t in valid_tiers]
+    if not selected_tiers:
+        selected_tiers = list(valid_tiers)
+
+    # Balance check (skip for admin)
+    if not is_admin:
+        balance = get_balance(user_id)
+        count = len(remaining)
+        fee_per = get_research_fee_cents(count)
+        ESTIMATED_HIT_RATE = 0.55
+        ESTIMATED_AVG_LEAD_CENTS = 125
+        estimated_total = count * fee_per + int(count * ESTIMATED_HIT_RATE * ESTIMATED_AVG_LEAD_CENTS)
+        if balance < estimated_total:
+            return jsonify({
+                "error": f"Insufficient balance (${balance/100:.2f}) for {count} remaining domains.",
+                "remaining_count": count,
+                "balance_cents": balance,
+            }), 402
+
+    # Create new child job
+    new_job_id = f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(4)}"
+    progress_q = EventQueue()
+
+    jobs[new_job_id] = {
+        "status": "running",
+        "nonprofits": remaining,
+        "progress_queue": progress_q,
+        "results": None,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": user_id,
+        "resumed_from": job_id,
+    }
+
+    create_search_job(user_id, new_job_id, len(remaining))
+    # Mark resumed_from in DB
+    try:
+        from db import _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
+        cur.execute("UPDATE search_jobs SET resumed_from = %s WHERE job_id = %s", (job_id, new_job_id))
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        print(f"[RESUME] Failed to set resumed_from: {e}", flush=True)
+
+    thread = threading.Thread(
+        target=_job_worker,
+        args=(remaining, new_job_id, progress_q),
+        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers},
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({
+        "job_id": new_job_id,
+        "parent_job_id": job_id,
+        "completed_in_parent": len(completed),
+        "remaining": len(remaining),
+        "status": "running",
+    })
+
+
+# ─── API Key Management ─────────────────────────────────────────────────────
+
+@app.route("/settings/api-keys")
+@login_required
+def api_keys_page():
+    """Page to manage API keys."""
+    user_id = session["user_id"]
+    user = _current_user()
+    keys = get_user_api_keys(user_id)
+
+    key_rows = ""
+    for k in keys:
+        status = "Active" if k["is_active"] else "Revoked"
+        status_class = "color: #10b981" if k["is_active"] else "color: #ef4444"
+        revoke_btn = ""
+        if k["is_active"]:
+            revoke_btn = f'<form method="post" action="/settings/api-keys/revoke/{k["id"]}" style="display:inline"><button type="submit" style="background:#ef4444;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">Revoke</button></form>'
+        key_rows += f"""<tr>
+            <td style="padding:8px;border-bottom:1px solid #374151">{html_escape(k.get("label","") or "—")}</td>
+            <td style="padding:8px;border-bottom:1px solid #374151;font-family:monospace">{k["key_hash"]}</td>
+            <td style="padding:8px;border-bottom:1px solid #374151"><span style="{status_class}">{status}</span></td>
+            <td style="padding:8px;border-bottom:1px solid #374151">{k["created_at"]}</td>
+            <td style="padding:8px;border-bottom:1px solid #374151">{revoke_btn}</td>
+        </tr>"""
+
+    html = f"""<!DOCTYPE html><html><head><title>API Keys - Auction Intel</title>
+    <style>body{{background:#0f172a;color:#e2e8f0;font-family:system-ui;margin:0;padding:20px}}
+    .container{{max-width:800px;margin:0 auto}}
+    h1{{color:#60a5fa}}
+    table{{width:100%;border-collapse:collapse;margin:20px 0}}
+    th{{text-align:left;padding:8px;border-bottom:2px solid #374151;color:#94a3b8}}
+    .btn{{background:#3b82f6;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px}}
+    .btn:hover{{background:#2563eb}}
+    input[type=text]{{background:#1e293b;border:1px solid #374151;color:#e2e8f0;padding:8px 12px;border-radius:4px;width:200px}}
+    .new-key-box{{background:#064e3b;border:1px solid #10b981;padding:16px;border-radius:8px;margin:16px 0;font-family:monospace;word-break:break-all}}
+    a{{color:#60a5fa}}
+    </style></head><body>
+    <div class="container">
+    <h1>API Keys</h1>
+    <p><a href="/dashboard">&larr; Back to Dashboard</a></p>
+    <p>Use API keys to authenticate with the <code>/api/v1/</code> endpoints from scripts.</p>
+
+    <form method="post" action="/settings/api-keys/create" style="margin:20px 0">
+        <input type="text" name="label" placeholder="Key label (optional)">
+        <button type="submit" class="btn">Generate New Key</button>
+    </form>
+
+    {"" if not session.get("_new_api_key") else f'<div class="new-key-box"><strong>New API Key (copy now — shown only once):</strong><br><br>{session.pop("_new_api_key")}</div>'}
+
+    <table>
+    <tr><th>Label</th><th>Key (hash)</th><th>Status</th><th>Created</th><th>Action</th></tr>
+    {key_rows if key_rows else "<tr><td colspan='5' style='padding:8px;color:#94a3b8'>No API keys yet.</td></tr>"}
+    </table>
+    </div></body></html>"""
+    return html
+
+
+@app.route("/settings/api-keys/create", methods=["POST"])
+@login_required
+def api_keys_create():
+    """Generate a new API key."""
+    user_id = session["user_id"]
+    label = request.form.get("label", "").strip()[:100]
+    plaintext = create_api_key(user_id, label)
+    session["_new_api_key"] = plaintext
+    return redirect(url_for("api_keys_page"))
+
+
+@app.route("/settings/api-keys/revoke/<int:key_id>", methods=["POST"])
+@login_required
+def api_keys_revoke(key_id):
+    """Revoke an API key."""
+    user_id = session["user_id"]
+    revoke_api_key(key_id, user_id)
+    return redirect(url_for("api_keys_page"))
 
 
 # ─── Drip Campaign Scheduler ─────────────────────────────────────────────────

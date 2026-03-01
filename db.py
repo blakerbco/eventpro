@@ -164,6 +164,24 @@ def init_db():
             created_at TIMESTAMP DEFAULT NOW(),
             UNIQUE(job_id, format)
         );
+
+        CREATE TABLE IF NOT EXISTS job_results (
+            id SERIAL PRIMARY KEY,
+            job_id TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            result_json TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(job_id, domain)
+        );
+
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            key_hash TEXT NOT NULL,
+            label TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT NOW(),
+            is_active BOOLEAN DEFAULT TRUE
+        );
     """)
     conn.commit()
 
@@ -234,6 +252,15 @@ def init_db():
         conn.commit()
     except Exception as e:
         print(f"[DB] Create drip_emails_sent error: {e}", flush=True)
+        conn.rollback()
+
+    # Migration: add input_domains and resumed_from columns to search_jobs
+    try:
+        cur.execute("ALTER TABLE search_jobs ADD COLUMN IF NOT EXISTS input_domains TEXT")
+        cur.execute("ALTER TABLE search_jobs ADD COLUMN IF NOT EXISTS resumed_from TEXT")
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Migration search_jobs columns error: {e}", flush=True)
         conn.rollback()
 
     # Remove stale fallback admin account if real admin is configured
@@ -692,6 +719,172 @@ def cleanup_stale_running_jobs():
     if cleaned:
         print(f"[DB] Cleaned up {cleaned} stale running job(s)", flush=True)
     return cleaned
+
+
+# ─── Per-Result Checkpoints (job_results) ─────────────────────────────────────
+
+def save_single_result(job_id: str, domain: str, result_dict: Dict[str, Any]):
+    """Save one research result row immediately after processing."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO job_results (job_id, domain, result_json)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (job_id, domain) DO UPDATE SET result_json = EXCLUDED.result_json""",
+            (job_id, domain, _json.dumps(result_dict, ensure_ascii=False)),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[SAVE_RESULT ERROR] {job_id}/{domain}: {e}", flush=True)
+    finally:
+        cur.close()
+
+
+def get_completed_domains(job_id: str) -> set:
+    """Return set of domains already processed for a job."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT domain FROM job_results WHERE job_id = %s", (job_id,))
+    rows = _fetchall(cur)
+    cur.close()
+    return {r["domain"] for r in rows}
+
+
+def get_completed_results(job_id: str) -> list:
+    """Return all result dicts for a job."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT domain, result_json FROM job_results WHERE job_id = %s ORDER BY id", (job_id,))
+    rows = _fetchall(cur)
+    cur.close()
+    results = []
+    for r in rows:
+        try:
+            results.append(_json.loads(r["result_json"]))
+        except (_json.JSONDecodeError, TypeError) as e:
+            print(f"[GET_RESULTS WARN] {job_id}/{r['domain']}: {e}", flush=True)
+    return results
+
+
+def save_job_input_domains(job_id: str, domains: list):
+    """Store the full original domain list as JSON on the search_jobs row."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE search_jobs SET input_domains = %s WHERE job_id = %s",
+            (_json.dumps(domains, ensure_ascii=False), job_id),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[SAVE_INPUT ERROR] {job_id}: {e}", flush=True)
+    finally:
+        cur.close()
+
+
+def get_job_input_domains(job_id: str) -> Optional[list]:
+    """Load original domain list from DB. Returns list or None."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT input_domains FROM search_jobs WHERE job_id = %s", (job_id,))
+    row = _fetchone(cur)
+    cur.close()
+    if not row or not row.get("input_domains"):
+        return None
+    try:
+        return _json.loads(row["input_domains"])
+    except (_json.JSONDecodeError, TypeError):
+        return None
+
+
+def get_search_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Get a single search job by job_id."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT job_id, user_id, status, nonprofit_count, found_count, billable_count,
+                  total_cost_cents, results_summary, input_domains, resumed_from,
+                  created_at, completed_at
+           FROM search_jobs WHERE job_id = %s""",
+        (job_id,),
+    )
+    row = _fetchone(cur)
+    cur.close()
+    if row:
+        for k in ("created_at", "completed_at"):
+            if row.get(k) and not isinstance(row[k], str):
+                row[k] = str(row[k])
+    return row
+
+
+# ─── API Key Management ──────────────────────────────────────────────────────
+
+import hashlib as _hashlib
+
+
+def create_api_key(user_id: int, label: str = "") -> str:
+    """Generate an API key, store SHA-256 hash, return plaintext (shown once)."""
+    plaintext = "ak_" + secrets.token_hex(32)
+    key_hash = _hashlib.sha256(plaintext.encode()).hexdigest()
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO api_keys (user_id, key_hash, label) VALUES (%s, %s, %s)",
+        (user_id, key_hash, label),
+    )
+    conn.commit()
+    cur.close()
+    return plaintext
+
+
+def validate_api_key(key: str) -> Optional[int]:
+    """Validate an API key. Returns user_id or None."""
+    if not key or not key.startswith("ak_"):
+        return None
+    key_hash = _hashlib.sha256(key.encode()).hexdigest()
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT user_id FROM api_keys WHERE key_hash = %s AND is_active = TRUE",
+        (key_hash,),
+    )
+    row = _fetchone(cur)
+    cur.close()
+    return row["user_id"] if row else None
+
+
+def revoke_api_key(key_id: int, user_id: int) -> bool:
+    """Revoke an API key. Returns True if found and revoked."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE api_keys SET is_active = FALSE WHERE id = %s AND user_id = %s",
+        (key_id, user_id),
+    )
+    affected = cur.rowcount
+    conn.commit()
+    cur.close()
+    return affected > 0
+
+
+def get_user_api_keys(user_id: int) -> list:
+    """Get all API keys for a user (hash masked, for display)."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, key_hash, label, is_active, created_at FROM api_keys WHERE user_id = %s ORDER BY id DESC",
+        (user_id,),
+    )
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        r["key_hash"] = r["key_hash"][:8] + "..."
+        if r.get("created_at") and not isinstance(r["created_at"], str):
+            r["created_at"] = str(r["created_at"])
+    return rows
 
 
 # ─── Result File Storage (persists across deploys) ───────────────────────────
