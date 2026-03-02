@@ -70,6 +70,7 @@ from db import (
     cache_get, cache_put, flush_uncertain_cache,
     save_result_file, get_result_file,
     get_trial_users_for_drip, get_drips_sent, record_drip_sent,
+    get_inactive_users, get_expiring_trial_users,
     save_single_result, get_completed_domains, get_completed_results,
     save_job_input_domains, get_job_input_domains, get_search_job,
     create_api_key, validate_api_key, revoke_api_key, get_user_api_keys,
@@ -813,6 +814,21 @@ def _run_job(
                 found_count, billable_count, total_cost_cents,
             )
 
+            # Check if job was stopped by user
+            if jobs.get(job_id, {}).get("stop_requested"):
+                emails.send_search_stopped(
+                    user["email"], job_id,
+                    processed=len(all_results), total=total,
+                    found=found_count, charged_cents=total_cost_cents,
+                )
+
+            # Check balance-related emails
+            final_balance = get_balance(user_id)
+            if final_balance <= 0:
+                emails.send_credit_exhausted(user["email"])
+            elif final_balance < 500:  # below $5
+                emails.send_low_balance_warning(user["email"], final_balance)
+
 
 def _job_worker(
     nonprofits: List[str], job_id: str, progress_q,
@@ -1151,6 +1167,17 @@ def stripe_webhook():
                 print(f"[STRIPE] Credited ${amount_cents/100:.2f} to user {user_id} (intent: {intent_id})")
             else:
                 print(f"[STRIPE] Duplicate intent {intent_id}, skipping")
+
+    elif event["type"] == "payment_intent.payment_failed":
+        intent = event["data"]["object"]
+        user_id = int(intent["metadata"].get("user_id", 0))
+        amount_cents = intent.get("amount", 0)
+        failure_msg = intent.get("last_payment_error", {}).get("message", "Card declined by issuer")
+        if user_id:
+            user = get_user(user_id)
+            if user:
+                emails.send_payment_failed(user["email"], amount_cents, failure_msg)
+            print(f"[STRIPE] Payment failed for user {user_id}: {failure_msg}", flush=True)
 
     return "ok", 200
 
@@ -1605,6 +1632,11 @@ def make_exclusive():
     success = purchase_exclusive_lead(user_id, job_id, nonprofit_name, event_title, event_url)
     if not success:
         return jsonify({"error": "Failed to purchase exclusive lead"}), 500
+
+    # Send confirmation email
+    user = get_user(user_id)
+    if user:
+        emails.send_exclusive_lead_confirmed(user["email"], nonprofit_name, event_title, EXCLUSIVE_LEAD_PRICE_CENTS)
 
     return jsonify({
         "success": True,
@@ -5907,11 +5939,72 @@ def newsletter_submit():
     return jsonify({"ok": True, "message": "Thanks — you are subscribed."})
 
 
-# ─── Test Landing Page (Flowbite) ─────────────────────────────────────────────
+# ─── Test Email Route (Admin Only) ────────────────────────────────────────────
+
+@app.route("/api/test-emails", methods=["POST"])
+@login_required
+def test_emails_route():
+    """Send all 20 email templates with dummy data to a specified address. Admin only."""
+    user = _current_user()
+    if not user or not user.get("is_admin"):
+        return jsonify({"error": "Admin only"}), 403
+
+    target = request.json.get("email", "blake@auctionintel.us") if request.is_json else "blake@auctionintel.us"
+    sent = []
+    errors = []
+
+    test_calls = [
+        ("01_welcome", lambda: emails.send_welcome(target, is_trial=True)),
+        ("02_verify", lambda: emails.send_verification_email(target, "https://auctionintel.app/verify?token=TEST_TOKEN_123")),
+        ("03_password_reset", lambda: emails.send_password_reset(target, "https://auctionintel.app/reset?token=RESET_TOKEN_456")),
+        ("04_job_complete", lambda: emails.send_job_complete(target, "test1234-5678-abcd", 50, 12, 8, 1400)),
+        ("05_funds_receipt", lambda: emails.send_funds_receipt(target, 5000, 7500, "Visa ending 4242", "pi_test_123", "Mar 01, 2026")),
+        ("06_results_expiring", lambda: emails.send_results_expiring_7_days(target, "test1234-5678-abcd")),
+        ("07_ticket_created", lambda: emails.send_ticket_created(42, "Test Support Ticket", target, "This is a test support ticket message.")),
+        ("08_ticket_reply", lambda: emails.send_ticket_reply_to_user(target, 42, "Test Support Ticket", "Thanks for reaching out! We are looking into this.")),
+        ("09_credit_exhausted", lambda: emails.send_credit_exhausted(target)),
+        ("10_low_balance", lambda: emails.send_low_balance_warning(target, 350)),
+        ("11_trial_expiring", lambda: emails.send_trial_expiring(target, 2, 800)),
+        ("12_exclusive_lead", lambda: emails.send_exclusive_lead_confirmed(target, "Denver Children's Foundation", "Spring Gala & Auction 2026", 250)),
+        ("13_refund", lambda: emails.send_refund_issued(target, 500, "Duplicate charge", 5500)),
+        ("14_search_stopped", lambda: emails.send_search_stopped(target, "test1234-5678-abcd", 35, 100, 12, 700)),
+        ("15_payment_failed", lambda: emails.send_payment_failed(target, 5000, "Card declined by issuer")),
+        ("16_we_miss_you", lambda: emails.send_we_miss_you(target, 2500, "Jan 15, 2026")),
+        ("17_drip_day1", lambda: emails.send_drip_day1_how_it_works(target)),
+        ("18_drip_day3", lambda: emails.send_drip_day3_first_search(target)),
+        ("19_drip_day5", lambda: emails.send_drip_day5_social_proof(target)),
+        ("20_drip_day7", lambda: emails.send_drip_day7_trial_ended(target)),
+    ]
+
+    for name, fn in test_calls:
+        try:
+            fn()
+            sent.append(name)
+            print(f"[TEST EMAIL] Sent {name} to {target}", flush=True)
+        except Exception as e:
+            errors.append(f"{name}: {type(e).__name__}: {e}")
+            print(f"[TEST EMAIL ERROR] {name}: {e}", flush=True)
+
+    return jsonify({"sent": len(sent), "errors": errors, "target": target})
+
+
+# ─── Test Landing Pages ──────────────────────────────────────────────────────
 
 @app.route("/landing-test")
 def landing_test():
     return LANDING_TEST_HTML
+
+
+@app.route("/landing-test-2")
+def landing_test_2():
+    """New editorial-style landing page."""
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "auction_intel_landing_page.html")
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print(f"[LANDING] Error loading landing-test-2: {e}", flush=True)
+        return "Landing page not found", 404
 
 LANDING_TEST_HTML = """<!doctype html>
 <html lang="en" class="dark">
@@ -6493,11 +6586,52 @@ def _run_drip_campaign():
         print(f"[DRIP] Scheduler error: {e}", flush=True)
 
 
+def _run_trial_expiring():
+    """Send trial expiring email to users whose trial ends in 1-3 days."""
+    try:
+        users = get_expiring_trial_users()
+        for user in users:
+            days = float(user.get("days_since_signup", 0))
+            days_left = max(1, 7 - int(days))
+            already_sent = get_drips_sent(user["id"])
+            if "trial_expiring" not in already_sent:
+                try:
+                    balance = get_balance(user["id"])
+                    emails.send_trial_expiring(user["email"], days_left, balance)
+                    record_drip_sent(user["id"], "trial_expiring")
+                    print(f"[SCHEDULER] Sent trial_expiring to {user['email']} ({days_left} days left)", flush=True)
+                except Exception as e:
+                    print(f"[SCHEDULER] Error sending trial_expiring to {user['email']}: {e}", flush=True)
+    except Exception as e:
+        print(f"[SCHEDULER] Trial expiring check error: {e}", flush=True)
+
+
+def _run_we_miss_you():
+    """Send re-engagement email to users inactive 30+ days."""
+    try:
+        users = get_inactive_users(30)
+        for user in users:
+            already_sent = get_drips_sent(user["id"])
+            if "we_miss_you" not in already_sent:
+                try:
+                    balance = get_balance(user["id"])
+                    last_search = str(user.get("last_search_at", ""))
+                    emails.send_we_miss_you(user["email"], balance, last_search)
+                    record_drip_sent(user["id"], "we_miss_you")
+                    print(f"[SCHEDULER] Sent we_miss_you to {user['email']}", flush=True)
+                except Exception as e:
+                    print(f"[SCHEDULER] Error sending we_miss_you to {user['email']}: {e}", flush=True)
+    except Exception as e:
+        print(f"[SCHEDULER] We miss you check error: {e}", flush=True)
+
+
 def _drip_scheduler_loop():
     """Background loop — runs drip check every hour."""
     while True:
         time.sleep(3600)  # 1 hour
         _run_drip_campaign()
+        _run_trial_expiring()
+        _run_we_miss_you()
 
 
 # Run once at startup, then hourly in background

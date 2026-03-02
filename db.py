@@ -1492,3 +1492,38 @@ def record_drip_sent(user_id: int, drip_key: str):
         print(f"[DRIP] Error recording drip '{drip_key}' for user {user_id}: {e}", flush=True)
         conn.rollback()
     cur.close()
+
+
+def get_inactive_users(days: int = 30):
+    """Get users who haven't run a search in N+ days (for 'we miss you' email)."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email,
+               MAX(sj.created_at) AS last_search_at,
+               EXTRACT(EPOCH FROM (NOW() - MAX(sj.created_at))) / 86400 AS days_inactive
+        FROM users u
+        JOIN search_jobs sj ON sj.user_id = u.id
+        WHERE u.is_admin = 0
+        GROUP BY u.id, u.email
+        HAVING MAX(sj.created_at) < NOW() - INTERVAL '%s days'
+    """ % days)
+    rows = _fetchall(cur)
+    cur.close()
+    return rows
+
+
+def get_expiring_trial_users():
+    """Get trial users whose trial is expiring in 1-3 days (signed up 4-6 days ago)."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email, u.created_at,
+               EXTRACT(EPOCH FROM (NOW() - u.created_at)) / 86400 AS days_since_signup
+        FROM users u
+        WHERE u.is_trial = 1
+          AND u.created_at BETWEEN NOW() - INTERVAL '6 days' AND NOW() - INTERVAL '4 days'
+    """)
+    rows = _fetchall(cur)
+    cur.close()
+    return rows
