@@ -435,6 +435,17 @@ def _research_one(
         cached["query_domain"] = nonprofit
 
         status = cached.get("status", "uncertain")
+
+        # Data-driven override: if cache has valid URL + title, treat as "found"
+        # regardless of stored status — same logic as _poe_result_to_full
+        has_real_url = (cached.get("event_url", "").startswith("http://") or
+                        cached.get("event_url", "").startswith("https://"))
+        has_real_title = bool(cached.get("event_title", "").strip())
+        if status in ("not_found", "uncertain") and has_real_url and has_real_title:
+            print(f"[CACHE-STATUS-OVERRIDE] {nonprofit}: was '{status}' but has URL+title, overriding to 'found'", flush=True)
+            status = "found"
+            cached["status"] = "found"
+
         if status in ("not_found", "uncertain", "error"):
             tier, price = "not_billable", 0
         else:
