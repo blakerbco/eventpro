@@ -207,16 +207,21 @@ def _has_valid_url(result: Dict[str, Any]) -> bool:
 def classify_lead_tier(result: Dict[str, Any]) -> tuple:
     """Returns (tier_name, price_cents) based on fields present.
     3-tier system: decision_maker ($1.75), outreach_ready ($1.25), event_verified ($0.75).
-    Gates: must have event_title, event_url, event_date, evidence_date, AND evidence_auction."""
+    Hard gates: must have event_title AND event_url (non-negotiable).
+    Soft requirement: evidence_auction strongly preferred but not a hard kill."""
     has_title = bool(result.get("event_title", "").strip())
-    has_date = bool(result.get("event_date", "").strip())
     has_url = _has_valid_url(result)
-    has_date_evidence = bool(result.get("evidence_date", "").strip())
     has_auction_evidence = bool(result.get("evidence_auction", "").strip())
     has_name = bool(result.get("contact_name", "").strip())
     has_email = _is_valid_email(result.get("contact_email", ""))
 
-    if not has_title or not has_date or not has_url or not has_date_evidence or not has_auction_evidence:
+    # Hard gates: must have verified event page URL + event title
+    if not has_title or not has_url:
+        return ("not_billable", 0)
+
+    # Auction evidence gate: require evidence OR auction_type field
+    has_auction_type = bool(result.get("auction_type", "").strip())
+    if not has_auction_evidence and not has_auction_type:
         return ("not_billable", 0)
 
     if has_email and has_name:
@@ -293,14 +298,26 @@ def _poe_result_to_full(poe_data: dict, nonprofit: str) -> Dict[str, Any]:
 
     status = poe_data.get("status", "")
     has_event = poe_data.get("has_event", None)
-    if status in ("found", "3rdpty_found", "not_found"):
+
+    # Data-driven override: if we have a valid URL + title, it's "found"
+    # regardless of what the bot says — the bot's status is unreliable
+    has_real_url = (result.get("event_url", "").startswith("http://") or
+                    result.get("event_url", "").startswith("https://"))
+    has_real_title = bool(result.get("event_title", "").strip())
+
+    if has_real_url and has_real_title:
+        # Bot returned actual event data — trust the data, not the label
+        if status in ("found", "3rdpty_found"):
+            result["status"] = status
+        else:
+            result["status"] = "found"
+            print(f"[STATUS-OVERRIDE] {nonprofit}: bot said '{status}' but has URL+title, overriding to 'found'", flush=True)
+    elif status in ("found", "3rdpty_found"):
         result["status"] = status
     elif has_event is True:
         result["status"] = "found"
     elif has_event is False:
         result["status"] = "not_found"
-    elif result["event_title"] and result["event_url"]:
-        result["status"] = "found"
     else:
         result["status"] = "not_found"
 
