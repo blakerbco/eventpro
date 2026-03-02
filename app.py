@@ -297,6 +297,11 @@ _SIDEBAR_CSS = """
   .sidebar-bottom a { display:flex; align-items:center; gap:10px; padding:9px 12px; color:#737373; text-decoration:none; font-size:13px; border-radius:6px; }
   .sidebar-bottom a svg { width:14px; height:14px; flex-shrink:0; }
   .sidebar-bottom a:hover { color:#f87171; background:#141414; }
+  .live-batch-btn { display:none; margin:8px 12px; padding:10px 12px; background:#1a1500; border:1px solid #eab308; border-radius:6px; color:#eab308; font-size:13px; font-weight:700; text-decoration:none; text-align:center; cursor:pointer; animation:livePulse 1.5s ease-in-out infinite; }
+  .live-batch-btn:hover { background:#332d00; }
+  .live-batch-btn .dot { display:inline-block; width:8px; height:8px; background:#eab308; border-radius:50%; margin-right:8px; animation:dotBlink 1s step-end infinite; }
+  @keyframes livePulse { 0%,100%{opacity:1;} 50%{opacity:0.6;} }
+  @keyframes dotBlink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
   .topbar { position:fixed; top:0; left:260px; right:0; height:48px; background:#0a0a0a; border-bottom:1px solid #1a1a1a; display:flex; align-items:center; justify-content:flex-end; padding:0 24px; z-index:99; }
   .topbar .user-email { color:#737373; font-size:12px; }
   .hamburger { display:none; background:none; border:none; color:#a3a3a3; cursor:pointer; padding:8px; margin-right:auto; }
@@ -378,6 +383,7 @@ def _build_sidebar_html(active):
         '<aside class="sidebar" id="sidebar">\n'
         '  <div class="sidebar-logo"><a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:44px;"></a></div>\n'
         f'{sections}'
+        '  <a href="#" class="live-batch-btn" id="liveBatchBtn" onclick="return false;"><span class="dot"></span>Return to Live Batch</a>\n'
         '  <div class="sidebar-bottom">\n'
         f'    <a href="/logout">{_SIDEBAR_ICONS["logout"]} Logout</a>\n'
         '  </div>\n'
@@ -393,6 +399,28 @@ def _build_sidebar_html(active):
 
 _FAVICON_TAG = '<link rel="icon" type="image/png" href="/static/favicon.png">'
 
+_LIVE_BATCH_JS = """
+<script>
+(function(){
+  var btn = document.getElementById('liveBatchBtn');
+  if (!btn) return;
+  var checkActive = function(){
+    fetch('/api/active-job').then(function(r){return r.json()}).then(function(d){
+      if (d.job_id) {
+        btn.style.display = 'block';
+        btn.href = '/?rejoin=' + d.job_id;
+        btn.onclick = function(){ window.location.href = '/?rejoin=' + d.job_id; return false; };
+      } else {
+        btn.style.display = 'none';
+      }
+    }).catch(function(){});
+  };
+  checkActive();
+  setInterval(checkActive, 10000);
+})();
+</script>
+"""
+
 def _inject_sidebar(html, active):
     """Replace {{SIDEBAR_HTML}} placeholder with built sidebar, and {{SIDEBAR_CSS}} with CSS."""
     html = html.replace("{{SIDEBAR_CSS}}", _SIDEBAR_CSS)
@@ -400,6 +428,9 @@ def _inject_sidebar(html, active):
     # Inject favicon into all sidebar pages
     if _FAVICON_TAG not in html:
         html = html.replace("</head>", _FAVICON_TAG + "\n</head>", 1)
+    # Inject live batch polling JS before </body>
+    if "</body>" in html:
+        html = html.replace("</body>", _LIVE_BATCH_JS + "</body>", 1)
     return html
 
 
@@ -1442,6 +1473,7 @@ def start_search():
         "results": None,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "user_id": user_id,
+        "total": len(nonprofits),
     }
 
     # Persist job to SQLite
@@ -1534,6 +1566,18 @@ def stop_job(job_id):
         return jsonify({"error": "Job not running"}), 400
     job["stop_requested"] = True
     return jsonify({"ok": True})
+
+
+@app.route("/api/active-job")
+@login_required
+def active_job():
+    """Return the user's currently running job (if any)."""
+    user_id = session["user_id"]
+    for jid, job in jobs.items():
+        if job.get("user_id") == user_id and job.get("status") == "running":
+            processed = len(job.get("progress_queue", {}).events) if hasattr(job.get("progress_queue", {}), "events") else 0
+            return jsonify({"job_id": jid, "status": "running", "total": job.get("total", 0)})
+    return jsonify({"job_id": None})
 
 
 @app.route("/api/job-status/<job_id>")
@@ -3188,6 +3232,125 @@ if (irsData) {
   sessionStorage.removeItem('irs_nonprofits');
   updateCount();
 }
+
+// Rejoin a running batch if ?rejoin=JOB_ID is in URL
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  const rejoinId = params.get('rejoin');
+  if (!rejoinId) return;
+
+  // Clean URL without reload
+  history.replaceState(null, '', '/');
+
+  currentJobId = rejoinId;
+  searchBtn.disabled = true;
+  const stopBtn = document.getElementById('stopBtn');
+  stopBtn.style.display = 'inline-block';
+  stopBtn.disabled = false;
+  progressSection.style.display = 'block';
+  document.getElementById('searchDots').style.display = 'block';
+  downloadSection.style.display = 'none';
+  document.getElementById('billingSummary').style.display = 'none';
+  terminal.innerHTML = '';
+  counts = { found: 0, '3rdpty_found': 0, not_found: 0, uncertain: 0, error: 0 };
+  processed = 0;
+  totalNonprofits = 0;
+
+  log('Rejoining live batch: ' + rejoinId, 'info');
+  log('Replaying events...', 'info');
+
+  currentEvtSource = new EventSource('/api/progress/' + rejoinId);
+  sseReconnectCount = 0;
+
+  currentEvtSource.onmessage = function(e) {
+    sseReconnectCount = 0;
+    const data = JSON.parse(e.data);
+
+    switch (data.type) {
+      case 'started':
+        totalNonprofits = data.total;
+        updateProgress();
+        break;
+
+      case 'processing':
+        totalNonprofits = data.total;
+        break;
+
+      case 'balance':
+        if (!IS_ADMIN) {
+          balanceCents = data.balance;
+          balDisplay.textContent = '$' + (balanceCents / 100).toFixed(2);
+        }
+        break;
+
+      case 'result':
+        processed++;
+        totalNonprofits = data.total;
+        var st = data.status || 'uncertain';
+        if (counts.hasOwnProperty(st)) counts[st]++;
+        else counts.uncertain++;
+
+        var _tD = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
+        var _sL = { found: 'AUCTION FOUND', not_found: 'NO AUCTION FOUND', '3rdpty_found': '3RDPTY_FOUND', uncertain: 'UNCERTAIN', error: 'ERROR' };
+        var msg = '[' + data.index + '/' + data.total + '] ' + (_sL[st] || st.toUpperCase()) + ': ' + data.nonprofit;
+        if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
+        if (st !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tD[data.tier]) {
+          msg += ' [' + _tD[data.tier] + ']';
+        }
+        log(msg, st);
+        updateStats();
+        updateProgress();
+        break;
+
+      case 'balance_warning':
+        log('BALANCE WARNING: ' + data.message, 'error');
+        break;
+
+      case 'complete':
+        log('SEARCH COMPLETE in ' + data.elapsed + 's', 'complete');
+        log('Auctions Found: ' + data.summary.found + ' | 3rd Party: ' + data.summary['3rdpty_found'] +
+            ' | No Auction Found: ' + data.summary.not_found + ' | Uncertain: ' + data.summary.uncertain, 'complete');
+        var cjid = data.job_id || currentJobId;
+        downloadSection.style.display = 'block';
+        document.getElementById('downloadCsv').href = '/api/download/' + cjid + '/csv';
+        document.getElementById('downloadJson').href = '/api/download/' + cjid + '/json';
+        document.getElementById('downloadXlsx').href = '/api/download/' + cjid + '/xlsx';
+        searchBtn.disabled = false;
+        document.getElementById('stopBtn').style.display = 'none';
+        document.getElementById('searchDots').style.display = 'none';
+        if (!IS_ADMIN && data.billing) {
+          balanceCents = data.balance;
+          balDisplay.textContent = '$' + (balanceCents / 100).toFixed(2);
+        }
+        currentEvtSource.close(); currentEvtSource = null;
+        break;
+
+      case 'eta':
+        var eM = Math.floor(data.elapsed / 60);
+        var eS = data.elapsed % 60;
+        var rM = Math.floor(data.remaining / 60);
+        var rS = data.remaining % 60;
+        var etaDiv = document.getElementById('etaDisplay');
+        if (etaDiv) {
+          etaDiv.style.display = 'block';
+          document.getElementById('etaElapsed').textContent = 'Elapsed: ' + eM + 'm ' + (eS < 10 ? '0' : '') + eS + 's';
+          document.getElementById('etaRemaining').textContent = '~' + rM + 'm ' + (rS < 10 ? '0' : '') + rS + 's remaining';
+        }
+        break;
+    }
+  };
+
+  currentEvtSource.onerror = function() {
+    sseReconnectCount++;
+    if (sseReconnectCount <= 20) {
+      log('Connection interrupted — reconnecting (' + sseReconnectCount + '/20)...', 'info');
+    } else {
+      log('SSE reconnect failed. Falling back to polling...', 'error');
+      if (currentEvtSource) { currentEvtSource.close(); currentEvtSource = null; }
+      _pollForCompletion(currentJobId);
+    }
+  };
+})();
 
 function updateCount() {
   const items = inputEl.value.replace(/,/g, '\\n').split('\\n').filter(s => s.trim());
@@ -5627,6 +5790,7 @@ def api_v1_search():
         "results": None,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "user_id": user_id,
+        "total": len(nonprofits),
     }
 
     create_search_job(user_id, job_id, len(nonprofits))
