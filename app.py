@@ -756,11 +756,8 @@ def _run_job(
         + sum(t["total"] for t in tier_counts.values())
     )
 
-    # Determine which results to save (only selected tiers for non-admin)
-    if is_admin:
-        save_results = all_results
-    else:
-        save_results = [r for r in all_results if classify_lead_tier(r)[0] in selected_tiers]
+    # Save all results — tier selection controls billing only, not visibility
+    save_results = all_results
 
     # Save results
     csv_file = os.path.join(RESULTS_DIR, f"{job_id}.csv")
