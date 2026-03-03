@@ -57,14 +57,8 @@
   <!-- Header -->
   <header class="sticky top-0 z-50 border-b border-black/10 bg-paper/90 backdrop-blur-xl">
     <nav class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8" aria-label="Global">
-      <a href="#" class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-none border-2 border-ink bg-brand-500">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 16.5L9 11.5L13 14.5L20 6.5" stroke="#101010" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
-            <path d="M15.5 6.5H20V11" stroke="#101010" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
-          </svg>
-        </div>
-        <span class="text-2xl font-black tracking-tight">Auction<span class="text-black/75">intel</span></span>
+      <a href="/" class="flex items-center">
+        <img src="/static/email_logo.png" alt="Auction Intel" class="h-10 w-auto">
       </a>
 
       <div class="hidden items-center gap-8 lg:flex">
@@ -581,25 +575,28 @@
   <!-- Footer -->
   <footer class="border-t-2 border-brand-500 bg-ink">
     <div class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-      <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+      <div class="grid gap-10 lg:grid-cols-[1fr_auto]">
         <div>
-          <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center border-2 border-brand-500 bg-brand-500">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M4 16.5L9 11.5L13 14.5L20 6.5" stroke="#101010" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
-                <path d="M15.5 6.5H20V11" stroke="#101010" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
-              </svg>
-            </div>
-            <span class="text-2xl font-black tracking-tight text-white">Auction<span class="text-brand-400">intel</span></span>
-          </div>
-          <p class="mt-4 max-w-3xl text-sm leading-7 text-white/70">Auction Intel is event-driven sales intelligence for verified nonprofit fundraising leads—turning research into revenue with timing precision.</p>
+          <a href="/">
+            <img src="/static/ai_logo.svg" alt="Auction Intel" class="h-8 w-auto">
+          </a>
+          <p class="mt-4 max-w-md text-sm leading-7 text-white/70">Event-driven sales intelligence for verified nonprofit fundraising leads — turning research into revenue with timing precision.</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-8 text-sm font-semibold sm:grid-cols-4">
-          <a href="#how-it-works" class="text-white/70 transition hover:text-brand-400">How It Works</a>
-          <a href="#features" class="text-white/70 transition hover:text-brand-400">Features</a>
-          <a href="#pricing" class="text-white/70 transition hover:text-brand-400">Pricing</a>
-          <a href="#faq" class="text-white/70 transition hover:text-brand-400">FAQ</a>
+        <div class="grid grid-cols-2 gap-x-16 gap-y-4 text-sm font-semibold sm:grid-cols-2">
+          <div class="space-y-3">
+            <p class="text-xs font-black uppercase tracking-[0.15em] text-white/40">Product</p>
+            <a href="#how-it-works" class="block text-white/70 transition hover:text-brand-400">How It Works</a>
+            <a href="#features" class="block text-white/70 transition hover:text-brand-400">Features</a>
+            <a href="#pricing" class="block text-white/70 transition hover:text-brand-400">Pricing</a>
+            <a href="#faq" class="block text-white/70 transition hover:text-brand-400">FAQ</a>
+          </div>
+          <div class="space-y-3">
+            <p class="text-xs font-black uppercase tracking-[0.15em] text-white/40">Legal</p>
+            <a href="/terms" class="block text-white/70 transition hover:text-brand-400">Terms of Service</a>
+            <a href="/privacy-policy" class="block text-white/70 transition hover:text-brand-400">Privacy Policy</a>
+            <a href="/refund-policy" class="block text-white/70 transition hover:text-brand-400">Refund Policy</a>
+          </div>
         </div>
       </div>
       <div class="mt-8 border-t border-white/10 pt-6 text-center text-xs text-white/50">&copy; 2026 Auction Intel. All rights reserved.</div>
