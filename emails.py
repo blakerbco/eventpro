@@ -108,7 +108,7 @@ def send_job_complete(email: str, job_id: str, nonprofit_count: int,
     html = html.replace("{date}", _today())
     html = html.replace("{job_id}", job_id[:8])
     html = html.replace("{cta_url}", f"{DOMAIN}/results")
-    _send(email, f"Research Complete — {billable_count} Auction Events Found", html)
+    _send(email, f"Research Complete — {billable_count} Billable Leads Found", html)
 
 
 def send_funds_receipt(email: str, amount_cents: int, new_balance_cents: int,

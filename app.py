@@ -792,6 +792,7 @@ def _run_job(
             tier_counts[tier]["count"] += 1
             tier_counts[tier]["total"] += price
     billing_summary["lead_fees"] = tier_counts
+    billing_summary["billable_lead_count"] = sum(t["count"] for t in tier_counts.values())
     billing_summary["total_charged"] = (
         billing_summary["research_fees"]
         + sum(t["total"] for t in tier_counts.values())
@@ -866,7 +867,7 @@ def _run_job(
     if not is_admin:
         complete_event["billing"] = billing_summary
         complete_event["balance"] = get_balance(user_id) if user_id else 0
-        complete_event["billable_count"] = len(save_results)
+        complete_event["billable_count"] = billing_summary.get("billable_lead_count", 0)
     progress_q.put(complete_event)
     progress_q.put(None)  # sentinel
 
@@ -875,7 +876,7 @@ def _run_job(
 
     # Persist job completion to SQLite
     found_count = output["summary"].get("found", 0) + output["summary"].get("3rdpty_found", 0)
-    billable_count = len(save_results) if not is_admin else found_count
+    billable_count = billing_summary.get("billable_lead_count", 0) if not is_admin else found_count
     total_cost_cents = billing_summary["total_charged"] if not is_admin else 0
     complete_search_job(
         job_id,
@@ -4748,7 +4749,7 @@ async function _doSearch(selectedTiers) {
             html += '<div class="row total"><span>Total charged</span><span>$' + (b.total_charged / 100).toFixed(2) + '</span></div>';
             html += '<div class="row"><span>Remaining balance</span><span style="color:#4ade80">$' + (data.balance / 100).toFixed(2) + '</span></div>';
             if (data.billable_count !== undefined) {
-              html += '<div class="row" style="margin-top:8px;color:#a3a3a3;"><span>Billable leads in download: ' + data.billable_count + '</span></div>';
+              html += '<div class="row" style="margin-top:8px;color:#a3a3a3;"><span>Billable leads: ' + data.billable_count + '</span></div>';
             }
             bs.innerHTML = html;
             bs.style.display = 'block';
