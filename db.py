@@ -263,6 +263,15 @@ def init_db():
         print(f"[DB] Migration search_jobs columns error: {e}", flush=True)
         conn.rollback()
 
+    # Migration: add last_login_at and is_banned columns to users
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Migration last_login_at/is_banned error: {e}", flush=True)
+        conn.rollback()
+
     # Remove stale fallback admin account if real admin is configured
     admin_email = os.environ.get("AUCTIONFINDER_ADMIN_EMAIL", "").strip().lower()
     admin_password = os.environ.get("AUCTIONFINDER_PASSWORD", "")
@@ -377,7 +386,7 @@ def authenticate(email: str, password: str) -> Optional[Dict[str, Any]]:
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, email, password_hash, is_admin, is_trial, email_verified FROM users WHERE email = %s",
+        "SELECT id, email, password_hash, is_admin, is_trial, email_verified, is_banned FROM users WHERE email = %s",
         (email,),
     )
     row = _fetchone(cur)
@@ -385,7 +394,8 @@ def authenticate(email: str, password: str) -> Optional[Dict[str, Any]]:
     if row and check_password_hash(row["password_hash"], password):
         return {"id": row["id"], "email": row["email"], "is_admin": bool(row["is_admin"]),
                 "is_trial": bool(row["is_trial"]),
-                "email_verified": bool(row.get("email_verified"))}
+                "email_verified": bool(row.get("email_verified")),
+                "is_banned": bool(row.get("is_banned"))}
     return None
 
 
@@ -394,7 +404,7 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, email, is_admin, is_trial, email_verified FROM users WHERE id = %s",
+        "SELECT id, email, is_admin, is_trial, email_verified, is_banned FROM users WHERE id = %s",
         (user_id,),
     )
     row = _fetchone(cur)
@@ -402,7 +412,8 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     if row:
         return {"id": row["id"], "email": row["email"], "is_admin": bool(row["is_admin"]),
                 "is_trial": bool(row["is_trial"]),
-                "email_verified": bool(row.get("email_verified"))}
+                "email_verified": bool(row.get("email_verified")),
+                "is_banned": bool(row.get("is_banned"))}
     return None
 
 
@@ -1526,4 +1537,292 @@ def get_expiring_trial_users():
     """)
     rows = _fetchall(cur)
     cur.close()
+    return rows
+
+
+# ─── Admin Panel Functions ────────────────────────────────────────────────────
+
+def update_last_login(user_id: int):
+    """Set last_login_at = NOW() for a user."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET last_login_at = NOW() WHERE id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+
+
+def admin_ban_user(user_id: int):
+    """Ban a user."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_banned = 1 WHERE id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+
+
+def admin_unban_user(user_id: int):
+    """Unban a user."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_banned = 0 WHERE id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+
+
+def admin_adjust_wallet(user_id: int, amount_cents: int, description: str):
+    """Admin credit/debit a user's wallet. Positive = credit, negative = debit."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE wallets SET balance_cents = balance_cents + %s WHERE user_id = %s",
+        (amount_cents, user_id),
+    )
+    tx_type = "admin_credit" if amount_cents > 0 else "admin_debit"
+    cur.execute(
+        "INSERT INTO transactions (user_id, type, amount_cents, description) VALUES (%s, %s, %s, %s)",
+        (user_id, tx_type, amount_cents, description),
+    )
+    conn.commit()
+    cur.close()
+
+
+def admin_get_kpis() -> Dict[str, Any]:
+    """All dashboard KPIs in one call."""
+    conn = _get_conn()
+    cur = conn.cursor()
+
+    # Revenue
+    cur.execute("SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE type = 'topup'")
+    total_topups = cur.fetchone()[0]
+    cur.execute("SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE type = 'topup' AND created_at >= CURRENT_DATE")
+    topups_today = cur.fetchone()[0]
+    cur.execute("SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE type = 'topup' AND created_at >= NOW() - INTERVAL '7 days'")
+    topups_week = cur.fetchone()[0]
+    cur.execute("SELECT COALESCE(SUM(ABS(amount_cents)), 0) FROM transactions WHERE type = 'lead_refund'")
+    total_refunds = cur.fetchone()[0]
+
+    # Users
+    cur.execute("SELECT COUNT(*) FROM users WHERE is_admin = 0")
+    total_users = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM users WHERE is_trial = 1 AND is_admin = 0")
+    trial_users = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM users WHERE email_verified = 1 AND is_admin = 0")
+    verified_users = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days' AND is_admin = 0")
+    signups_week = cur.fetchone()[0]
+
+    # Operations
+    cur.execute("SELECT COUNT(*) FROM search_jobs")
+    total_jobs = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM search_jobs WHERE status = 'running'")
+    running_jobs = cur.fetchone()[0]
+    cur.execute("SELECT COALESCE(SUM(found_count), 0) FROM search_jobs")
+    total_leads = cur.fetchone()[0]
+    cur.execute("SELECT COALESCE(SUM(billable_count), 0) FROM search_jobs")
+    billable_leads = cur.fetchone()[0]
+
+    # Health
+    cur.execute("SELECT COUNT(*) FROM tickets WHERE status IN ('open', 'urgent')")
+    open_tickets = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM research_cache")
+    cache_entries = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM exclusive_leads")
+    exclusive_sold = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1")
+    banned_users = cur.fetchone()[0]
+
+    cur.close()
+    return {
+        "total_topups": total_topups,
+        "topups_today": topups_today,
+        "topups_week": topups_week,
+        "total_refunds": total_refunds,
+        "net_revenue": total_topups - total_refunds,
+        "total_users": total_users,
+        "trial_users": trial_users,
+        "verified_users": verified_users,
+        "signups_week": signups_week,
+        "total_jobs": total_jobs,
+        "running_jobs": running_jobs,
+        "total_leads": total_leads,
+        "billable_leads": billable_leads,
+        "open_tickets": open_tickets,
+        "cache_entries": cache_entries,
+        "exclusive_sold": exclusive_sold,
+        "banned_users": banned_users,
+    }
+
+
+def admin_get_all_users() -> list:
+    """User list with balance, total spent, job count."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email, u.company, u.is_admin, u.is_trial, u.email_verified,
+               u.is_banned, u.created_at, u.last_login_at,
+               COALESCE(w.balance_cents, 0) AS balance_cents,
+               COALESCE((SELECT SUM(ABS(amount_cents)) FROM transactions
+                         WHERE user_id = u.id AND type IN ('research_fee', 'lead_fee', 'exclusive_lead')), 0) AS total_spent,
+               COALESCE((SELECT COUNT(DISTINCT job_id) FROM search_jobs WHERE user_id = u.id), 0) AS job_count
+        FROM users u
+        LEFT JOIN wallets w ON w.user_id = u.id
+        WHERE u.is_admin = 0
+        ORDER BY u.created_at DESC
+    """)
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        for k in ("created_at", "last_login_at"):
+            if r.get(k) and not isinstance(r[k], str):
+                r[k] = str(r[k])
+    return rows
+
+
+def admin_get_user_detail(user_id: int) -> Optional[Dict[str, Any]]:
+    """Full user data for admin detail page."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email, u.phone, u.company, u.is_admin, u.is_trial,
+               u.email_verified, u.is_banned, u.trial_expires_at,
+               u.created_at, u.last_login_at,
+               COALESCE(w.balance_cents, 0) AS balance_cents
+        FROM users u
+        LEFT JOIN wallets w ON w.user_id = u.id
+        WHERE u.id = %s
+    """, (user_id,))
+    row = _fetchone(cur)
+    cur.close()
+    if row:
+        for k in ("created_at", "last_login_at", "trial_expires_at"):
+            if row.get(k) and not isinstance(row[k], str):
+                row[k] = str(row[k])
+    return row
+
+
+def admin_get_revenue_timeline(days: int = 30) -> list:
+    """Daily revenue breakdown for the last N days."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT d.day::date AS date,
+               COALESCE(SUM(CASE WHEN t.type = 'topup' THEN t.amount_cents ELSE 0 END), 0) AS topups,
+               COALESCE(SUM(CASE WHEN t.type = 'research_fee' THEN ABS(t.amount_cents) ELSE 0 END), 0) AS research,
+               COALESCE(SUM(CASE WHEN t.type = 'lead_fee' THEN ABS(t.amount_cents) ELSE 0 END), 0) AS leads,
+               COALESCE(SUM(CASE WHEN t.type = 'exclusive_lead' THEN ABS(t.amount_cents) ELSE 0 END), 0) AS exclusive,
+               COALESCE(SUM(CASE WHEN t.type = 'lead_refund' THEN ABS(t.amount_cents) ELSE 0 END), 0) AS refunds
+        FROM generate_series(CURRENT_DATE - INTERVAL '%s days', CURRENT_DATE, '1 day') AS d(day)
+        LEFT JOIN transactions t ON t.created_at::date = d.day::date
+        GROUP BY d.day
+        ORDER BY d.day DESC
+    """ % int(days))
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        if r.get("date") and not isinstance(r["date"], str):
+            r["date"] = str(r["date"])
+        r["net"] = r["topups"] - r["refunds"]
+    return rows
+
+
+def admin_get_top_spenders(limit: int = 10) -> list:
+    """Top users by total spending."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email, u.company,
+               COALESCE(SUM(CASE WHEN t.type = 'topup' THEN t.amount_cents ELSE 0 END), 0) AS total_topups,
+               COALESCE(SUM(CASE WHEN t.type IN ('research_fee', 'lead_fee', 'exclusive_lead')
+                            THEN ABS(t.amount_cents) ELSE 0 END), 0) AS total_spent,
+               COUNT(DISTINCT CASE WHEN t.job_id IS NOT NULL THEN t.job_id END) AS job_count
+        FROM users u
+        JOIN transactions t ON t.user_id = u.id
+        WHERE u.is_admin = 0
+        GROUP BY u.id, u.email, u.company
+        ORDER BY total_spent DESC
+        LIMIT %s
+    """, (limit,))
+    rows = _fetchall(cur)
+    cur.close()
+    return rows
+
+
+def admin_get_recent_activity(limit: int = 50) -> list:
+    """Recent search jobs across all users."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sj.id, sj.job_id, sj.status, sj.nonprofit_count, sj.found_count,
+               sj.billable_count, sj.total_cost_cents, sj.created_at, sj.completed_at,
+               u.email AS user_email
+        FROM search_jobs sj
+        JOIN users u ON u.id = sj.user_id
+        ORDER BY sj.created_at DESC
+        LIMIT %s
+    """, (limit,))
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        for k in ("created_at", "completed_at"):
+            if r.get(k) and not isinstance(r[k], str):
+                r[k] = str(r[k])
+    return rows
+
+
+def admin_get_recent_logins(limit: int = 20) -> list:
+    """Users sorted by last login."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.email, u.is_trial, u.is_banned, u.last_login_at
+        FROM users u
+        WHERE u.is_admin = 0 AND u.last_login_at IS NOT NULL
+        ORDER BY u.last_login_at DESC
+        LIMIT %s
+    """, (limit,))
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        if r.get("last_login_at") and not isinstance(r["last_login_at"], str):
+            r["last_login_at"] = str(r["last_login_at"])
+    return rows
+
+
+def admin_get_cache_stats() -> list:
+    """Cache entries grouped by status."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT status, COUNT(*) AS count,
+               MIN(created_at) AS oldest,
+               MAX(created_at) AS newest
+        FROM research_cache
+        GROUP BY status
+        ORDER BY count DESC
+    """)
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        for k in ("oldest", "newest"):
+            if r.get(k) and not isinstance(r[k], str):
+                r[k] = str(r[k])
+    return rows
+
+
+def admin_get_drip_stats() -> list:
+    """Drip campaign send counts by drip_key."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT drip_key, COUNT(*) AS send_count,
+               MAX(sent_at) AS last_sent
+        FROM drip_emails_sent
+        GROUP BY drip_key
+        ORDER BY drip_key
+    """)
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        if r.get("last_sent") and not isinstance(r["last_sent"], str):
+            r["last_sent"] = str(r["last_sent"])
     return rows

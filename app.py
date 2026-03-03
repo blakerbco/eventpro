@@ -74,6 +74,11 @@ from db import (
     save_single_result, get_completed_domains, get_completed_results,
     save_job_input_domains, get_job_input_domains, get_search_job,
     create_api_key, validate_api_key, revoke_api_key, get_user_api_keys,
+    update_last_login, admin_ban_user, admin_unban_user, admin_adjust_wallet,
+    admin_get_kpis, admin_get_all_users, admin_get_user_detail,
+    admin_get_revenue_timeline, admin_get_top_spenders,
+    admin_get_recent_activity, admin_get_recent_logins,
+    admin_get_cache_stats, admin_get_drip_stats,
 )
 import emails
 from html import escape as html_escape
@@ -213,6 +218,11 @@ def login_required(f):
             if request.headers.get("Accept", "").startswith("text/event-stream"):
                 return Response("Unauthorized", status=401)
             return redirect(url_for("login_page"))
+        # Check if user is banned
+        user = get_user(session["user_id"])
+        if user and user.get("is_banned"):
+            session.clear()
+            return redirect(url_for("login_page"))
         # Block unverified non-admin users
         if not session.get("email_verified") and not session.get("is_admin"):
             return redirect(url_for("verify_email_pending"))
@@ -341,6 +351,11 @@ _SIDEBAR_ICONS = {
     "tools": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
     "analyzer": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="2"/><path d="M21 21l-4.3-4.3"/><path d="M3.05 11a8 8 0 0 1 15.9 0M3.05 13a8 8 0 0 0 15.9 0"/></svg>',
     "api-keys": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+    "admin-dashboard": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    "admin-users": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    "admin-revenue": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+    "admin-activity": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+    "admin-system": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
 }
 
 _SIDEBAR_NAV_ITEMS = [
@@ -364,6 +379,13 @@ _SIDEBAR_NAV_ITEMS = [
     ("Settings", [
         ("profile", "/profile", "Profile"),
         ("api-keys", "/settings/api-keys", "API Keys"),
+    ]),
+    ("Admin", [
+        ("admin-dashboard", "/admin/", "Dashboard", True),
+        ("admin-users", "/admin/users", "Users", True),
+        ("admin-revenue", "/admin/revenue", "Revenue", True),
+        ("admin-activity", "/admin/activity", "Activity", True),
+        ("admin-system", "/admin/system", "System", True),
     ]),
 ]
 
@@ -960,10 +982,13 @@ def login_submit():
     password = request.form.get("password", "")
     user = authenticate(email, password)
     if user:
+        if user.get("is_banned"):
+            return LOGIN_HTML.replace("<!-- error -->", '<p class="error">Your account has been suspended. Contact support for assistance.</p>')
         session["user_id"] = user["id"]
         session["is_admin"] = user["is_admin"]
         session["is_trial"] = user.get("is_trial", False)
         session["email_verified"] = user.get("email_verified", False)
+        update_last_login(user["id"])
         if not user.get("email_verified") and not user.get("is_admin"):
             return redirect(url_for("verify_email_pending"))
         return redirect(url_for("database_page"))
@@ -2430,6 +2455,711 @@ function submitDNS(e) {{
   return false;
 }}
 </script>
+</body></html>"""
+
+
+# ─── Routes: Admin Panel ──────────────────────────────────────────────────────
+
+_ADMIN_STARTED_AT = time.time()
+
+def _admin_required(f):
+    """Decorator: login_required + admin check."""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not _is_admin():
+            return redirect("/")
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/admin/")
+@_admin_required
+def admin_dashboard():
+    kpis = admin_get_kpis()
+    html = ADMIN_DASHBOARD_HTML
+    html = _inject_sidebar(html, "admin-dashboard")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    # Revenue cards
+    html = html.replace("{{TOTAL_REVENUE}}", f"${kpis['total_topups']/100:,.2f}")
+    html = html.replace("{{REVENUE_TODAY}}", f"${kpis['topups_today']/100:,.2f}")
+    html = html.replace("{{REVENUE_WEEK}}", f"${kpis['topups_week']/100:,.2f}")
+    html = html.replace("{{NET_REVENUE}}", f"${kpis['net_revenue']/100:,.2f}")
+    # User cards
+    html = html.replace("{{TOTAL_USERS}}", str(kpis["total_users"]))
+    html = html.replace("{{TRIAL_USERS}}", str(kpis["trial_users"]))
+    html = html.replace("{{VERIFIED_USERS}}", str(kpis["verified_users"]))
+    html = html.replace("{{SIGNUPS_WEEK}}", str(kpis["signups_week"]))
+    # Operations cards
+    html = html.replace("{{TOTAL_JOBS}}", str(kpis["total_jobs"]))
+    html = html.replace("{{RUNNING_JOBS}}", str(kpis["running_jobs"]))
+    html = html.replace("{{TOTAL_LEADS}}", str(kpis["total_leads"]))
+    html = html.replace("{{BILLABLE_LEADS}}", str(kpis["billable_leads"]))
+    # Health cards
+    html = html.replace("{{OPEN_TICKETS}}", str(kpis["open_tickets"]))
+    html = html.replace("{{CACHE_ENTRIES}}", str(kpis["cache_entries"]))
+    html = html.replace("{{EXCLUSIVE_SOLD}}", str(kpis["exclusive_sold"]))
+    html = html.replace("{{BANNED_USERS}}", str(kpis["banned_users"]))
+    return html
+
+
+@app.route("/admin/users")
+@_admin_required
+def admin_users_page():
+    users = admin_get_all_users()
+    html = ADMIN_USERS_HTML
+    html = _inject_sidebar(html, "admin-users")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    rows = ""
+    for u in users:
+        badges = ""
+        if u.get("is_trial"):
+            badges += '<span class="badge badge-trial">Trial</span> '
+        if u.get("is_banned"):
+            badges += '<span class="badge badge-banned">Banned</span> '
+        if u.get("email_verified"):
+            badges += '<span class="badge badge-verified">Verified</span> '
+        last_login = u.get("last_login_at", "Never") or "Never"
+        if last_login != "Never":
+            last_login = last_login[:19]
+        created = str(u.get("created_at", ""))[:10]
+        rows += (
+            f'<tr class="user-row" data-search="{html_escape(u["email"])} {html_escape(u.get("company",""))}">'
+            f'<td><a href="/admin/users/{u["id"]}" class="user-link">{html_escape(u["email"])}</a></td>'
+            f'<td>{html_escape(u.get("company","") or "-")}</td>'
+            f'<td>${u["balance_cents"]/100:,.2f}</td>'
+            f'<td>${u["total_spent"]/100:,.2f}</td>'
+            f'<td>{u["job_count"]}</td>'
+            f'<td>{badges}</td>'
+            f'<td>{last_login}</td>'
+            f'<td>{created}</td>'
+            f'</tr>\n'
+        )
+    html = html.replace("{{USER_ROWS}}", rows)
+    html = html.replace("{{USER_COUNT}}", str(len(users)))
+    return html
+
+
+@app.route("/admin/users/<int:user_id>")
+@_admin_required
+def admin_user_detail(user_id):
+    u = admin_get_user_detail(user_id)
+    if not u:
+        return redirect("/admin/users")
+    spending = get_spending_summary(user_id)
+    txns = get_transactions(user_id, 50)
+    user_jobs = get_user_jobs(user_id, 50)
+    leads = get_user_exclusive_leads(user_id)
+    tickets = get_tickets_for_user(user_id)
+
+    html = ADMIN_USER_DETAIL_HTML
+    html = _inject_sidebar(html, "admin-users")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    html = html.replace("{{USER_ID}}", str(u["id"]))
+    html = html.replace("{{USER_EMAIL}}", html_escape(u["email"]))
+    html = html.replace("{{USER_PHONE}}", html_escape(u.get("phone", "") or "-"))
+    html = html.replace("{{USER_COMPANY}}", html_escape(u.get("company", "") or "-"))
+    html = html.replace("{{USER_CREATED}}", str(u.get("created_at", ""))[:19])
+    html = html.replace("{{USER_LAST_LOGIN}}", str(u.get("last_login_at", "Never") or "Never")[:19])
+    html = html.replace("{{USER_BALANCE}}", f"${u['balance_cents']/100:,.2f}")
+    html = html.replace("{{USER_TOTAL_SPENT}}", f"${spending['total_spent']/100:,.2f}")
+    html = html.replace("{{USER_TOTAL_TOPUPS}}", f"${spending['total_topups']/100:,.2f}")
+    html = html.replace("{{USER_JOB_COUNT}}", str(spending["job_count"]))
+
+    # Status badges
+    badges = ""
+    if u.get("is_trial"):
+        badges += '<span class="badge badge-trial">Trial</span> '
+    if u.get("is_banned"):
+        badges += '<span class="badge badge-banned">Banned</span> '
+    if u.get("email_verified"):
+        badges += '<span class="badge badge-verified">Verified</span> '
+    html = html.replace("{{USER_BADGES}}", badges)
+    html = html.replace("{{BAN_ACTION}}", "unban" if u.get("is_banned") else "ban")
+    html = html.replace("{{BAN_LABEL}}", "Unban User" if u.get("is_banned") else "Ban User")
+    html = html.replace("{{BAN_CLASS}}", "btn-success" if u.get("is_banned") else "btn-danger")
+
+    # Jobs tab
+    job_rows = ""
+    for j in user_jobs:
+        job_rows += (
+            f'<tr><td>{j["job_id"][:12]}...</td><td>{j["status"]}</td>'
+            f'<td>{j["nonprofit_count"]}</td><td>{j["found_count"]}</td>'
+            f'<td>{j["billable_count"]}</td><td>${j["total_cost_cents"]/100:,.2f}</td>'
+            f'<td>{str(j.get("created_at",""))[:16]}</td></tr>\n'
+        )
+    html = html.replace("{{JOB_ROWS}}", job_rows or '<tr><td colspan="7" style="text-align:center;color:#525252;">No jobs yet</td></tr>')
+
+    # Transactions tab
+    txn_rows = ""
+    for t in txns:
+        color = "#4ade80" if t["amount_cents"] > 0 else "#f87171"
+        txn_rows += (
+            f'<tr><td>{str(t.get("created_at",""))[:16]}</td><td>{t["type"]}</td>'
+            f'<td style="color:{color}">${t["amount_cents"]/100:,.2f}</td>'
+            f'<td>{html_escape(t.get("description","") or "")}</td></tr>\n'
+        )
+    html = html.replace("{{TXN_ROWS}}", txn_rows or '<tr><td colspan="4" style="text-align:center;color:#525252;">No transactions</td></tr>')
+
+    # Exclusive leads tab
+    lead_rows = ""
+    for l in leads:
+        lead_rows += (
+            f'<tr><td>{html_escape(l.get("nonprofit_name",""))}</td>'
+            f'<td>{html_escape(l.get("event_title",""))}</td>'
+            f'<td><a href="{html_escape(l.get("event_url",""))}" target="_blank" style="color:#eab308;">Link</a></td></tr>\n'
+        )
+    html = html.replace("{{LEAD_ROWS}}", lead_rows or '<tr><td colspan="3" style="text-align:center;color:#525252;">No exclusive leads</td></tr>')
+
+    # Tickets tab
+    ticket_rows = ""
+    for tk in tickets:
+        ticket_rows += (
+            f'<tr><td>#{tk["id"]}</td><td>{html_escape(tk.get("subject",""))}</td>'
+            f'<td>{tk["status"]}</td><td>{str(tk.get("created_at",""))[:16]}</td></tr>\n'
+        )
+    html = html.replace("{{TICKET_ROWS}}", ticket_rows or '<tr><td colspan="4" style="text-align:center;color:#525252;">No tickets</td></tr>')
+
+    return html
+
+
+@app.route("/admin/users/<int:user_id>/ban", methods=["POST"])
+@_admin_required
+def admin_toggle_ban(user_id):
+    action = request.form.get("action", "ban")
+    if action == "unban":
+        admin_unban_user(user_id)
+        print(f"[ADMIN] Unbanned user {user_id}", flush=True)
+    else:
+        admin_ban_user(user_id)
+        print(f"[ADMIN] Banned user {user_id}", flush=True)
+    return redirect(f"/admin/users/{user_id}")
+
+
+@app.route("/admin/users/<int:user_id>/wallet", methods=["POST"])
+@_admin_required
+def admin_wallet_adjust(user_id):
+    try:
+        amount_dollars = float(request.form.get("amount", 0))
+        reason = request.form.get("reason", "Admin adjustment").strip()
+        amount_cents = int(amount_dollars * 100)
+        if amount_cents == 0:
+            return redirect(f"/admin/users/{user_id}")
+        admin_adjust_wallet(user_id, amount_cents, reason)
+        print(f"[ADMIN] Wallet adjust user {user_id}: ${amount_dollars:,.2f} — {reason}", flush=True)
+    except (ValueError, TypeError) as e:
+        print(f"[ADMIN] Wallet adjust error: {e}", flush=True)
+    return redirect(f"/admin/users/{user_id}")
+
+
+@app.route("/admin/revenue")
+@_admin_required
+def admin_revenue_page():
+    timeline = admin_get_revenue_timeline(30)
+    spenders = admin_get_top_spenders(10)
+
+    html = ADMIN_REVENUE_HTML
+    html = _inject_sidebar(html, "admin-revenue")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+
+    # Summary cards from first row totals
+    total_topups = sum(r["topups"] for r in timeline)
+    total_research = sum(r["research"] for r in timeline)
+    total_leads = sum(r["leads"] for r in timeline)
+    total_exclusive = sum(r["exclusive"] for r in timeline)
+    total_refunds = sum(r["refunds"] for r in timeline)
+    html = html.replace("{{TOTAL_TOPUPS_30D}}", f"${total_topups/100:,.2f}")
+    html = html.replace("{{TOTAL_RESEARCH_30D}}", f"${total_research/100:,.2f}")
+    html = html.replace("{{TOTAL_LEADS_30D}}", f"${total_leads/100:,.2f}")
+    html = html.replace("{{TOTAL_EXCLUSIVE_30D}}", f"${total_exclusive/100:,.2f}")
+    html = html.replace("{{TOTAL_REFUNDS_30D}}", f"${total_refunds/100:,.2f}")
+
+    # Daily revenue table
+    day_rows = ""
+    for r in timeline:
+        day_rows += (
+            f'<tr><td>{r["date"]}</td><td>${r["topups"]/100:,.2f}</td>'
+            f'<td>${r["research"]/100:,.2f}</td><td>${r["leads"]/100:,.2f}</td>'
+            f'<td>${r["exclusive"]/100:,.2f}</td><td>${r["refunds"]/100:,.2f}</td>'
+            f'<td>${r["net"]/100:,.2f}</td></tr>\n'
+        )
+    html = html.replace("{{DAILY_ROWS}}", day_rows)
+
+    # Top spenders
+    spender_rows = ""
+    for s in spenders:
+        spender_rows += (
+            f'<tr><td><a href="/admin/users/{s["id"]}" style="color:#eab308;">{html_escape(s["email"])}</a></td>'
+            f'<td>{html_escape(s.get("company","") or "-")}</td>'
+            f'<td>${s["total_spent"]/100:,.2f}</td>'
+            f'<td>${s["total_topups"]/100:,.2f}</td>'
+            f'<td>{s["job_count"]}</td></tr>\n'
+        )
+    html = html.replace("{{SPENDER_ROWS}}", spender_rows or '<tr><td colspan="5" style="text-align:center;color:#525252;">No data yet</td></tr>')
+
+    return html
+
+
+@app.route("/admin/activity")
+@_admin_required
+def admin_activity_page():
+    recent_jobs = admin_get_recent_activity(50)
+    recent_logins = admin_get_recent_logins(20)
+
+    html = ADMIN_ACTIVITY_HTML
+    html = _inject_sidebar(html, "admin-activity")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+
+    # Recent jobs
+    job_rows = ""
+    for j in recent_jobs:
+        status_color = {"running": "#eab308", "complete": "#4ade80", "error": "#f87171"}.get(j["status"], "#a3a3a3")
+        job_rows += (
+            f'<tr><td>{j["job_id"][:12]}...</td>'
+            f'<td><a href="/admin/users/{j.get("id","")}" style="color:#eab308;">{html_escape(j.get("user_email",""))}</a></td>'
+            f'<td style="color:{status_color}">{j["status"]}</td>'
+            f'<td>{j["nonprofit_count"]}</td><td>{j["found_count"]}</td>'
+            f'<td>{j["billable_count"]}</td><td>${j["total_cost_cents"]/100:,.2f}</td>'
+            f'<td>{str(j.get("created_at",""))[:16]}</td>'
+            f'<td>{str(j.get("completed_at","") or "-")[:16]}</td></tr>\n'
+        )
+    html = html.replace("{{JOB_ROWS}}", job_rows or '<tr><td colspan="9" style="text-align:center;color:#525252;">No jobs yet</td></tr>')
+
+    # Recent logins
+    login_rows = ""
+    for l in recent_logins:
+        status = "Banned" if l.get("is_banned") else ("Trial" if l.get("is_trial") else "Active")
+        login_rows += (
+            f'<tr><td>{html_escape(l["email"])}</td>'
+            f'<td>{str(l.get("last_login_at",""))[:19]}</td>'
+            f'<td>{status}</td></tr>\n'
+        )
+    html = html.replace("{{LOGIN_ROWS}}", login_rows or '<tr><td colspan="3" style="text-align:center;color:#525252;">No logins recorded</td></tr>')
+
+    return html
+
+
+@app.route("/admin/system")
+@_admin_required
+def admin_system_page():
+    cache_stats = admin_get_cache_stats()
+    drip_stats = admin_get_drip_stats()
+
+    html = ADMIN_SYSTEM_HTML
+    html = _inject_sidebar(html, "admin-system")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+
+    # Running jobs
+    running = [(jid, j) for jid, j in jobs.items() if j.get("status") == "running"]
+    run_rows = ""
+    for jid, j in running:
+        run_rows += (
+            f'<tr><td>{jid[:12]}...</td><td>{j.get("processed",0)}/{j.get("total",0)}</td>'
+            f'<td>{j.get("found",0)}</td></tr>\n'
+        )
+    html = html.replace("{{RUNNING_ROWS}}", run_rows or '<tr><td colspan="3" style="text-align:center;color:#525252;">No jobs running</td></tr>')
+    html = html.replace("{{RUNNING_COUNT}}", str(len(running)))
+
+    # Cache stats
+    cache_rows = ""
+    total_cache = 0
+    for c in cache_stats:
+        total_cache += c["count"]
+        cache_rows += (
+            f'<tr><td>{c["status"]}</td><td>{c["count"]}</td>'
+            f'<td>{str(c.get("oldest",""))[:19]}</td>'
+            f'<td>{str(c.get("newest",""))[:19]}</td></tr>\n'
+        )
+    html = html.replace("{{CACHE_ROWS}}", cache_rows or '<tr><td colspan="4" style="text-align:center;color:#525252;">No cache entries</td></tr>')
+    html = html.replace("{{CACHE_TOTAL}}", str(total_cache))
+
+    # Drip stats
+    drip_rows = ""
+    for d in drip_stats:
+        drip_rows += (
+            f'<tr><td>{d["drip_key"]}</td><td>{d["send_count"]}</td>'
+            f'<td>{str(d.get("last_sent",""))[:19]}</td></tr>\n'
+        )
+    html = html.replace("{{DRIP_ROWS}}", drip_rows or '<tr><td colspan="3" style="text-align:center;color:#525252;">No drip emails sent</td></tr>')
+
+    # Server info
+    uptime_secs = int(time.time() - _ADMIN_STARTED_AT)
+    uptime_hours = uptime_secs // 3600
+    uptime_mins = (uptime_secs % 3600) // 60
+    html = html.replace("{{PYTHON_VERSION}}", sys.version.split()[0])
+    html = html.replace("{{UPTIME}}", f"{uptime_hours}h {uptime_mins}m")
+
+    return html
+
+
+# ─── Admin HTML Templates ────────────────────────────────────────────────────
+
+_ADMIN_STYLE = """
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'SF Mono','Consolas',monospace; background:#121212; color:#f5f5f5; min-height:100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width:1200px; margin:0 auto; padding:24px; }
+  h1 { font-size:22px; font-weight:700; margin-bottom:20px; color:#f5f5f5; }
+  h2 { font-size:16px; font-weight:600; margin-bottom:12px; color:#d4d4d4; }
+  .section-title { font-size:12px; color:#eab308; text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:12px; }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; margin-bottom:24px; }
+  .kpi-card { background:#0a0a0a; border:1px solid #1a1a1a; border-radius:8px; padding:16px; }
+  .kpi-card .label { font-size:11px; color:#737373; text-transform:uppercase; margin-bottom:4px; }
+  .kpi-card .value { font-size:24px; font-weight:700; color:#f5f5f5; }
+  .kpi-card .value.gold { color:#eab308; }
+  .kpi-card .value.green { color:#4ade80; }
+  .kpi-card .value.red { color:#f87171; }
+  .panel { background:#0a0a0a; border:1px solid #1a1a1a; border-radius:8px; padding:20px; margin-bottom:20px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { color:#737373; text-transform:uppercase; font-size:10px; padding:8px 6px; text-align:left; border-bottom:1px solid #262626; }
+  td { padding:8px 6px; border-bottom:1px solid #1a1a1a; color:#d4d4d4; }
+  tr:hover { background:#141414; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; }
+  .badge-trial { background:#1a1500; color:#eab308; border:1px solid #eab308; }
+  .badge-banned { background:#1a0000; color:#f87171; border:1px solid #f87171; }
+  .badge-verified { background:#001a00; color:#4ade80; border:1px solid #4ade80; }
+  .user-link { color:#eab308; text-decoration:none; }
+  .user-link:hover { text-decoration:underline; }
+  .search-input { width:100%; padding:10px 14px; background:#000; border:1px solid #333; border-radius:8px; color:#f5f5f5; font-size:13px; font-family:inherit; outline:none; margin-bottom:16px; }
+  .search-input:focus { border-color:#eab308; }
+  .stat-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-bottom:20px; }
+  .stat-card { background:#111; border:1px solid #262626; border-radius:8px; padding:14px; text-align:center; }
+  .stat-card .val { font-size:20px; font-weight:700; color:#eab308; }
+  .stat-card .lbl { font-size:10px; color:#737373; text-transform:uppercase; margin-top:4px; }
+  .btn { display:inline-block; padding:8px 16px; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; text-decoration:none; }
+  .btn-danger { background:#7f1d1d; color:#fca5a5; }
+  .btn-danger:hover { background:#991b1b; }
+  .btn-success { background:#14532d; color:#86efac; }
+  .btn-success:hover { background:#166534; }
+  .btn-gold { background:#eab308; color:#000; }
+  .btn-gold:hover { background:#ca8a04; }
+  .tabs { display:flex; gap:0; border-bottom:1px solid #262626; margin-bottom:16px; }
+  .tab { padding:10px 20px; cursor:pointer; color:#737373; font-size:12px; font-weight:600; border-bottom:2px solid transparent; }
+  .tab:hover { color:#d4d4d4; }
+  .tab.active { color:#eab308; border-bottom-color:#eab308; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+  .action-bar { display:flex; gap:12px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
+  .action-bar input { padding:8px 12px; background:#000; border:1px solid #333; border-radius:6px; color:#f5f5f5; font-size:13px; font-family:inherit; outline:none; width:120px; }
+  .action-bar input:focus { border-color:#eab308; }
+"""
+
+ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>Admin Dashboard</h1>
+
+  <div class="section-title">Revenue</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Total Revenue</div><div class="value green">{{TOTAL_REVENUE}}</div></div>
+    <div class="kpi-card"><div class="label">Today</div><div class="value green">{{REVENUE_TODAY}}</div></div>
+    <div class="kpi-card"><div class="label">This Week</div><div class="value green">{{REVENUE_WEEK}}</div></div>
+    <div class="kpi-card"><div class="label">Net (Topups - Refunds)</div><div class="value gold">{{NET_REVENUE}}</div></div>
+  </div>
+
+  <div class="section-title">Users</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Total Users</div><div class="value">{{TOTAL_USERS}}</div></div>
+    <div class="kpi-card"><div class="label">Trial</div><div class="value gold">{{TRIAL_USERS}}</div></div>
+    <div class="kpi-card"><div class="label">Verified</div><div class="value green">{{VERIFIED_USERS}}</div></div>
+    <div class="kpi-card"><div class="label">Signups This Week</div><div class="value">{{SIGNUPS_WEEK}}</div></div>
+  </div>
+
+  <div class="section-title">Operations</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Total Jobs</div><div class="value">{{TOTAL_JOBS}}</div></div>
+    <div class="kpi-card"><div class="label">Running Now</div><div class="value gold">{{RUNNING_JOBS}}</div></div>
+    <div class="kpi-card"><div class="label">Leads Found</div><div class="value">{{TOTAL_LEADS}}</div></div>
+    <div class="kpi-card"><div class="label">Billable Leads</div><div class="value green">{{BILLABLE_LEADS}}</div></div>
+  </div>
+
+  <div class="section-title">Health</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Open Tickets</div><div class="value red">{{OPEN_TICKETS}}</div></div>
+    <div class="kpi-card"><div class="label">Cache Entries</div><div class="value">{{CACHE_ENTRIES}}</div></div>
+    <div class="kpi-card"><div class="label">Exclusive Leads Sold</div><div class="value gold">{{EXCLUSIVE_SOLD}}</div></div>
+    <div class="kpi-card"><div class="label">Banned Users</div><div class="value red">{{BANNED_USERS}}</div></div>
+  </div>
+</div>
+</div>
+</body></html>"""
+
+
+ADMIN_USERS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Management — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>User Management <span style="color:#737373;font-size:14px;font-weight:400;">({{USER_COUNT}} users)</span></h1>
+  <input type="text" class="search-input" id="userSearch" placeholder="Search by email or company..." oninput="filterUsers()">
+  <div class="panel" style="overflow-x:auto;">
+    <table id="userTable">
+      <thead>
+        <tr><th>Email</th><th>Company</th><th>Balance</th><th>Spent</th><th>Jobs</th><th>Status</th><th>Last Login</th><th>Joined</th></tr>
+      </thead>
+      <tbody>{{USER_ROWS}}</tbody>
+    </table>
+  </div>
+</div>
+</div>
+<script>
+function filterUsers(){
+  var q = document.getElementById('userSearch').value.toLowerCase();
+  var rows = document.querySelectorAll('.user-row');
+  rows.forEach(function(r){
+    r.style.display = r.getAttribute('data-search').toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body></html>"""
+
+
+ADMIN_USER_DETAIL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Detail — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <a href="/admin/users" style="color:#737373;font-size:12px;text-decoration:none;">&larr; Back to Users</a>
+  <h1 style="margin-top:8px;">{{USER_EMAIL}} {{USER_BADGES}}</h1>
+
+  <div class="stat-cards">
+    <div class="stat-card"><div class="val">{{USER_BALANCE}}</div><div class="lbl">Balance</div></div>
+    <div class="stat-card"><div class="val">{{USER_TOTAL_SPENT}}</div><div class="lbl">Total Spent</div></div>
+    <div class="stat-card"><div class="val">{{USER_TOTAL_TOPUPS}}</div><div class="lbl">Total Topups</div></div>
+    <div class="stat-card"><div class="val">{{USER_JOB_COUNT}}</div><div class="lbl">Jobs</div></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:20px;">
+    <table style="font-size:13px;">
+      <tr><td style="color:#737373;width:120px;">Phone</td><td>{{USER_PHONE}}</td></tr>
+      <tr><td style="color:#737373;">Company</td><td>{{USER_COMPANY}}</td></tr>
+      <tr><td style="color:#737373;">Joined</td><td>{{USER_CREATED}}</td></tr>
+      <tr><td style="color:#737373;">Last Login</td><td>{{USER_LAST_LOGIN}}</td></tr>
+    </table>
+  </div>
+
+  <div class="action-bar">
+    <form method="POST" action="/admin/users/{{USER_ID}}/ban" style="display:inline;">
+      <input type="hidden" name="action" value="{{BAN_ACTION}}">
+      <button type="submit" class="btn {{BAN_CLASS}}">{{BAN_LABEL}}</button>
+    </form>
+    <form method="POST" action="/admin/users/{{USER_ID}}/wallet" style="display:inline-flex;gap:8px;align-items:center;">
+      <input type="number" name="amount" step="0.01" placeholder="$ amount" style="width:100px;">
+      <input type="text" name="reason" placeholder="Reason" style="width:200px;">
+      <button type="submit" class="btn btn-gold">Adjust Wallet</button>
+    </form>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('jobs')">Jobs</div>
+    <div class="tab" onclick="switchTab('txns')">Transactions</div>
+    <div class="tab" onclick="switchTab('leads')">Exclusive Leads</div>
+    <div class="tab" onclick="switchTab('tickets')">Tickets</div>
+  </div>
+
+  <div class="tab-content active" id="tab-jobs">
+    <div class="panel" style="overflow-x:auto;">
+      <table><thead><tr><th>Job ID</th><th>Status</th><th>Searched</th><th>Found</th><th>Billable</th><th>Cost</th><th>Started</th></tr></thead>
+      <tbody>{{JOB_ROWS}}</tbody></table>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-txns">
+    <div class="panel" style="overflow-x:auto;">
+      <table><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th></tr></thead>
+      <tbody>{{TXN_ROWS}}</tbody></table>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-leads">
+    <div class="panel" style="overflow-x:auto;">
+      <table><thead><tr><th>Nonprofit</th><th>Event</th><th>URL</th></tr></thead>
+      <tbody>{{LEAD_ROWS}}</tbody></table>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-tickets">
+    <div class="panel" style="overflow-x:auto;">
+      <table><thead><tr><th>ID</th><th>Subject</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>{{TICKET_ROWS}}</tbody></table>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+  event.target.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+</script>
+</body></html>"""
+
+
+ADMIN_REVENUE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revenue — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>Revenue (Last 30 Days)</h1>
+
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Topups</div><div class="value green">{{TOTAL_TOPUPS_30D}}</div></div>
+    <div class="kpi-card"><div class="label">Research Fees</div><div class="value">{{TOTAL_RESEARCH_30D}}</div></div>
+    <div class="kpi-card"><div class="label">Lead Fees</div><div class="value">{{TOTAL_LEADS_30D}}</div></div>
+    <div class="kpi-card"><div class="label">Exclusive Fees</div><div class="value gold">{{TOTAL_EXCLUSIVE_30D}}</div></div>
+    <div class="kpi-card"><div class="label">Refunds</div><div class="value red">{{TOTAL_REFUNDS_30D}}</div></div>
+  </div>
+
+  <div class="section-title">Daily Breakdown</div>
+  <div class="panel" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Date</th><th>Topups</th><th>Research</th><th>Leads</th><th>Exclusive</th><th>Refunds</th><th>Net</th></tr></thead>
+      <tbody>{{DAILY_ROWS}}</tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Top 10 Spenders</div>
+  <div class="panel" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Email</th><th>Company</th><th>Total Spent</th><th>Topups</th><th>Jobs</th></tr></thead>
+      <tbody>{{SPENDER_ROWS}}</tbody>
+    </table>
+  </div>
+</div>
+</div>
+</body></html>"""
+
+
+ADMIN_ACTIVITY_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activity — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>Activity</h1>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('jobs')">Recent Jobs</div>
+    <div class="tab" onclick="switchTab('logins')">Recent Logins</div>
+  </div>
+
+  <div class="tab-content active" id="tab-jobs">
+    <div class="panel" style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Job ID</th><th>User</th><th>Status</th><th>Searched</th><th>Found</th><th>Billable</th><th>Cost</th><th>Started</th><th>Completed</th></tr></thead>
+        <tbody>{{JOB_ROWS}}</tbody>
+      </table>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-logins">
+    <div class="panel" style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Email</th><th>Last Login</th><th>Status</th></tr></thead>
+        <tbody>{{LOGIN_ROWS}}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+  event.target.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+</script>
+</body></html>"""
+
+
+ADMIN_SYSTEM_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>System</h1>
+
+  <div class="section-title">Server Info</div>
+  <div class="panel" style="margin-bottom:20px;">
+    <table style="font-size:13px;">
+      <tr><td style="color:#737373;width:140px;">Python Version</td><td>{{PYTHON_VERSION}}</td></tr>
+      <tr><td style="color:#737373;">Uptime</td><td>{{UPTIME}}</td></tr>
+    </table>
+  </div>
+
+  <div class="section-title">Running Jobs ({{RUNNING_COUNT}})</div>
+  <div class="panel" style="overflow-x:auto;margin-bottom:20px;">
+    <table>
+      <thead><tr><th>Job ID</th><th>Progress</th><th>Found</th></tr></thead>
+      <tbody>{{RUNNING_ROWS}}</tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Research Cache ({{CACHE_TOTAL}} entries)</div>
+  <div class="panel" style="overflow-x:auto;margin-bottom:20px;">
+    <table>
+      <thead><tr><th>Status</th><th>Count</th><th>Oldest</th><th>Newest</th></tr></thead>
+      <tbody>{{CACHE_ROWS}}</tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Drip Campaign Stats</div>
+  <div class="panel" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Drip Key</th><th>Sent</th><th>Last Sent</th></tr></thead>
+      <tbody>{{DRIP_ROWS}}</tbody>
+    </table>
+  </div>
+</div>
+</div>
 </body></html>"""
 
 
@@ -4813,7 +5543,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
 <script>
 (function(){
   "use strict";
-  var MAX_SIZE=15*1024*1024;var files={};var activeFile=null;var currentSort="name";
+  var files={};var activeFile=null;var currentSort="name";
   var dropzone=document.getElementById("dropzone");var fileInput=document.getElementById("fileInput");
   var dashboard=document.getElementById("dashboard");var fileTabs=document.getElementById("fileTabs");
 
@@ -4826,7 +5556,6 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
     for(var i=0;i<fl.length;i++){
       var f=fl[i];
       if(!f.name.endsWith(".json")){showToast(f.name+" is not a .json file");continue;}
-      if(f.size>MAX_SIZE){showToast(f.name+" exceeds 15 MB limit");continue;}
       (function(file){
         var reader=new FileReader();
         reader.onload=function(ev){
