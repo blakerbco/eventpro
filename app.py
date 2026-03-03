@@ -79,7 +79,7 @@ from db import (
     admin_get_revenue_timeline, admin_get_top_spenders,
     admin_get_recent_activity, admin_get_recent_logins,
     admin_get_cache_stats, admin_get_drip_stats,
-    get_user_paid_domains,
+    get_user_paid_domains, admin_get_all_cache_results,
 )
 import emails
 from html import escape as html_escape
@@ -357,6 +357,7 @@ _SIDEBAR_ICONS = {
     "admin-revenue": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
     "admin-activity": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
     "admin-system": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    "admin-results": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
 }
 
 _SIDEBAR_NAV_ITEMS = [
@@ -386,6 +387,7 @@ _SIDEBAR_NAV_ITEMS = [
         ("admin-users", "/admin/users", "Users", True),
         ("admin-revenue", "/admin/revenue", "Revenue", True),
         ("admin-activity", "/admin/activity", "Activity", True),
+        ("admin-results", "/admin/results", "Results", True),
         ("admin-tickets", "/admin/tickets", "Tickets", True),
         ("admin-system", "/admin/system", "System", True),
     ]),
@@ -2815,6 +2817,121 @@ def admin_system_page():
     return html
 
 
+@app.route("/admin/results")
+@_admin_required
+def admin_results_page():
+    cache_entries = admin_get_all_cache_results()
+    now = datetime.now(timezone.utc)
+
+    # Classify each entry and build stats
+    status_counts = {}
+    tier_counts = {}
+    expiry_buckets = {"expired": 0, "lt_7d": 0, "lt_30d": 0, "gt_30d": 0}
+    total = len(cache_entries)
+
+    for entry in cache_entries:
+        result = entry.get("result_json", {})
+        st = entry.get("status", "uncertain")
+        status_counts[st] = status_counts.get(st, 0) + 1
+
+        # Tier classification for found results
+        if st in ("found", "3rdpty_found"):
+            tier, price = classify_lead_tier(result)
+            tier_counts[tier] = tier_counts.get(tier, 0) + 1
+
+        # Expiry bucketing
+        try:
+            exp_str = entry.get("expires_at", "")
+            if exp_str:
+                exp_dt = datetime.strptime(str(exp_str)[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                delta = exp_dt - now
+                if delta.total_seconds() < 0:
+                    expiry_buckets["expired"] += 1
+                elif delta.days < 7:
+                    expiry_buckets["lt_7d"] += 1
+                elif delta.days < 30:
+                    expiry_buckets["lt_30d"] += 1
+                else:
+                    expiry_buckets["gt_30d"] += 1
+        except Exception as e:
+            print(f"[ADMIN RESULTS] Expiry parse error: {e}", flush=True)
+
+    found_count = status_counts.get("found", 0) + status_counts.get("3rdpty_found", 0)
+    not_found_count = status_counts.get("not_found", 0)
+    error_count = status_counts.get("error", 0) + status_counts.get("uncertain", 0)
+
+    dm_count = tier_counts.get("decision_maker", 0)
+    or_count = tier_counts.get("outreach_ready", 0)
+    ev_count = tier_counts.get("event_verified", 0)
+
+    html = ADMIN_RESULTS_HTML
+    html = _inject_sidebar(html, "admin-results")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    html = html.replace("{{TOTAL_CACHED}}", str(total))
+    html = html.replace("{{FOUND_COUNT}}", str(found_count))
+    html = html.replace("{{NOT_FOUND_COUNT}}", str(not_found_count))
+    html = html.replace("{{ERROR_COUNT}}", str(error_count))
+    html = html.replace("{{DM_COUNT}}", str(dm_count))
+    html = html.replace("{{OR_COUNT}}", str(or_count))
+    html = html.replace("{{EV_COUNT}}", str(ev_count))
+    html = html.replace("{{EXPIRY_EXPIRED}}", str(expiry_buckets["expired"]))
+    html = html.replace("{{EXPIRY_7D}}", str(expiry_buckets["lt_7d"]))
+    html = html.replace("{{EXPIRY_30D}}", str(expiry_buckets["lt_30d"]))
+    html = html.replace("{{EXPIRY_GT30D}}", str(expiry_buckets["gt_30d"]))
+
+    # Build status breakdown table
+    status_rows = ""
+    for st, cnt in sorted(status_counts.items(), key=lambda x: -x[1]):
+        status_rows += f'<tr><td>{html_escape(st)}</td><td>{cnt}</td></tr>\n'
+    html = html.replace("{{STATUS_ROWS}}", status_rows or '<tr><td colspan="2" style="text-align:center;color:#525252;">No entries</td></tr>')
+
+    return html
+
+
+@app.route("/admin/results/export")
+@_admin_required
+def admin_results_export():
+    tier_filter = request.args.get("tier", "all")
+    fmt = request.args.get("format", "csv")
+    cache_entries = admin_get_all_cache_results()
+
+    # Filter by tier
+    filtered = []
+    for entry in cache_entries:
+        result = entry.get("result_json", {})
+        st = entry.get("status", "uncertain")
+        if tier_filter == "all":
+            filtered.append(result)
+        elif tier_filter == "all_found" and st in ("found", "3rdpty_found"):
+            filtered.append(result)
+        elif st in ("found", "3rdpty_found"):
+            tier, price = classify_lead_tier(result)
+            if tier == tier_filter:
+                filtered.append(result)
+
+    if fmt == "json":
+        import json as _json_mod
+        content = _json_mod.dumps(filtered, indent=2, ensure_ascii=False)
+        return Response(
+            content,
+            mimetype="application/json",
+            headers={"Content-Disposition": f"attachment; filename=cache_export_{tier_filter}.json"},
+        )
+
+    # CSV
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+    writer.writeheader()
+    for r in filtered:
+        writer.writerow({col: r.get(col, "") for col in CSV_COLUMNS})
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=cache_export_{tier_filter}.csv"},
+    )
+
+
 @app.route("/admin/tickets")
 @_admin_required
 def admin_tickets_page():
@@ -3294,6 +3411,74 @@ ADMIN_TICKETS_HTML = """<!DOCTYPE html>
 </div>
 </div>
 </body></html>"""
+
+ADMIN_RESULTS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cache Results — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """
+  .export-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+  .export-bar a { display:inline-block; padding:8px 16px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none; font-family:inherit; }
+  .btn-outline { background:transparent; border:1px solid #333; color:#d4d4d4; }
+  .btn-outline:hover { border-color:#eab308; color:#eab308; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>Cache Results</h1>
+
+  <div class="section-title">Overview</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Total Cached</div><div class="value">{{TOTAL_CACHED}}</div></div>
+    <div class="kpi-card"><div class="label">Found</div><div class="value green">{{FOUND_COUNT}}</div></div>
+    <div class="kpi-card"><div class="label">Not Found</div><div class="value">{{NOT_FOUND_COUNT}}</div></div>
+    <div class="kpi-card"><div class="label">Error / Uncertain</div><div class="value red">{{ERROR_COUNT}}</div></div>
+  </div>
+
+  <div class="section-title">Tier Breakdown (Found Only)</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Decision Maker</div><div class="value gold">{{DM_COUNT}}</div></div>
+    <div class="kpi-card"><div class="label">Outreach Ready</div><div class="value green">{{OR_COUNT}}</div></div>
+    <div class="kpi-card"><div class="label">Event Verified</div><div class="value">{{EV_COUNT}}</div></div>
+  </div>
+
+  <div class="section-title">Expiry Breakdown</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Already Expired</div><div class="value red">{{EXPIRY_EXPIRED}}</div></div>
+    <div class="kpi-card"><div class="label">&lt; 7 Days</div><div class="value gold">{{EXPIRY_7D}}</div></div>
+    <div class="kpi-card"><div class="label">&lt; 30 Days</div><div class="value">{{EXPIRY_30D}}</div></div>
+    <div class="kpi-card"><div class="label">30+ Days</div><div class="value green">{{EXPIRY_GT30D}}</div></div>
+  </div>
+
+  <div class="section-title">Export by Tier</div>
+  <div class="export-bar">
+    <a href="/admin/results/export?tier=decision_maker&format=csv" class="btn btn-gold">Decision Maker CSV</a>
+    <a href="/admin/results/export?tier=outreach_ready&format=csv" class="btn btn-success">Outreach Ready CSV</a>
+    <a href="/admin/results/export?tier=event_verified&format=csv" class="btn-outline">Event Verified CSV</a>
+    <a href="/admin/results/export?tier=all_found&format=csv" class="btn btn-gold" style="background:#7c3aed;color:#fff;">All Found CSV</a>
+    <a href="/admin/results/export?tier=all&format=csv" class="btn-outline">Everything CSV</a>
+  </div>
+  <div class="export-bar">
+    <a href="/admin/results/export?tier=all_found&format=json" class="btn-outline">All Found JSON</a>
+    <a href="/admin/results/export?tier=all&format=json" class="btn-outline">Everything JSON</a>
+  </div>
+
+  <div class="section-title">Status Breakdown</div>
+  <div class="panel" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Status</th><th>Count</th></tr></thead>
+      <tbody>{{STATUS_ROWS}}</tbody>
+    </table>
+  </div>
+
+</div>
+</div>
+</body></html>"""
+
 
 ADMIN_TICKET_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">

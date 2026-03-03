@@ -1830,6 +1830,30 @@ def get_user_paid_domains(user_id: int) -> set:
     return domains
 
 
+def admin_get_all_cache_results() -> list:
+    """Get all non-expired research_cache rows for admin results page."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT cache_key, result_json, status, created_at, expires_at
+        FROM research_cache
+        WHERE expires_at > NOW()
+        ORDER BY created_at DESC
+    """)
+    rows = _fetchall(cur)
+    cur.close()
+    for r in rows:
+        for k in ("created_at", "expires_at"):
+            if r.get(k) and not isinstance(r[k], str):
+                r[k] = str(r[k])
+        try:
+            r["result_json"] = _json.loads(r["result_json"])
+        except (_json.JSONDecodeError, TypeError) as e:
+            print(f"[ADMIN CACHE] Bad JSON for {r['cache_key']}: {e}", flush=True)
+            r["result_json"] = {}
+    return rows
+
+
 def admin_get_drip_stats() -> list:
     """Drip campaign send counts by drip_key."""
     conn = _get_conn()
