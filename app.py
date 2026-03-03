@@ -4805,7 +4805,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
 <script>
 (function(){
   "use strict";
-  var MAX_SIZE=10*1024*1024;var files={};var activeFile=null;var currentSort="name";
+  var MAX_SIZE=15*1024*1024;var files={};var activeFile=null;var currentSort="name";
   var dropzone=document.getElementById("dropzone");var fileInput=document.getElementById("fileInput");
   var dashboard=document.getElementById("dashboard");var fileTabs=document.getElementById("fileTabs");
 
@@ -4818,7 +4818,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
     for(var i=0;i<fl.length;i++){
       var f=fl[i];
       if(!f.name.endsWith(".json")){showToast(f.name+" is not a .json file");continue;}
-      if(f.size>MAX_SIZE){showToast(f.name+" exceeds 10 MB limit");continue;}
+      if(f.size>MAX_SIZE){showToast(f.name+" exceeds 15 MB limit");continue;}
       (function(file){
         var reader=new FileReader();
         reader.onload=function(ev){
