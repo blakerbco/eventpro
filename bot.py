@@ -322,7 +322,7 @@ def _poe_result_to_full(poe_data: dict, nonprofit: str) -> Dict[str, Any]:
         result["status"] = "not_found"
 
     result["_processed_at"] = datetime.now(timezone.utc).isoformat()
-    result["_source"] = f"poe:{POE_BOT_NAME}"
+    result["_source"] = "auctionintel.app db"
     return result
 
 

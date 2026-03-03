@@ -473,7 +473,7 @@ def _research_one(
     # ── Cache check ──
     cached = cache_get(nonprofit)
     if cached:
-        cached["_source"] = "cache"
+        cached["_source"] = "auctionintel.app db"
         cached["_api_calls"] = 0
         cached["query_domain"] = nonprofit
 
