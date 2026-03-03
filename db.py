@@ -1809,6 +1809,27 @@ def admin_get_cache_stats() -> list:
     return rows
 
 
+def get_user_paid_domains(user_id: int) -> set:
+    """Return set of domains this user already paid a lead_fee for."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT description FROM transactions WHERE user_id = %s AND type = 'lead_fee'",
+        (user_id,),
+    )
+    rows = _fetchall(cur)
+    cur.close()
+    domains = set()
+    for r in rows:
+        desc = r.get("description", "")
+        # Format: "Lead fee (tier): domain_name"
+        if ": " in desc:
+            domain = desc.split(": ", 1)[1].strip().lower()
+            if domain:
+                domains.add(domain)
+    return domains
+
+
 def admin_get_drip_stats() -> list:
     """Drip campaign send counts by drip_key."""
     conn = _get_conn()

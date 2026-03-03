@@ -79,6 +79,7 @@ from db import (
     admin_get_revenue_timeline, admin_get_top_spenders,
     admin_get_recent_activity, admin_get_recent_logins,
     admin_get_cache_stats, admin_get_drip_stats,
+    get_user_paid_domains,
 )
 import emails
 from html import escape as html_escape
@@ -474,6 +475,7 @@ def _research_one(
     user_id: Optional[int] = None, job_id: str = "", is_admin: bool = False,
     is_trial: bool = False, balance_exhausted: list = None,
     selected_tiers: list = None,
+    paid_domains: set = None,
 ) -> Dict[str, Any]:
     """Research a single nonprofit via Poe bot — simple synchronous call.
     Matches the proven AUCTIONINTEL.APP_BOT.PY pattern exactly.
@@ -538,6 +540,12 @@ def _research_one(
         _sel = selected_tiers or ["decision_maker", "outreach_ready", "event_verified"]
         if tier != "not_billable" and tier not in _sel:
             price = 0
+
+        # Skip lead fee if user already paid for this domain
+        if price > 0 and nonprofit.strip().lower() in (paid_domains or set()):
+            print(f"[LEAD-DEDUP] {nonprofit}: already purchased, waiving lead fee", flush=True)
+            price = 0
+            progress_q.put({"type": "lead_waived", "index": index, "total": total, "nonprofit": nonprofit})
 
         if user_id and not is_admin and status in ("found", "3rdpty_found") and price > 0:
             fee = get_research_fee_cents(total)
@@ -629,6 +637,12 @@ def _research_one(
     if tier != "not_billable" and tier not in _sel:
         price = 0
 
+    # Skip lead fee if user already paid for this domain
+    if price > 0 and nonprofit.strip().lower() in (paid_domains or set()):
+        print(f"[LEAD-DEDUP] {nonprofit}: already purchased, waiving lead fee", flush=True)
+        price = 0
+        progress_q.put({"type": "lead_waived", "index": index, "total": total, "nonprofit": nonprofit})
+
     # Charge fees
     if user_id and not is_admin:
         fee = get_research_fee_cents(total)
@@ -696,6 +710,7 @@ def _run_job(
     all_results: List[Dict[str, Any]] = []
     billing_summary = {"research_fees": 0, "lead_fees": {}, "total_charged": 0}
     balance_exhausted = [False]
+    paid_domains = get_user_paid_domains(user_id) if user_id and not is_admin else set()
     start = time.time()
 
     for idx, np_name in enumerate(nonprofits, start=1):
@@ -734,6 +749,7 @@ def _run_job(
             user_id=user_id, job_id=job_id, is_admin=is_admin,
             is_trial=is_trial, balance_exhausted=balance_exhausted,
             selected_tiers=selected_tiers,
+            paid_domains=paid_domains,
         )
         all_results.append(result)
 
