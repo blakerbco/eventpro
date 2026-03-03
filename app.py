@@ -5585,8 +5585,25 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
   }
 
   function normalizeToArray(data){
-    if(Array.isArray(data))return flattenObjects(data);
-    if(data&&typeof data==="object"){return flattenObjects(Object.values(data));}
+    if(Array.isArray(data)){
+      // Check if array items are wrapper objects with a "results" key (merged files)
+      if(data.length>0&&data[0]&&typeof data[0]==="object"&&!Array.isArray(data[0])&&Array.isArray(data[0].results)){
+        var merged=[];for(var i=0;i<data.length;i++){
+          if(data[i]&&Array.isArray(data[i].results)){
+            for(var j=0;j<data[i].results.length;j++){
+              var rec=data[i].results[j];
+              if(rec&&typeof rec==="object"&&!Array.isArray(rec))merged.push(rec);
+            }
+          }
+        }
+        return merged;
+      }
+      return flattenObjects(data);
+    }
+    if(data&&typeof data==="object"){
+      if(Array.isArray(data.results))return flattenObjects(data.results);
+      return flattenObjects(Object.values(data));
+    }
     return[];
   }
   function flattenObjects(arr){
@@ -5792,7 +5809,8 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
   document.getElementById("exportCompleteBtn").addEventListener("click",function(){
     var data=files[activeFile];if(!data)return;var complete=[];
     for(var i=0;i<data.records.length;i++){var rec=data.records[i];var allFilled=true;
-      for(var j=0;j<data.fieldNames.length;j++){if(isEmpty(rec[data.fieldNames[j]])){allFilled=false;break;}}
+      var ownKeys=Object.keys(rec);
+      for(var j=0;j<ownKeys.length;j++){if(isEmpty(rec[ownKeys[j]])){allFilled=false;break;}}
       if(allFilled)complete.push(rec);}
     if(complete.length===0){showToast("No fully complete records found");return;}
     downloadBlob(JSON.stringify(complete,null,2),(activeFile||"data").replace(".json","")+"_complete.json","application/json");
