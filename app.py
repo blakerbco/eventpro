@@ -6042,20 +6042,20 @@ def api_keys_page():
         </tr>"""
 
     html = f"""<!DOCTYPE html><html><head><title>API Keys - Auction Intel</title>
-    <style>body{{background:#0f172a;color:#e2e8f0;font-family:system-ui;margin:0;padding:20px}}
+    <style>body{{background:#000000;color:#e2e8f0;font-family:system-ui;margin:0;padding:20px}}
     .container{{max-width:800px;margin:0 auto}}
-    h1{{color:#60a5fa}}
+    h1{{color:#eab308}}
     table{{width:100%;border-collapse:collapse;margin:20px 0}}
-    th{{text-align:left;padding:8px;border-bottom:2px solid #374151;color:#94a3b8}}
-    .btn{{background:#3b82f6;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px}}
-    .btn:hover{{background:#2563eb}}
-    input[type=text]{{background:#1e293b;border:1px solid #374151;color:#e2e8f0;padding:8px 12px;border-radius:4px;width:200px}}
+    th{{text-align:left;padding:8px;border-bottom:2px solid #262626;color:#a3a3a3}}
+    .btn{{background:#eab308;color:#000;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600}}
+    .btn:hover{{background:#facc15}}
+    input[type=text]{{background:#171717;border:1px solid #262626;color:#e2e8f0;padding:8px 12px;border-radius:4px;width:200px}}
     .new-key-box{{background:#064e3b;border:1px solid #10b981;padding:16px;border-radius:8px;margin:16px 0;font-family:monospace;word-break:break-all}}
-    a{{color:#60a5fa}}
+    a{{color:#eab308}}
     </style></head><body>
     <div class="container">
     <h1>API Keys</h1>
-    <p><a href="/dashboard">&larr; Back to Dashboard</a></p>
+    <p><a href="/database">&larr; Back to Dashboard</a></p>
     <p>Use API keys to authenticate with the <code>/api/v1/</code> endpoints from scripts.</p>
 
     <form method="post" action="/settings/api-keys/create" style="margin:20px 0">
