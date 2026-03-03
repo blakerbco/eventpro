@@ -246,6 +246,17 @@ def api_auth(f):
     return decorated
 
 
+def _load_new_landing():
+    """Load the editorial landing page from disk."""
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "auction_intel_landing_page.html")
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print(f"[LANDING] Error loading landing page: {e}", flush=True)
+        return LANDING_HTML
+
+
 def _current_user():
     """Get current user dict from session."""
     uid = session.get("user_id")
@@ -1377,11 +1388,11 @@ def results_page():
 def index():
     # Show landing page for non-authenticated users
     if not session.get("user_id"):
-        return LANDING_HTML
+        return _load_new_landing()
     user = _current_user()
     if not user:
         session.clear()
-        return LANDING_HTML
+        return _load_new_landing()
     is_admin = user.get("is_admin", False)
     balance = get_balance(session["user_id"]) if not is_admin else 0
 
