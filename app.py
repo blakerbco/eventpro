@@ -386,6 +386,7 @@ _SIDEBAR_NAV_ITEMS = [
         ("admin-users", "/admin/users", "Users", True),
         ("admin-revenue", "/admin/revenue", "Revenue", True),
         ("admin-activity", "/admin/activity", "Activity", True),
+        ("admin-tickets", "/admin/tickets", "Tickets", True),
         ("admin-system", "/admin/system", "System", True),
     ]),
 ]
@@ -2814,6 +2815,95 @@ def admin_system_page():
     return html
 
 
+@app.route("/admin/tickets")
+@_admin_required
+def admin_tickets_page():
+    tickets = get_all_tickets()
+    ticket_rows = ""
+    for t in tickets:
+        status = t["status"]
+        sc = {"open": "#4ade80", "pending": "#eab308", "urgent": "#f87171", "resolved": "#a3a3a3"}.get(status, "#a3a3a3")
+        unread = t.get("unread", 0)
+        unread_badge = f' <span class="badge" style="background:#7f1d1d;color:#fca5a5;border:none;margin-left:4px;">{unread} new</span>' if unread > 0 else ""
+        ticket_rows += (
+            f'<tr>'
+            f'<td><a href="/admin/tickets/{t["id"]}" class="user-link">#{t["id"]}</a></td>'
+            f'<td><a href="/admin/tickets/{t["id"]}" style="color:#f5f5f5;text-decoration:none;">{html_escape(t["subject"])}{unread_badge}</a></td>'
+            f'<td>{html_escape(t.get("user_email", ""))}</td>'
+            f'<td style="color:{sc};font-weight:600;">{status.upper()}</td>'
+            f'<td>{t.get("updated_at", "")}</td>'
+            f'</tr>'
+        )
+    open_count = sum(1 for t in tickets if t["status"] in ("open", "urgent"))
+    html = ADMIN_TICKETS_HTML
+    html = _inject_sidebar(html, "admin-tickets")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    html = html.replace("{{TICKET_ROWS}}", ticket_rows or '<tr><td colspan="5" style="text-align:center;color:#525252;">No tickets</td></tr>')
+    html = html.replace("{{TOTAL_TICKETS}}", str(len(tickets)))
+    html = html.replace("{{OPEN_COUNT}}", str(open_count))
+    return html
+
+
+@app.route("/admin/tickets/<int:ticket_id>", methods=["GET", "POST"])
+@_admin_required
+def admin_ticket_detail(ticket_id):
+    ticket = get_ticket(ticket_id)
+    if not ticket:
+        return redirect("/admin/tickets")
+
+    if request.method == "POST":
+        reply = request.form.get("message", "").strip()
+        new_status = request.form.get("status", "").strip()
+        if reply:
+            add_ticket_message(ticket_id, session["user_id"], reply, is_admin=True)
+            try:
+                emails.send_ticket_reply_to_user(ticket["user_email"], ticket_id, ticket["subject"], reply)
+            except Exception as e:
+                print(f"[ADMIN TICKET] Email send error: {e}", flush=True)
+        if new_status and new_status != ticket["status"]:
+            update_ticket_status(ticket_id, new_status)
+        return redirect(f"/admin/tickets/{ticket_id}")
+
+    mark_messages_read_by_admin(ticket_id)
+    messages = get_ticket_messages(ticket_id)
+    msg_html = ""
+    for m in messages:
+        is_sender_admin = m["is_admin"]
+        align = "right" if is_sender_admin else "left"
+        bg = "#1a1500" if is_sender_admin else "#0a0a0a"
+        border_color = "#eab308" if is_sender_admin else "#262626"
+        label = "Admin" if is_sender_admin else html_escape(m["sender_email"])
+        msg_html += (
+            f'<div style="display:flex;justify-content:flex-{align};margin-bottom:12px;">'
+            f'<div style="max-width:70%;background:{bg};border:1px solid {border_color};border-radius:12px;padding:12px 16px;">'
+            f'<div style="font-size:11px;color:#737373;margin-bottom:4px;">{label} &middot; {m["created_at"]}</div>'
+            f'<div style="font-size:13px;color:#d4d4d4;white-space:pre-wrap;">{html_escape(m["message"])}</div>'
+            f'</div></div>'
+        )
+
+    status = ticket["status"]
+    sc = {"open": "#4ade80", "pending": "#eab308", "urgent": "#f87171", "resolved": "#a3a3a3"}.get(status, "#a3a3a3")
+    status_options = ""
+    for s in ["open", "pending", "urgent", "resolved"]:
+        sel = ' selected' if s == status else ''
+        status_options += f'<option value="{s}"{sel}>{s.upper()}</option>'
+
+    html = ADMIN_TICKET_DETAIL_HTML
+    html = _inject_sidebar(html, "admin-tickets")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    html = html.replace("{{TICKET_ID}}", str(ticket_id))
+    html = html.replace("{{SUBJECT}}", html_escape(ticket["subject"]))
+    html = html.replace("{{USER_EMAIL}}", html_escape(ticket.get("user_email", "")))
+    html = html.replace("{{STATUS}}", status.upper())
+    html = html.replace("{{STATUS_COLOR}}", sc)
+    html = html.replace("{{STATUS_OPTIONS}}", status_options)
+    html = html.replace("{{MESSAGES}}", msg_html)
+    html = html.replace("{{CREATED_AT}}", ticket.get("created_at", ""))
+    return html
+
+
 # ─── Admin HTML Templates ────────────────────────────────────────────────────
 
 _ADMIN_STYLE = """
@@ -3173,6 +3263,78 @@ ADMIN_SYSTEM_HTML = """<!DOCTYPE html>
       <thead><tr><th>Drip Key</th><th>Sent</th><th>Last Sent</th></tr></thead>
       <tbody>{{DRIP_ROWS}}</tbody>
     </table>
+  </div>
+</div>
+</div>
+</body></html>"""
+
+ADMIN_TICKETS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tickets — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h1>Support Tickets</h1>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="label">Total Tickets</div><div class="value">{{TOTAL_TICKETS}}</div></div>
+    <div class="kpi-card"><div class="label">Open / Urgent</div><div class="value red">{{OPEN_COUNT}}</div></div>
+  </div>
+  <div class="panel" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>ID</th><th>Subject</th><th>User</th><th>Status</th><th>Updated</th></tr></thead>
+      <tbody>{{TICKET_ROWS}}</tbody>
+    </table>
+  </div>
+</div>
+</div>
+</body></html>"""
+
+ADMIN_TICKET_DETAIL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket #{{TICKET_ID}} — Auction Intel</title>
+<style>""" + _ADMIN_STYLE + """
+  .msg-area { width:100%; min-height:100px; padding:12px; background:#000; border:1px solid #333; border-radius:8px; color:#f5f5f5; font-size:13px; font-family:inherit; outline:none; resize:vertical; }
+  .msg-area:focus { border-color:#eab308; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <a href="/admin/tickets" style="color:#737373;font-size:12px;text-decoration:none;">&larr; Back to Tickets</a>
+  <div style="display:flex;align-items:center;gap:12px;margin:12px 0 20px;">
+    <h1 style="margin:0;">Ticket #{{TICKET_ID}}</h1>
+    <span class="badge" style="background:{{STATUS_COLOR}}22;color:{{STATUS_COLOR}};border:1px solid {{STATUS_COLOR}};font-size:12px;">{{STATUS}}</span>
+  </div>
+  <div class="panel" style="margin-bottom:16px;">
+    <table style="font-size:13px;">
+      <tr><td style="color:#737373;width:100px;">Subject</td><td>{{SUBJECT}}</td></tr>
+      <tr><td style="color:#737373;">User</td><td>{{USER_EMAIL}}</td></tr>
+      <tr><td style="color:#737373;">Created</td><td>{{CREATED_AT}}</td></tr>
+    </table>
+  </div>
+  <div class="section-title">Messages</div>
+  <div class="panel" style="max-height:50vh;overflow-y:auto;margin-bottom:16px;">
+    {{MESSAGES}}
+  </div>
+  <div class="panel">
+    <form method="POST" action="/admin/tickets/{{TICKET_ID}}">
+      <div class="section-title" style="margin-bottom:8px;">Reply</div>
+      <textarea name="message" class="msg-area" placeholder="Type your reply..."></textarea>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:12px;">
+        <select name="status" style="padding:8px 12px;background:#000;border:1px solid #333;border-radius:6px;color:#f5f5f5;font-size:12px;font-family:inherit;">{{STATUS_OPTIONS}}</select>
+        <button type="submit" class="btn btn-gold">Send Reply &amp; Update</button>
+      </div>
+    </form>
   </div>
 </div>
 </div>
