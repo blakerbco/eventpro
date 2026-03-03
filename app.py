@@ -6403,6 +6403,12 @@ LANDING_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Auction Intel - Find Nonprofit Auction Events at Scale</title>
+<meta name="description" content="Find nonprofit auction leads, charity gala contacts, and fundraising event data at scale. Get verified decision-maker emails for nonprofit auctions, golf tournaments, and sponsorship opportunities.">
+<meta name="keywords" content="nonprofit auction leads, charity golf tournament contacts, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events">
+<meta property="og:title" content="Auction Intel - Find Nonprofit Auction Events at Scale">
+<meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://auctionintel.app">
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -7294,6 +7300,12 @@ LANDING_TEST_HTML = """<!doctype html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Auction Intel — Find nonprofit auction events</title>
+  <meta name="description" content="Find nonprofit auction leads, charity gala contacts, and fundraising event data at scale. Get verified decision-maker emails for nonprofit auctions, golf tournaments, and sponsorship opportunities.">
+  <meta name="keywords" content="nonprofit auction leads, charity golf tournament contacts, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events">
+  <meta property="og:title" content="Auction Intel — Find nonprofit auction events">
+  <meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://auctionintel.app">
   <link rel="icon" type="image/png" href="/static/favicon.png">
 
   <!-- Tailwind CDN -->
