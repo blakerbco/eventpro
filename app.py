@@ -6575,7 +6575,7 @@ LANDING_HTML = """<!DOCTYPE html>
 
 <div class="topnav">
   <div class="logo">
-    <img src="/static/logo_dark.png" alt="Auction Finder">
+    <img src="/static/logo_light.png" alt="Auction Finder">
   </div>
   <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -7352,7 +7352,7 @@ LANDING_TEST_HTML = """<!doctype html>
   <header class="sticky top-0 z-50 border-b border-neutral-800/80 bg-black/70 backdrop-blur">
     <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-6">
       <a href="/" class="flex items-center gap-3">
-        <img src="/static/logo_dark.png" alt="Auction Finder" class="h-9 w-auto">
+        <img src="/static/logo_light.png" alt="Auction Finder" class="h-9 w-auto">
       </a>
 
       <div class="hidden items-center gap-7 lg:flex">
