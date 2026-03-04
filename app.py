@@ -19,6 +19,7 @@ import io
 import hashlib
 import json
 import os
+import random
 import secrets
 import sys
 import time
@@ -705,6 +706,9 @@ def _run_job(
         selected_tiers = ["decision_maker", "outreach_ready", "event_verified"]
     if len(nonprofits) > MAX_NONPROFITS:
         nonprofits = nonprofits[:MAX_NONPROFITS]
+
+    # Randomize processing order so identical queries yield different result ordering
+    random.shuffle(nonprofits)
 
     total = len(nonprofits)
     progress_q.put({"type": "started", "total": total, "batches": 1})
@@ -5057,8 +5061,8 @@ DATABASE_HTML = """<!DOCTYPE html>
   <div class="filters">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <h2>Confirmed Auction Database</h2>
-        <p class="subtitle">Verified nonprofit organizations with confirmed auction events | Filter and send to Auction Finder</p>
+        <h2>Nonprofit Database USA</h2>
+        <p class="subtitle">Verified nonprofit organizations</p>
       </div>
       <button onclick="toggleFilters()" id="toggleBtn" style="padding:6px 14px;background:#262626;color:#a3a3a3;border:1px solid #333;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;">Hide Filters</button>
     </div>
