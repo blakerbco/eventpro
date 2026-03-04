@@ -6821,7 +6821,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <div class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <div class="footer-logo">Auction Finder</div>
+      <div class="footer-logo"><img src="/static/logo_dark.png" alt="Auction Finder" style="height:36px;"></div>
       <p>Event-driven sales intelligence with verified nonprofit fundraising leads. Timing precision that turns research into revenue.</p>
     </div>
     <div class="footer-contact">
