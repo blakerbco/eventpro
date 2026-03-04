@@ -7074,12 +7074,485 @@ LANDING_HTML = """<!DOCTYPE html>
     <a href="/refund-policy">Refund Policy</a>
     <a href="/do-not-sell">Do Not Sell My Info</a>
     <a href="/contact">Contact / DMCA / Abuse</a>
+    <a href="/blog">Blog</a>
   </div>
   <div class="footer-copy">&copy; 2026 Auction Finder. All rights reserved.</div>
 </div>
 
 </body>
 </html>"""
+
+# ─── Blog ─────────────────────────────────────────────────────────────────────
+
+BLOG_HEAD = """<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+"""
+
+BLOG_STYLES = """
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:{400:'#ffd900',500:'#ffd900',600:'#d9b800'}}}}}
+</script>
+<style>
+body{background:#050505;color:#e5e5e5;font-family:system-ui,-apple-system,sans-serif}
+.ai-grid{background-image:radial-gradient(circle at 20% 10%,rgba(255,217,0,.14),transparent 35%),radial-gradient(circle at 80% 20%,rgba(59,130,246,.10),transparent 40%),linear-gradient(to bottom,#050505,#000 35%,#000)}
+.prose h2{color:#fafafa;font-weight:800;font-size:1.5rem;margin-top:2rem;margin-bottom:.75rem}
+.prose p{color:#d4d4d4;line-height:1.8;margin-bottom:1rem}
+.prose ul{list-style:disc;padding-left:1.5rem;margin-bottom:1rem}
+.prose li{color:#d4d4d4;margin-bottom:.35rem}
+</style>
+</head>
+"""
+
+BLOG_NAV = """
+<body class="ai-grid min-h-screen">
+<nav class="border-b border-neutral-900 bg-black/60 backdrop-blur-md sticky top-0 z-50">
+<div class="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
+<a href="/"><img src="/static/logo_dark.png" alt="Auction Finder" class="h-9"></a>
+<div class="flex items-center gap-4">
+<a href="/blog" class="text-sm text-neutral-300 hover:text-white">Blog</a>
+<a href="/register" class="rounded bg-brand-500 px-4 py-2 text-sm font-bold text-black hover:bg-brand-400">Get Started</a>
+</div>
+</div>
+</nav>
+"""
+
+BLOG_FOOTER = """
+<footer class="border-t border-neutral-900 bg-black/70 mt-20">
+<div class="mx-auto max-w-7xl px-4 py-10">
+<div class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+<div>
+<a href="/"><img src="/static/logo_dark.png" alt="Auction Finder" class="h-9"></a>
+<p class="mt-3 max-w-sm text-sm text-neutral-400">Event-driven sales intelligence with verified nonprofit fundraising leads.</p>
+</div>
+<div class="flex gap-8 text-sm text-neutral-400">
+<a href="/terms" class="hover:text-white">Terms</a>
+<a href="/privacy-policy" class="hover:text-white">Privacy</a>
+<a href="/contact" class="hover:text-white">Contact</a>
+<a href="/blog" class="hover:text-white">Blog</a>
+</div>
+</div>
+<div class="mt-8 border-t border-neutral-900 pt-6">
+<p class="text-xs text-neutral-500">&copy; 2026 Auction Finder. All rights reserved.</p>
+</div>
+</div>
+</footer>
+</body>
+</html>
+"""
+
+# ── Article data ─────────────────────────────────────────────────────────────
+
+BLOG_ARTICLES = [
+    {
+        "slug": "charity-golf-tournament-leads",
+        "title": "Charity Golf Tournament Leads: How to Find High-Value Fundraising Events",
+        "seo_title": "Charity Golf Tournament Leads: Find Nonprofit Golf Fundraisers",
+        "summary": "A practical guide to discovering charity golf tournaments, connecting with event organizers, and securing auction and sponsorship opportunities.",
+        "date": "Mar 03, 2026",
+        "author": "Auction Finder Team",
+        "read_time": "7 min read",
+        "category": "Golf Fundraisers",
+        "hero": "/static/blog/golf_1.png",
+        "thumb": "/static/blog/golf_2.png",
+        "related": ["nonprofit-gala-leads", "silent-auction-event-leads", "charity-banquet-events"],
+    },
+    {
+        "slug": "nonprofit-gala-leads",
+        "title": "Nonprofit Gala Leads: How to Find Fundraising Galas and Event Planners",
+        "seo_title": "Nonprofit Gala Leads: Find Fundraising Galas & Event Planners",
+        "summary": "How to discover nonprofit gala events, connect with development directors and event planners, and participate in high-value charity auctions.",
+        "date": "Feb 27, 2026",
+        "author": "Blake Bridge",
+        "read_time": "6 min read",
+        "category": "Galas & Events",
+        "hero": "/static/blog/gala_1.png",
+        "thumb": "/static/blog/gala_2.png",
+        "related": ["charity-golf-tournament-leads", "benefit-fundraiser-leads", "charity-banquet-events"],
+    },
+    {
+        "slug": "charity-banquet-events",
+        "title": "Charity Banquet Events: Finding Fundraising Dinners and Donor Events",
+        "seo_title": "Charity Banquet Events: Find Fundraising Dinners & Donor Events",
+        "summary": "Discover charity banquet events and connect with nonprofit organizers hosting fundraising dinners, raffles, and donor recognition events.",
+        "date": "Feb 21, 2026",
+        "author": "Auction Finder Team",
+        "read_time": "5 min read",
+        "category": "Banquets & Dinners",
+        "hero": "/static/blog/banquet_1.png",
+        "thumb": "/static/blog/banquet_2.png",
+        "related": ["nonprofit-gala-leads", "benefit-fundraiser-leads", "silent-auction-event-leads"],
+    },
+    {
+        "slug": "benefit-fundraiser-leads",
+        "title": "Benefit Fundraiser Leads: Finding High-Impact Charity Events",
+        "seo_title": "Benefit Fundraiser Leads: Find High-Impact Charity Events",
+        "summary": "How to locate benefit fundraiser events, from charity concerts to auctions and raffles, and connect with the nonprofit organizers running them.",
+        "date": "Feb 18, 2026",
+        "author": "Auction Finder Team",
+        "read_time": "5 min read",
+        "category": "Benefit Events",
+        "hero": "/static/blog/benefit_1.png",
+        "thumb": "/static/blog/benefit_2.png",
+        "related": ["charity-banquet-events", "silent-auction-event-leads", "charity-golf-tournament-leads"],
+    },
+    {
+        "slug": "silent-auction-event-leads",
+        "title": "Silent Auction Event Leads: How to Find Fundraising Auctions",
+        "seo_title": "Silent Auction Event Leads: Find Nonprofit Fundraising Auctions",
+        "summary": "Find silent auction events hosted by nonprofits, connect with event organizers, and get your auction items in front of donors.",
+        "date": "Feb 12, 2026",
+        "author": "Blake Bridge",
+        "read_time": "5 min read",
+        "category": "Silent Auctions",
+        "hero": "/static/blog/silent_1.png",
+        "thumb": "/static/blog/silent_2.png",
+        "related": ["charity-golf-tournament-leads", "nonprofit-gala-leads", "benefit-fundraiser-leads"],
+    },
+]
+
+BLOG_ARTICLE_BODIES = {
+    "charity-golf-tournament-leads": """
+<p>Charity golf tournaments are one of the most profitable fundraising events nonprofits host each year. Across the United States, thousands of nonprofit organizations host charity golf outings, golf classics, and fundraising tournaments to raise money for their missions.</p>
+<p>For businesses that sell travel packages, sports memorabilia, sponsorship packages, or luxury auction items, these events represent a massive opportunity.</p>
+<p>The challenge? Finding them.</p>
+<p>Most charity golf tournaments are organized locally and announced months in advance &mdash; but they can be difficult to discover without the right tools.</p>
+<p>This guide explains how to find charity golf tournament leads and connect with the decision-makers running these events.</p>
+
+<h2>Why Charity Golf Tournaments Are Valuable Opportunities</h2>
+<p>Golf fundraisers attract affluent donors and corporate sponsors. That makes them ideal events for businesses offering premium items or experiences.</p>
+<p>Typical charity golf tournaments include:</p>
+<ul>
+<li>Live auctions</li>
+<li>Silent auctions</li>
+<li>Raffle packages</li>
+<li>Travel prizes</li>
+<li>Sponsorship packages</li>
+<li>Donor appreciation dinners</li>
+</ul>
+<p>Because attendees are typically business owners and high-net-worth individuals, the items offered during these events often generate strong bids.</p>
+
+<h2>Who Organizes Charity Golf Tournaments?</h2>
+<p>These events are usually managed by:</p>
+<ul>
+<li>Nonprofit development directors</li>
+<li>Fundraising coordinators</li>
+<li>Event committees</li>
+<li>Board members</li>
+<li>Corporate sponsors</li>
+</ul>
+<p>These decision-makers control sponsorship packages, auction items, and vendor opportunities. Finding the right contact is the key to securing participation in the event.</p>
+
+<h2>Where Charity Golf Tournaments Take Place</h2>
+<p>Golf fundraising events are held nationwide and are especially common during spring and summer months. Common event types include:</p>
+<ul>
+<li>Charity golf outings</li>
+<li>Nonprofit golf tournaments</li>
+<li>Golf fundraising classics</li>
+<li>Corporate charity tournaments</li>
+<li>Benefit golf events</li>
+</ul>
+<p>Each one represents an opportunity to introduce auction items or sponsorship opportunities.</p>
+
+<h2>How Businesses Use Charity Golf Tournament Leads</h2>
+<p>Companies selling auction items or sponsorship opportunities typically use golf tournament leads to:</p>
+<ul>
+<li>Donate travel packages</li>
+<li>Provide sports memorabilia</li>
+<li>Sponsor holes or tournaments</li>
+<li>Offer luxury experiences</li>
+<li>Sell raffle prizes</li>
+</ul>
+<p>Because these events are planned months in advance, reaching out early dramatically improves your chances of participation.</p>
+
+<h2>The Problem With Finding Golf Fundraisers</h2>
+<p>Traditionally, finding charity golf tournaments required hours of manual searching: scanning nonprofit websites, searching event calendars, digging through social media, and checking community boards.</p>
+<p>This process is slow and unreliable. Many events never appear in standard search results.</p>
+
+<h2>The Faster Way to Find Charity Golf Tournament Leads</h2>
+<p>Platforms like Auction Finder allow businesses to instantly search nonprofit organizations and discover upcoming fundraising events. With the right tools, you can:</p>
+<ul>
+<li>Search millions of nonprofits</li>
+<li>Identify upcoming golf tournaments</li>
+<li>Find auction and sponsorship opportunities</li>
+<li>Export contact information for organizers</li>
+</ul>
+<p>Instead of spending hours searching online, you can locate opportunities in minutes.</p>
+
+<h2>Start Finding Charity Golf Tournament Leads</h2>
+<p>If your business sells travel packages, auction items, sponsorships, or experiences, charity golf tournaments can become a consistent source of new opportunities.</p>
+<p>Instead of waiting to discover events by chance, you can proactively find them and reach out to the organizers directly.</p>
+""",
+    "nonprofit-gala-leads": """
+<p>Nonprofit gala events are among the most important fundraising activities organizations host each year.</p>
+<p>From black-tie charity galas to annual fundraising dinners, these events generate millions of dollars for nonprofit organizations through ticket sales, sponsorships, and auctions.</p>
+<p>For businesses offering travel packages, memorabilia, sponsorships, or luxury experiences, nonprofit galas present an incredible opportunity.</p>
+<p>But first, you need to find them.</p>
+
+<h2>What Are Nonprofit Gala Events?</h2>
+<p>A nonprofit gala is a formal fundraising event typically held annually by charitable organizations. These events often include:</p>
+<ul>
+<li>Silent auctions</li>
+<li>Live auctions</li>
+<li>Donor recognition</li>
+<li>Sponsorship opportunities</li>
+<li>Fundraising appeals</li>
+</ul>
+<p>Galas attract major donors and corporate sponsors, making them ideal venues for high-value auction items.</p>
+
+<h2>Who Plans Nonprofit Galas?</h2>
+<p>These events are typically managed by:</p>
+<ul>
+<li>Development directors</li>
+<li>Fundraising managers</li>
+<li>Nonprofit event planners</li>
+<li>Gala committees</li>
+<li>Board members</li>
+</ul>
+<p>These decision-makers determine which auction items, sponsors, and vendors participate in the event.</p>
+
+<h2>Why Businesses Seek Nonprofit Gala Leads</h2>
+<p>Businesses seek nonprofit gala leads to:</p>
+<ul>
+<li>Donate travel experiences</li>
+<li>Contribute sports memorabilia</li>
+<li>Sponsor fundraising events</li>
+<li>Provide auction packages</li>
+</ul>
+<p>Because gala auctions often include premium experiences, these events can produce high returns for vendors.</p>
+
+<h2>The Difficulty of Finding Gala Events</h2>
+<p>Many nonprofit galas are announced locally or through limited channels. They may appear on nonprofit websites, event calendars, local news, or social media &mdash; but these announcements can be scattered across thousands of organizations.</p>
+<p>Without a centralized source, finding these events becomes extremely time-consuming.</p>
+
+<h2>How Auction Finder Simplifies Finding Gala Leads</h2>
+<p>Auction Finder makes it possible to discover nonprofit fundraising events in minutes. Using the platform, businesses can:</p>
+<ul>
+<li>Search nonprofit databases</li>
+<li>Identify upcoming gala events</li>
+<li>Locate auction opportunities</li>
+<li>Find contact information for organizers</li>
+</ul>
+<p>Instead of manually researching nonprofits, you can instantly identify events that match your target audience.</p>
+
+<h2>Discover Nonprofit Gala Leads Today</h2>
+<p>If your business participates in fundraising auctions or sponsorship opportunities, nonprofit galas represent one of the most profitable event categories.</p>
+<p>By identifying gala events early, you can secure valuable exposure and generate new business opportunities.</p>
+""",
+    "charity-banquet-events": """
+<p>Charity banquets are a cornerstone of nonprofit fundraising.</p>
+<p>These formal dinner events bring together donors, sponsors, and community leaders to support charitable causes while raising funds through auctions, sponsorships, and raffles.</p>
+<p>For companies offering auction items, experiences, or sponsorship opportunities, charity banquets represent an excellent opportunity to connect with nonprofits.</p>
+
+<h2>What Is a Charity Banquet?</h2>
+<p>A charity banquet is a fundraising dinner typically hosted by nonprofit organizations. These events often feature:</p>
+<ul>
+<li>Silent auctions</li>
+<li>Raffles</li>
+<li>Guest speakers</li>
+<li>Fundraising appeals</li>
+<li>Sponsorship recognition</li>
+</ul>
+<p>Banquets often attract major donors and corporate supporters, making them high-value fundraising opportunities.</p>
+
+<h2>Who Organizes Charity Banquets?</h2>
+<p>Charity banquets are usually organized by:</p>
+<ul>
+<li>Nonprofit development teams</li>
+<li>Fundraising coordinators</li>
+<li>Event planning committees</li>
+<li>Board members</li>
+</ul>
+<p>These individuals oversee fundraising activities and decide which auction items or sponsors participate.</p>
+
+<h2>Why Businesses Participate in Banquets</h2>
+<p>Businesses participate in charity banquets to:</p>
+<ul>
+<li>Promote their brand</li>
+<li>Support nonprofit missions</li>
+<li>Generate exposure among donors</li>
+<li>Offer auction items</li>
+</ul>
+<p>For companies selling travel packages or luxury experiences, banquets often provide ideal fundraising environments.</p>
+
+<h2>Finding Charity Banquet Events</h2>
+<p>Charity banquet events are often announced months in advance but can be difficult to locate. Many nonprofits publish event announcements on their own websites or newsletters, making discovery challenging.</p>
+
+<h2>Discover Banquet Events Faster</h2>
+<p>Using platforms like Auction Finder, businesses can identify nonprofit fundraising events across the country. Instead of manually researching organizations, you can quickly find charity banquet events and connect with the organizers.</p>
+""",
+    "benefit-fundraiser-leads": """
+<p>Benefit fundraisers are events designed to raise money for nonprofit causes through auctions, sponsorships, and donations.</p>
+<p>These events can include:</p>
+<ul>
+<li>Benefit dinners</li>
+<li>Fundraising galas</li>
+<li>Charity concerts</li>
+<li>Auctions and raffles</li>
+</ul>
+<p>For businesses offering auction items or sponsorship opportunities, benefit events provide consistent opportunities to participate in fundraising efforts.</p>
+
+<h2>Why Benefit Events Matter</h2>
+<p>Benefit fundraisers often attract donors, community leaders, and corporate sponsors. These attendees are typically engaged supporters of the organization and are willing to bid on auction items or support sponsorship packages.</p>
+
+<h2>Finding Benefit Fundraiser Leads</h2>
+<p>Businesses often struggle to locate benefit events because they are hosted by thousands of nonprofit organizations nationwide. Event announcements may be scattered across websites and local event calendars.</p>
+
+<h2>Using Technology to Discover Benefit Events</h2>
+<p>With platforms like Auction Finder, businesses can search nonprofit organizations and identify benefit fundraisers across the country. Instead of manual research, you can quickly identify fundraising opportunities and connect with event organizers.</p>
+""",
+    "silent-auction-event-leads": """
+<p>Silent auctions are one of the most common fundraising activities used by nonprofit organizations.</p>
+<p>These auctions allow attendees to bid on items throughout an event, generating funds for charitable causes.</p>
+<p>Businesses that donate auction items or experiences often seek silent auction event leads to connect with nonprofits hosting fundraising events.</p>
+
+<h2>What Is a Silent Auction?</h2>
+<p>A silent auction allows attendees to place bids on items without a live auctioneer. These auctions typically feature:</p>
+<ul>
+<li>Travel packages</li>
+<li>Sports memorabilia</li>
+<li>Luxury experiences</li>
+<li>Restaurant gift cards</li>
+<li>Artwork and collectibles</li>
+</ul>
+<p>Silent auctions can generate significant revenue for nonprofit organizations.</p>
+
+<h2>Who Runs Silent Auctions?</h2>
+<p>Silent auctions are typically managed by:</p>
+<ul>
+<li>Nonprofit development directors</li>
+<li>Fundraising coordinators</li>
+<li>Event committees</li>
+</ul>
+<p>These individuals select auction items and manage vendor participation.</p>
+
+<h2>How Businesses Use Silent Auction Leads</h2>
+<p>Businesses use silent auction leads to:</p>
+<ul>
+<li>Donate items to nonprofits</li>
+<li>Promote their brand to donors</li>
+<li>Build relationships with nonprofit organizations</li>
+</ul>
+
+<h2>Finding Silent Auction Events</h2>
+<p>Because silent auctions are hosted by thousands of nonprofits each year, locating them manually can be challenging.</p>
+<p>Tools like Auction Finder simplify this process by allowing businesses to search nonprofit organizations and identify upcoming events quickly.</p>
+
+<h2>Discover Silent Auction Opportunities</h2>
+<p>If your business offers auction items or sponsorship opportunities, silent auctions represent a powerful way to connect with nonprofit organizations and donors.</p>
+<p>Auction Finder makes it possible to find these events quickly and efficiently.</p>
+""",
+}
+
+
+def _blog_card_html(article):
+    return f'''<article class="group overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/80 transition hover:-translate-y-1 hover:border-neutral-700 hover:shadow-lg hover:shadow-brand-500/5">
+  <a href="/{article['slug']}" class="block">
+    <img src="{article['thumb']}" alt="{article['title']}" class="h-56 w-full object-cover"/>
+  </a>
+  <div class="p-6">
+    <div class="flex flex-wrap items-center gap-x-3 text-xs font-medium text-neutral-500">
+      <span>{article['date']}</span><span>&bull;</span><span>{article['author']}</span>
+    </div>
+    <h3 class="mt-3 text-lg font-bold leading-snug text-neutral-100"><a href="/{article['slug']}" class="hover:text-brand-400 transition">{article['title']}</a></h3>
+    <p class="mt-2 text-sm leading-relaxed text-neutral-400">{article['summary']}</p>
+    <a href="/{article['slug']}" class="mt-4 inline-flex items-center rounded bg-brand-500 px-4 py-2 text-sm font-bold text-black hover:bg-brand-400 transition">Read Article</a>
+  </div>
+</article>'''
+
+
+def _blog_article_page(article):
+    body = BLOG_ARTICLE_BODIES[article["slug"]]
+    by_slug = {a["slug"]: a for a in BLOG_ARTICLES}
+    related_cards = "\n".join(_blog_card_html(by_slug[s]) for s in article["related"] if s in by_slug)
+
+    return (BLOG_HEAD
+        + f'<title>{article["seo_title"]} | Auction Finder</title>\n'
+        + f'<meta name="description" content="{article["summary"]}">\n'
+        + BLOG_STYLES + BLOG_NAV
+        + f'''
+<main class="mx-auto max-w-4xl px-4 py-16">
+  <div class="rounded-lg border border-neutral-800 bg-neutral-900/80 p-6 sm:p-10">
+    <p class="text-xs font-semibold uppercase tracking-widest text-brand-500">{article["category"]}</p>
+    <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">{article["title"]}</h1>
+    <div class="mt-4 flex flex-wrap items-center gap-x-3 text-sm text-neutral-400">
+      <span>Published {article["date"]}</span><span>&bull;</span>
+      <span>By {article["author"]}</span><span>&bull;</span>
+      <span>{article["read_time"]}</span>
+    </div>
+    <div class="mt-8 flex justify-center">
+      <img src="{article["hero"]}" alt="{article["title"]}" class="w-full max-w-2xl rounded-lg border border-neutral-800 object-cover"/>
+    </div>
+    <article class="prose mt-10 max-w-none">
+      {body}
+      <div class="mt-10 rounded-lg border border-brand-500/30 bg-brand-500/5 p-6 text-center">
+        <p class="text-lg font-bold text-white">Ready to find {article["category"].lower()} leads?</p>
+        <p class="mt-2 text-sm text-neutral-400">Start discovering nonprofit fundraising events with Auction Finder.</p>
+        <a href="/register" class="mt-4 inline-flex items-center rounded bg-brand-500 px-6 py-3 text-sm font-bold text-black hover:bg-brand-400 transition">Start Free &rarr;</a>
+      </div>
+    </article>
+  </div>
+
+  <div class="mt-16">
+    <p class="text-xs font-semibold uppercase tracking-widest text-brand-500">More Articles</p>
+    <h2 class="mt-3 text-2xl font-extrabold text-white">Keep reading</h2>
+    <div class="mt-8 grid gap-8 md:grid-cols-3">
+      {related_cards}
+    </div>
+  </div>
+</main>
+'''
+        + BLOG_FOOTER)
+
+
+def _blog_index_page():
+    cards = "\n".join(_blog_card_html(a) for a in BLOG_ARTICLES)
+    return (BLOG_HEAD
+        + '<title>Blog | Auction Finder</title>\n'
+        + '<meta name="description" content="Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.">\n'
+        + BLOG_STYLES + BLOG_NAV
+        + f'''
+<main class="mx-auto max-w-7xl px-4 py-16">
+  <div class="max-w-3xl">
+    <p class="text-xs font-semibold uppercase tracking-widest text-brand-500">Blog</p>
+    <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">Insights for auction outreach teams.</h1>
+    <p class="mt-5 max-w-2xl text-lg leading-8 text-neutral-400">Guides, strategies, and industry knowledge to help you find nonprofit fundraising events and connect with the right decision-makers.</p>
+  </div>
+  <div class="mt-14 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+    {cards}
+  </div>
+</main>
+'''
+        + BLOG_FOOTER)
+
+
+@app.route("/blog")
+def blog_index():
+    return _blog_index_page()
+
+@app.route("/charity-golf-tournament-leads")
+def blog_golf():
+    return _blog_article_page(BLOG_ARTICLES[0])
+
+@app.route("/nonprofit-gala-leads")
+def blog_gala():
+    return _blog_article_page(BLOG_ARTICLES[1])
+
+@app.route("/charity-banquet-events")
+def blog_banquet():
+    return _blog_article_page(BLOG_ARTICLES[2])
+
+@app.route("/benefit-fundraiser-leads")
+def blog_benefit():
+    return _blog_article_page(BLOG_ARTICLES[3])
+
+@app.route("/silent-auction-event-leads")
+def blog_silent():
+    return _blog_article_page(BLOG_ARTICLES[4])
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
@@ -8056,6 +8529,7 @@ LANDING_TEST_HTML = """<!doctype html>
             <div class="mt-3 space-y-2">
               <a class="block text-sm text-neutral-300 hover:text-white" href="/register">Create your free account</a>
               <a class="block text-sm text-neutral-300 hover:text-white" href="/login">Log in</a>
+              <a class="block text-sm text-neutral-300 hover:text-white" href="/blog">Blog</a>
             </div>
           </div>
         </div>
