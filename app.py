@@ -6467,7 +6467,22 @@ API_DOCS_HTML = """<!DOCTYPE html>
   .note p { color: #eab308; font-size: 12px; }
   a { color: #eab308; text-decoration: none; }
   a:hover { text-decoration: underline; }
+  pre code.hljs { background: transparent; padding: 0; }
+  .hljs { color: #d4d4d4; }
+  .hljs-keyword, .hljs-built_in, .hljs-type { color: #c084fc; }
+  .hljs-string, .hljs-template-variable { color: #fb923c; }
+  .hljs-number, .hljs-literal { color: #fb923c; }
+  .hljs-comment { color: #525252; font-style: italic; }
+  .hljs-function .hljs-title, .hljs-title.function_ { color: #e9d5ff; }
+  .hljs-attr, .hljs-property { color: #c084fc; }
+  .hljs-params { color: #d4d4d4; }
+  .hljs-meta { color: #a78bfa; }
+  .hljs-variable, .hljs-name { color: #e2e8f0; }
+  .hljs-punctuation { color: #a3a3a3; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
 {{SIDEBAR_HTML}}
@@ -6668,6 +6683,14 @@ print(f"Done! Saved results_{job_id}.csv")</pre>
 
 </div>
 </div>
+<script>
+document.querySelectorAll('pre').forEach(function(pre) {
+  var text = pre.textContent;
+  var lang = text.trim().startsWith('{') ? 'json' : 'python';
+  pre.innerHTML = '<code class="language-' + lang + '">' + pre.innerHTML + '</code>';
+});
+hljs.highlightAll();
+</script>
 </body></html>"""
 
 
