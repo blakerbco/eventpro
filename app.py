@@ -1204,8 +1204,8 @@ def wallet_topup():
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid amount"}), 400
 
-    if amount_dollars < 50 or amount_dollars > 9999:
-        return jsonify({"error": "Amount must be between $50 and $9,999"}), 400
+    if amount_dollars < 10 or amount_dollars > 9999:
+        return jsonify({"error": "Amount must be between $10 and $9,999"}), 400
 
     amount_cents = int(amount_dollars * 100)
     user_id = session["user_id"]
@@ -3789,9 +3789,9 @@ WALLET_HTML = """<!DOCTYPE html>
   <div class="topup-section">
     <h3>Add Funds</h3>
     <div class="amount-row">
-      <input type="number" id="topupAmount" placeholder="Amount in USD" min="50" max="9999" step="1" value="100">
+      <input type="number" id="topupAmount" placeholder="Amount in USD" min="10" max="9999" step="1" value="100">
     </div>
-    <p class="topup-hint">Minimum $50, maximum $9,999 per top-up</p>
+    <p class="topup-hint">Minimum $10, maximum $9,999 per top-up</p>
     <label class="topup-ack" style="display:flex;align-items:flex-start;gap:10px;margin:14px 0 16px;cursor:pointer;">
       <input type="checkbox" id="topupAck" style="accent-color:#eab308;margin-top:3px;min-width:16px;min-height:16px;">
       <span style="font-size:12px;color:#a3a3a3;line-height:1.5;">I understand wallet credits are non-refundable (except where required by law) and will be used for research and lead charges according to the app's <a href="/refund-policy" target="_blank" style="color:#eab308;">billing rules</a>.</span>
@@ -3835,8 +3835,8 @@ async function initPayment() {
     return false;
   }
   const amount = parseFloat(document.getElementById('topupAmount').value);
-  if (!amount || amount < 50 || amount > 9999) {
-    showError('Amount must be between $50 and $9,999');
+  if (!amount || amount < 10 || amount > 9999) {
+    showError('Amount must be between $10 and $9,999');
     return false;
   }
   const btn = document.getElementById('payBtn');
