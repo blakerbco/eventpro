@@ -533,7 +533,7 @@ def _research_one(
             cached["email_status"] = email_state
             print(f"[EMAILABLE-CACHE] {contact_email} => {email_state}", flush=True)
             progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
-            if email_state not in ("deliverable", "risky"):
+            if email_state != "deliverable":
                 cached["contact_email"] = ""
                 cached["contact_name"] = ""
                 tier, price = "event_verified", 75
@@ -631,7 +631,7 @@ def _research_one(
         result["email_status"] = email_state
         print(f"[EMAILABLE-FRESH] {contact_email} => {email_state}", flush=True)
         progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
-        if email_state not in ("deliverable", "risky"):
+        if email_state != "deliverable":
             result["contact_email"] = ""
             result["contact_name"] = ""
             tier, price = "event_verified", 75
