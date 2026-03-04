@@ -276,3 +276,44 @@ def send_drip_day7_trial_ended(email: str, credit_removed_cents: int = 1420):
     html = html.replace("{date}", _today())
     html = html.replace("{cta_url}", f"{DOMAIN}/wallet")
     _send(email, "Your Free Trial Has Ended", html)
+
+
+# ─── Admin Notifications ─────────────────────────────────────────────────────
+
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "blake@auctionintel.us")
+ADMIN_PHONE = os.environ.get("ADMIN_PHONE", "+17205563447")
+TWILIO_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM = os.environ.get("TWILIO_FROM_NUMBER", "")
+
+
+def send_admin_wallet_topup(user_email: str, amount_cents: int, new_balance_cents: int):
+    """Notify admin via email + SMS when a user adds funds (not free credit)."""
+    amount = f"${amount_cents / 100:.2f}"
+    balance = f"${new_balance_cents / 100:.2f}"
+    subject = f"Wallet Top-Up: {user_email} added {amount}"
+
+    # Email notification to admin
+    html = f"""<div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px;">
+    <h2 style="color:#111;">Wallet Top-Up</h2>
+    <p><strong>User:</strong> {user_email}</p>
+    <p><strong>Amount:</strong> {amount}</p>
+    <p><strong>New Balance:</strong> {balance}</p>
+    <p><strong>Date:</strong> {_today()}</p>
+    <hr style="border:1px solid #eee;margin:16px 0;">
+    <p style="color:#666;font-size:13px;">Auction Finder Admin Notification</p>
+    </div>"""
+    _send(ADMIN_EMAIL, subject, html)
+
+    # SMS notification via Twilio
+    if TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM:
+        try:
+            from twilio.rest import Client
+            client = Client(TWILIO_SID, TWILIO_TOKEN)
+            msg = f"Auction Finder: {user_email} topped up {amount}. Balance: {balance}"
+            client.messages.create(body=msg, from_=TWILIO_FROM, to=ADMIN_PHONE)
+            print(f"[SMS] Sent top-up alert to {ADMIN_PHONE}", flush=True)
+        except Exception as e:
+            print(f"[SMS ERROR] Failed to send to {ADMIN_PHONE}: {type(e).__name__}: {e}", flush=True)
+    else:
+        print(f"[SMS] Twilio not configured, skipping SMS notification", flush=True)

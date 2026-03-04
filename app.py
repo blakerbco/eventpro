@@ -1256,6 +1256,7 @@ def stripe_webhook():
                 if user:
                     new_balance = get_balance(user_id)
                     emails.send_funds_receipt(user["email"], amount_cents, new_balance)
+                    emails.send_admin_wallet_topup(user["email"], amount_cents, new_balance)
                 print(f"[STRIPE] Credited ${amount_cents/100:.2f} to user {user_id} (intent: {intent_id})")
             else:
                 print(f"[STRIPE] Duplicate intent {intent_id}, skipping")
@@ -7563,6 +7564,12 @@ def _blog_article_page(article):
     return (BLOG_HEAD
         + f'<title>{article["seo_title"]} | Auction Finder</title>\n'
         + f'<meta name="description" content="{article["summary"]}">\n'
+        + f'<meta property="og:title" content="{article["seo_title"]} | Auction Finder">\n'
+        + f'<meta property="og:description" content="{article["summary"]}">\n'
+        + f'<meta property="og:type" content="article">\n'
+        + f'<meta property="og:url" content="https://auctionintel.app/{article["slug"]}">\n'
+        + f'<meta property="og:image" content="https://auctionintel.app{article["hero"]}">\n'
+        + f'<link rel="canonical" href="https://auctionintel.app/{article["slug"]}">\n'
         + BLOG_STYLES + BLOG_NAV
         + f'''
 <section class="py-24">
@@ -7617,13 +7624,18 @@ def _blog_index_page():
     return (BLOG_HEAD
         + '<title>Blog | Auction Finder</title>\n'
         + '<meta name="description" content="Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.">\n'
+        + '<meta property="og:title" content="Blog | Auction Finder">\n'
+        + '<meta property="og:description" content="Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.">\n'
+        + '<meta property="og:type" content="website">\n'
+        + '<meta property="og:url" content="https://auctionintel.app/blog">\n'
+        + '<link rel="canonical" href="https://auctionintel.app/blog">\n'
         + BLOG_STYLES + BLOG_NAV
         + f'''
 <section class="border-t-2 border-black bg-paper py-24">
   <div class="mx-auto max-w-7xl px-6 lg:px-8">
     <div class="max-w-3xl">
       <p class="section-kicker text-sm font-black text-black/60">BLOG</p>
-      <h2 class="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Insights for auction outreach teams.</h2>
+      <h1 class="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Insights for auction outreach teams.</h1>
       <p class="mt-5 max-w-2xl text-lg leading-8 text-black/70">Guides, strategies, and industry knowledge to help you find nonprofit fundraising events and connect with the right decision-makers.</p>
     </div>
     <div class="mt-14 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
