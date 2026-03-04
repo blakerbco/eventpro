@@ -418,7 +418,7 @@ def _build_sidebar_html(active):
     return (
         '<div class="sidebar-overlay" id="sidebarOverlay" onclick="document.getElementById(\'sidebar\').classList.remove(\'open\');this.classList.remove(\'open\');"></div>\n'
         '<aside class="sidebar" id="sidebar">\n'
-        '  <div class="sidebar-logo"><a href="/"><img src="/static/logo_dark.png" alt="Auction Intel" style="height:44px;"></a></div>\n'
+        '  <div class="sidebar-logo"><a href="/"><img src="/static/logo_dark.png" alt="Auction Finder" style="height:44px;"></a></div>\n'
         f'{sections}'
         '  <a href="#" class="live-batch-btn" id="liveBatchBtn" onclick="return false;"><span class="dot"></span>Return to Live Batch</a>\n'
         '  <div class="sidebar-bottom">\n'
@@ -2178,25 +2178,25 @@ _DNS_FORM_STYLE = """
 def terms_page():
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Terms of Service - Auction Intel</title>
+<title>Terms of Service - Auction Finder</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_LEGAL_STYLE}</style></head><body>
 <div class="legal-wrap">
-<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<a href="/" class="back-link">&larr; Back to Auction Finder</a>
 <h1>Terms of Service</h1>
 <p class="effective">Effective Date: February 25, 2026</p>
 
 <h2>1. Acceptance of Terms</h2>
-<p>By accessing or using Auction Intel ("Services"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Services.</p>
+<p>By accessing or using Auction Finder ("Services"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Services.</p>
 
 <h2>2. Description of Services</h2>
-<p>Auction Intel provides nonprofit event research tools, including web-based search, lead generation, database access, and related analytics. Results are generated using automated research and may include publicly available information.</p>
+<p>Auction Finder provides nonprofit event research tools, including web-based search, lead generation, database access, and related analytics. Results are generated using automated research and may include publicly available information.</p>
 
 <h2>3. Account Registration</h2>
 <p>You must create an account to use paid features. You are responsible for maintaining the confidentiality of your credentials and for all activity under your account. You must provide accurate information and promptly update it if it changes.</p>
 
 <h2>4. Wallet, Payments, and Billing</h2>
-<p>Auction Intel uses a prepaid wallet system. Funds added to your wallet are <strong>non-refundable</strong> except where required by law. Research fees are charged per nonprofit processed, whether or not a qualifying lead is found. Lead fees are charged according to the tier and billability rules displayed in the product. See our <a href="/refund-policy">Refund Policy</a> for details.</p>
+<p>Auction Finder uses a prepaid wallet system. Funds added to your wallet are <strong>non-refundable</strong> except where required by law. Research fees are charged per nonprofit processed, whether or not a qualifying lead is found. Lead fees are charged according to the tier and billability rules displayed in the product. See our <a href="/refund-policy">Refund Policy</a> for details.</p>
 
 <h2>5. Acceptable Use</h2>
 <p>You agree not to:</p>
@@ -2209,7 +2209,7 @@ def terms_page():
 </ul>
 
 <h2>6. Intellectual Property</h2>
-<p>All content, design, and technology of the Services are owned by Auction Intel or its licensors. You may use results generated for your own internal business purposes. You may not reproduce or redistribute the platform itself.</p>
+<p>All content, design, and technology of the Services are owned by Auction Finder or its licensors. You may use results generated for your own internal business purposes. You may not reproduce or redistribute the platform itself.</p>
 
 <h2>7. Data and Privacy</h2>
 <p>Your use of the Services is subject to our <a href="/privacy-policy">Privacy Policy</a>. We process data as described therein.</p>
@@ -2218,7 +2218,7 @@ def terms_page():
 <p>The Services are provided "as is" without warranties of any kind, express or implied. We do not guarantee the accuracy, completeness, or timeliness of any results. Event information, contact details, and other data may be outdated or incorrect.</p>
 
 <h2>9. Limitation of Liability</h2>
-<p>To the maximum extent permitted by law, Auction Intel shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, arising out of or related to your use of the Services.</p>
+<p>To the maximum extent permitted by law, Auction Finder shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, arising out of or related to your use of the Services.</p>
 
 <h2>10. Termination</h2>
 <p>We may suspend or terminate your account at any time for violation of these Terms or for any other reason at our discretion. You may close your account by contacting <a href="mailto:support@auctionintel.us">support@auctionintel.us</a>. Unused wallet credits are non-refundable upon termination except where required by law.</p>
@@ -2230,7 +2230,7 @@ def terms_page():
 <p>These Terms are governed by the laws of the State of Colorado, without regard to conflict of law principles.</p>
 
 <h2>13. Contact</h2>
-<p>Auction Intel<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+<p>Auction Finder<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
 </div></body></html>"""
 
 
@@ -2238,15 +2238,15 @@ def terms_page():
 def privacy_policy_page():
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Privacy Policy - Auction Intel</title>
+<title>Privacy Policy - Auction Finder</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_LEGAL_STYLE}</style></head><body>
 <div class="legal-wrap">
-<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<a href="/" class="back-link">&larr; Back to Auction Finder</a>
 <h1>Privacy Policy</h1>
 <p class="effective">Effective Date: February 25, 2026</p>
 
-<p>Auction Intel ("we," "us," or "our") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use our website, platform, and services (collectively, the "Services").</p>
+<p>Auction Finder ("we," "us," or "our") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use our website, platform, and services (collectively, the "Services").</p>
 
 <h2>1. Information We Collect</h2>
 <h3>1.1 Account and Contact Information</h3>
@@ -2301,7 +2301,7 @@ def privacy_policy_page():
 <p>We may update this Privacy Policy from time to time. Material changes will be posted with a revised date.</p>
 
 <h2>12. Contact</h2>
-<p>Auction Intel<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+<p>Auction Finder<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
 </div></body></html>"""
 
 
@@ -2309,22 +2309,22 @@ def privacy_policy_page():
 def refund_policy_page():
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Refund Policy - Auction Intel</title>
+<title>Refund Policy - Auction Finder</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_LEGAL_STYLE}</style></head><body>
 <div class="legal-wrap">
-<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<a href="/" class="back-link">&larr; Back to Auction Finder</a>
 <h1>Refund Policy</h1>
 <p class="effective">Effective Date: February 25, 2026</p>
 
 <h2>1. Wallet Credits Are Non-Refundable</h2>
-<p>All funds added to your Auction Intel wallet are <strong>non-refundable</strong>, except where required by applicable law. This includes wallet top-ups used for research fees, lead fees, and other in-platform charges.</p>
+<p>All funds added to your Auction Finder wallet are <strong>non-refundable</strong>, except where required by applicable law. This includes wallet top-ups used for research fees, lead fees, and other in-platform charges.</p>
 
 <h2>2. No Expiration of Wallet Credits</h2>
-<p>Wallet credits do <strong>not</strong> expire unless otherwise stated in writing by Auction Intel.</p>
+<p>Wallet credits do <strong>not</strong> expire unless otherwise stated in writing by Auction Finder.</p>
 
 <h2>3. Research Fees Are Charged for Work Performed</h2>
-<p>Research fees are charged per nonprofit researched, whether or not a qualifying event lead is found. This is because Auction Intel performs compute- and web-research work for each nonprofit processed.</p>
+<p>Research fees are charged per nonprofit researched, whether or not a qualifying event lead is found. This is because Auction Finder performs compute- and web-research work for each nonprofit processed.</p>
 
 <h2>4. Lead Charges and Billability Rules</h2>
 <p>Lead charges are applied according to the tier(s) selected and the platform's billability rules shown in the product at the time of the search. Where the product states a verified event page link is required for a billable lead, leads without a qualifying link are not charged.</p>
@@ -2339,7 +2339,7 @@ def refund_policy_page():
 <p>Before initiating a chargeback, please contact us so we can resolve the issue. Fraudulent or abusive chargebacks may result in account suspension or termination.</p>
 
 <h2>8. Contact</h2>
-<p>Auction Intel<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
+<p>Auction Finder<br>Email: <a href="mailto:support@auctionintel.us">support@auctionintel.us</a><br>Phone: 303-719-4851</p>
 </div></body></html>"""
 
 
@@ -2347,15 +2347,15 @@ def refund_policy_page():
 def contact_dmca_page():
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contact / DMCA / Abuse - Auction Intel</title>
+<title>Contact / DMCA / Abuse - Auction Finder</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_LEGAL_STYLE}</style></head><body>
 <div class="legal-wrap">
-<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<a href="/" class="back-link">&larr; Back to Auction Finder</a>
 <h1>Contact, DMCA &amp; Abuse Policy</h1>
 <p class="effective">Effective Date: February 25, 2026</p>
 
-<p>Auction Intel ("we," "us," "our") provides tools to help users discover nonprofit event information and related contact data.</p>
+<p>Auction Finder ("we," "us," "our") provides tools to help users discover nonprofit event information and related contact data.</p>
 
 <h2>1. Contact Us</h2>
 <p>For questions, support, billing issues, or general inquiries:</p>
@@ -2392,19 +2392,19 @@ def contact_dmca_page():
 def do_not_sell_page():
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Do Not Sell or Share My Information - Auction Intel</title>
+<title>Do Not Sell or Share My Information - Auction Finder</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_LEGAL_STYLE}{_DNS_FORM_STYLE}</style></head><body>
 <div class="legal-wrap">
-<a href="/" class="back-link">&larr; Back to Auction Intel</a>
+<a href="/" class="back-link">&larr; Back to Auction Finder</a>
 <h1>Do Not Sell or Share My Information</h1>
 <p class="effective">Effective Date: February 25, 2026</p>
 
-<p>Auction Intel respects privacy requests from individuals and nonprofit representatives. If you believe your personal information appears in Auction Intel results, you may request that we remove or suppress your information, correct inaccurate information, or opt out of the sale or sharing of your personal information.</p>
+<p>Auction Finder respects privacy requests from individuals and nonprofit representatives. If you believe your personal information appears in Auction Finder results, you may request that we remove or suppress your information, correct inaccurate information, or opt out of the sale or sharing of your personal information.</p>
 
 <h2>Who Can Submit a Request</h2>
 <ul>
-<li>The person whose information appears in Auction Intel results</li>
+<li>The person whose information appears in Auction Finder results</li>
 <li>An authorized representative of a nonprofit/organization requesting review of listed contact information</li>
 </ul>
 
@@ -3079,7 +3079,7 @@ ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard — Auction Intel</title>
+<title>Admin Dashboard — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3129,7 +3129,7 @@ ADMIN_USERS_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>User Management — Auction Intel</title>
+<title>User Management — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3165,7 +3165,7 @@ ADMIN_USER_DETAIL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>User Detail — Auction Intel</title>
+<title>User Detail — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3252,7 +3252,7 @@ ADMIN_REVENUE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Revenue — Auction Intel</title>
+<title>Revenue — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3294,7 +3294,7 @@ ADMIN_ACTIVITY_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Activity — Auction Intel</title>
+<title>Activity — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3342,7 +3342,7 @@ ADMIN_SYSTEM_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>System — Auction Intel</title>
+<title>System — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3391,7 +3391,7 @@ ADMIN_TICKETS_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tickets — Auction Intel</title>
+<title>Tickets — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """</style>
 </head>
 <body>
@@ -3418,7 +3418,7 @@ ADMIN_RESULTS_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cache Results — Auction Intel</title>
+<title>Cache Results — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """
   .export-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
   .export-bar a { display:inline-block; padding:8px 16px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none; font-family:inherit; }
@@ -3486,7 +3486,7 @@ ADMIN_TICKET_DETAIL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ticket #{{TICKET_ID}} — Auction Intel</title>
+<title>Ticket #{{TICKET_ID}} — Auction Finder</title>
 <style>""" + _ADMIN_STYLE + """
   .msg-area { width:100%; min-height:100px; padding:12px; background:#000; border:1px solid #333; border-radius:8px; color:#f5f5f5; font-size:13px; font-family:inherit; outline:none; resize:vertical; }
   .msg-area:focus { border-color:#eab308; }
@@ -3554,7 +3554,7 @@ REGISTER_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Register</title>
+<title>Auction Finder - Register</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_BASE_STYLE}
   body {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
@@ -3568,7 +3568,7 @@ REGISTER_HTML = f"""<!DOCTYPE html>
 </head>
 <body>
 <form class="auth-box" method="POST" action="/register">
-  <img src="/static/logo_dark.png" alt="Auction Intel" style="height:48px;margin-bottom:16px;">
+  <img src="/static/logo_dark.png" alt="Auction Finder" style="height:48px;margin-bottom:16px;">
   <p class="sub">Create your account</p>
   <!-- error -->
   <input type="text" name="company" placeholder="Company name" required>
@@ -3634,7 +3634,7 @@ LOGIN_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Login</title>
+<title>Auction Finder - Login</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_BASE_STYLE}
   body {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
@@ -3642,7 +3642,7 @@ LOGIN_HTML = f"""<!DOCTYPE html>
 </head>
 <body>
 <form class="auth-box" method="POST" action="/login">
-  <img src="/static/logo_dark.png" alt="Auction Intel" style="height:48px;margin-bottom:16px;">
+  <img src="/static/logo_dark.png" alt="Auction Finder" style="height:48px;margin-bottom:16px;">
   <p class="sub">Nonprofit Auction Event Finder</p>
   <!-- error -->
   <input type="email" name="email" placeholder="Email address" autofocus required>
@@ -3659,7 +3659,7 @@ FORGOT_PASSWORD_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Forgot Password</title>
+<title>Auction Finder - Forgot Password</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_BASE_STYLE}
   body {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
@@ -3667,7 +3667,7 @@ FORGOT_PASSWORD_HTML = f"""<!DOCTYPE html>
 </head>
 <body>
 <form class="auth-box" method="POST" action="/forgot-password">
-  <img src="/static/logo_dark.png" alt="Auction Intel" style="height:48px;margin-bottom:16px;">
+  <img src="/static/logo_dark.png" alt="Auction Finder" style="height:48px;margin-bottom:16px;">
   <p class="sub">Reset your password</p>
   <!-- message -->
   <input type="email" name="email" placeholder="Email address" autofocus required>
@@ -3682,7 +3682,7 @@ VERIFY_EMAIL_PENDING_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Verify Email</title>
+<title>Auction Finder - Verify Email</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_BASE_STYLE}
   body {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
@@ -3690,7 +3690,7 @@ VERIFY_EMAIL_PENDING_HTML = f"""<!DOCTYPE html>
 </head>
 <body>
 <div class="auth-box">
-  <img src="/static/logo_dark.png" alt="Auction Intel" style="height:48px;margin-bottom:16px;">
+  <img src="/static/logo_dark.png" alt="Auction Finder" style="height:48px;margin-bottom:16px;">
   <p class="sub">Check your email</p>
   <!-- message -->
   <p style="color:#a3a3a3;font-size:14px;line-height:1.6;margin-bottom:20px;">
@@ -3712,7 +3712,7 @@ RESET_PASSWORD_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Reset Password</title>
+<title>Auction Finder - Reset Password</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <style>{_BASE_STYLE}
   body {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
@@ -3720,7 +3720,7 @@ RESET_PASSWORD_HTML = f"""<!DOCTYPE html>
 </head>
 <body>
 <form class="auth-box" method="POST" action="/reset-password">
-  <img src="/static/logo_dark.png" alt="Auction Intel" style="height:48px;margin-bottom:16px;">
+  <img src="/static/logo_dark.png" alt="Auction Finder" style="height:48px;margin-bottom:16px;">
   <p class="sub">Set a new password</p>
   <!-- error -->
   <input type="hidden" name="token" value="{{{{TOKEN}}}}">
@@ -3737,7 +3737,7 @@ WALLET_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Wallet</title>
+<title>Auction Finder - Wallet</title>
 <script src="https://js.stripe.com/v3/"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3934,7 +3934,7 @@ PROFILE_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Profile</title>
+<title>Auction Finder - Profile</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }}
@@ -4014,7 +4014,7 @@ BILLING_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Billing</title>
+<title>Auction Finder - Billing</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -4113,7 +4113,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER</title>
+<title>Auction Finder</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -4948,7 +4948,7 @@ DATABASE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Search Nonprofit Database</title>
+<title>Auction Finder - Search Nonprofit Database</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -5323,7 +5323,7 @@ RESULTS_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Results</title>
+<title>Auction Finder - Results</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -5372,7 +5372,7 @@ MERGE_TOOL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTION INTEL - File Merger</title>
+<title>Auction Finder - File Merger</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -5755,7 +5755,7 @@ ANALYZER_TOOL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - JSON Field Analyzer</title>
+<title>Auction Finder - JSON Field Analyzer</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -6184,7 +6184,7 @@ GETTING_STARTED_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Getting Started</title>
+<title>Auction Finder - Getting Started</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -6207,7 +6207,7 @@ GETTING_STARTED_HTML = """<!DOCTYPE html>
 {{SIDEBAR_HTML}}
 <div class="main-content">
 <div class="container">
-  <h2>Getting Started with Auction Intel</h2>
+  <h2>Getting Started with Auction Finder</h2>
   <p class="subtitle">Follow these 4 steps to find nonprofit auction events and download verified leads.</p>
 
   <div class="step">
@@ -6262,7 +6262,7 @@ SUPPORT_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Support</title>
+<title>Auction Finder - Support</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -6303,7 +6303,7 @@ SUPPORT_NEW_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - New Support Ticket</title>
+<title>Auction Finder - New Support Ticket</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -6354,7 +6354,7 @@ SUPPORT_TICKET_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AUCTIONFINDER - Ticket #{{TICKET_ID}}</title>
+<title>Auction Finder - Ticket #{{TICKET_ID}}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
@@ -6403,10 +6403,10 @@ LANDING_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Auction Intel - Find Nonprofit Auction Events at Scale</title>
+<title>Auction Finder - Find Nonprofit Auction Events at Scale</title>
 <meta name="description" content="Find nonprofit auction leads, charity gala contacts, and fundraising event data at scale. Get verified decision-maker emails for nonprofit auctions, golf tournaments, and sponsorship opportunities.">
 <meta name="keywords" content="nonprofit auction leads, nonprofit gala leads, charity golf tournament sponsorship contacts, nonprofit event contact database, fundraising event lead list, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events">
-<meta property="og:title" content="Auction Intel - Find Nonprofit Auction Events at Scale">
+<meta property="og:title" content="Auction Finder - Find Nonprofit Auction Events at Scale">
 <meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://auctionintel.app">
@@ -6575,7 +6575,7 @@ LANDING_HTML = """<!DOCTYPE html>
 
 <div class="topnav">
   <div class="logo">
-    <img src="/static/logo_dark.png" alt="Auction Intel">
+    <img src="/static/logo_dark.png" alt="Auction Finder">
   </div>
   <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -6593,7 +6593,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <!-- Hero -->
 <div class="hero">
   <h1><span class="gold">Find nonprofit auction events.</span><br><span style="font-size:38px;">Verified. Exportable. Ready to contact.</span></h1>
-  <p class="subtitle">Auction Intel's new Auction Finder Research Engine scans nonprofit websites to find upcoming fundraising events with a live auction, a silent auction, or both. Get high-quality leads with a verified event page link, the event date, event-level contacts (email/phone), the auction type, and more.</p>
+  <p class="subtitle">Auction Finder's new Auction Finder Research Engine scans nonprofit websites to find upcoming fundraising events with a live auction, a silent auction, or both. Get high-quality leads with a verified event page link, the event date, event-level contacts (email/phone), the auction type, and more.</p>
   <div class="cta-row">
     <a href="/register" class="btn-primary">Get Started Free</a>
     <a href="#how-it-works" class="btn-secondary">See How It Works</a>
@@ -6614,7 +6614,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="section-header">
     <span class="tag">How It Works</span>
     <h2>How it works</h2>
-    <p>Stop manually researching one organization at a time.<br>Auction Intel runs research in batches and returns verified, outreach-ready leads.</p>
+    <p>Stop manually researching one organization at a time.<br>Auction Finder runs research in batches and returns verified, outreach-ready leads.</p>
   </div>
   <div class="steps">
     <div class="step">
@@ -6645,7 +6645,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="section-header">
     <span class="tag">Features</span>
     <h2>Built to close more consignments</h2>
-    <p>Spend less time researching and more time closing.<br>Auction Intel delivers verified opportunities at scale&mdash;with proof.</p>
+    <p>Spend less time researching and more time closing.<br>Auction Finder delivers verified opportunities at scale&mdash;with proof.</p>
   </div>
   <div class="features-grid">
     <div class="feature-card">
@@ -6765,7 +6765,7 @@ LANDING_HTML = """<!DOCTYPE html>
   </div>
   <div class="faq-list">
     <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What types of events does Auction Intel find? <span class="arrow">+</span></div>
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What types of events does Auction Finder find? <span class="arrow">+</span></div>
       <div class="faq-a">We find nonprofit fundraising events with an auction component: silent auctions, live auctions, galas with paddle raises, charity dinners with auction items, golf tournaments with silent auctions, art shows, casino nights, and more. If the event has bidding, we find it.</div>
     </div>
     <div class="faq-item">
@@ -6814,14 +6814,14 @@ LANDING_HTML = """<!DOCTYPE html>
 <!-- Final CTA -->
 <div class="final-cta">
   <h2>Start finding auction leads today</h2>
-  <p>Join auction professionals who use Auction Intel to discover<br>nonprofit events before the competition.</p>
+  <p>Join auction professionals who use Auction Finder to discover<br>nonprofit events before the competition.</p>
   <a href="/register" class="btn-primary">Create Your Free Account</a>
 </div>
 
 <div class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <div class="footer-logo">Auction Intel</div>
+      <div class="footer-logo">Auction Finder</div>
       <p>Event-driven sales intelligence with verified nonprofit fundraising leads. Timing precision that turns research into revenue.</p>
     </div>
     <div class="footer-contact">
@@ -6837,7 +6837,7 @@ LANDING_HTML = """<!DOCTYPE html>
     <a href="/do-not-sell">Do Not Sell My Info</a>
     <a href="/contact">Contact / DMCA / Abuse</a>
   </div>
-  <div class="footer-copy">&copy; 2026 Auction Intel. All rights reserved.</div>
+  <div class="footer-copy">&copy; 2026 Auction Finder. All rights reserved.</div>
 </div>
 
 </body>
@@ -7155,7 +7155,7 @@ def api_keys_page():
             <td style="padding:8px;border-bottom:1px solid #374151">{revoke_btn}</td>
         </tr>"""
 
-    html = f"""<!DOCTYPE html><html><head><title>API Keys - Auction Intel</title>
+    html = f"""<!DOCTYPE html><html><head><title>API Keys - Auction Finder</title>
     <style>body{{background:#000000;color:#e2e8f0;font-family:system-ui;margin:0;padding:20px}}
     .container{{max-width:800px;margin:0 auto}}
     h1{{color:#eab308}}
@@ -7300,10 +7300,10 @@ LANDING_TEST_HTML = """<!doctype html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Auction Intel — Find nonprofit auction events</title>
+  <title>Auction Finder — Find nonprofit auction events</title>
   <meta name="description" content="Find nonprofit auction leads, charity gala contacts, and fundraising event data at scale. Get verified decision-maker emails for nonprofit auctions, golf tournaments, and sponsorship opportunities.">
   <meta name="keywords" content="nonprofit auction leads, nonprofit gala leads, charity golf tournament sponsorship contacts, nonprofit event contact database, fundraising event lead list, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events">
-  <meta property="og:title" content="Auction Intel — Find nonprofit auction events">
+  <meta property="og:title" content="Auction Finder — Find nonprofit auction events">
   <meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://auctionintel.app">
@@ -7352,7 +7352,7 @@ LANDING_TEST_HTML = """<!doctype html>
   <header class="sticky top-0 z-50 border-b border-neutral-800/80 bg-black/70 backdrop-blur">
     <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-6">
       <a href="/" class="flex items-center gap-3">
-        <img src="/static/logo_dark.png" alt="Auction Intel" class="h-9 w-auto">
+        <img src="/static/logo_dark.png" alt="Auction Finder" class="h-9 w-auto">
       </a>
 
       <div class="hidden items-center gap-7 lg:flex">
@@ -7406,7 +7406,7 @@ LANDING_TEST_HTML = """<!doctype html>
         </p>
 
         <p class="mt-4 max-w-2xl text-base leading-relaxed text-neutral-300">
-          Auction Intel's Auction Finder Research Engine scans nonprofit websites to find upcoming fundraising
+          Auction Finder's Auction Finder Research Engine scans nonprofit websites to find upcoming fundraising
           events with a live auction, a silent auction, or both. Get high-quality leads with a verified event page link,
           the event date, event-level contacts (email/phone), the auction type, and more.
         </p>
@@ -7501,7 +7501,7 @@ LANDING_TEST_HTML = """<!doctype html>
       <div class="lg:col-span-7">
         <h2 class="text-3xl font-extrabold tracking-tight">How it works</h2>
         <p class="mt-3 max-w-2xl text-neutral-300">
-          Stop manually researching one organization at a time. Auction Intel runs research in batches and returns verified, outreach-ready leads.
+          Stop manually researching one organization at a time. Auction Finder runs research in batches and returns verified, outreach-ready leads.
         </p>
       </div>
 
@@ -7551,7 +7551,7 @@ LANDING_TEST_HTML = """<!doctype html>
     <div class="text-center">
       <p class="text-xs font-semibold uppercase tracking-wider text-brand-300">FEATURES</p>
       <h2 class="mt-2 text-3xl font-extrabold tracking-tight">Built to close more consignments</h2>
-      <p class="mt-3 text-neutral-300">Spend less time researching and more time closing. Auction Intel delivers verified opportunities at scale — with proof.</p>
+      <p class="mt-3 text-neutral-300">Spend less time researching and more time closing. Auction Finder delivers verified opportunities at scale — with proof.</p>
     </div>
 
     <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -7712,7 +7712,7 @@ LANDING_TEST_HTML = """<!doctype html>
     </div>
 
     <div class="mt-10" id="accordion-flush" data-accordion="collapse">
-      <h3 id="faq-h-1"><button type="button" class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200" data-accordion-target="#faq-b-1" aria-expanded="false" aria-controls="faq-b-1"><span>What types of events does Auction Intel find?</span><svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></h3>
+      <h3 id="faq-h-1"><button type="button" class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200" data-accordion-target="#faq-b-1" aria-expanded="false" aria-controls="faq-b-1"><span>What types of events does Auction Finder find?</span><svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></h3>
       <div id="faq-b-1" class="hidden" aria-labelledby="faq-h-1"><div class="pb-5 text-sm text-neutral-400">Live auction events, silent auction events, or events that include both.</div></div>
 
       <h3 id="faq-h-2"><button type="button" class="flex w-full items-center justify-between border-b border-neutral-900 py-5 text-left text-sm font-semibold text-neutral-200" data-accordion-target="#faq-b-2" aria-expanded="false" aria-controls="faq-b-2"><span>How does the research engine verify that an event actually exists?</span><svg data-accordion-icon class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></h3>
@@ -7779,7 +7779,7 @@ LANDING_TEST_HTML = """<!doctype html>
       <div class="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
         <div>
           <a href="/" class="flex items-center gap-3">
-            <img src="/static/logo_dark.png" alt="Auction Intel" class="h-9 w-auto">
+            <img src="/static/logo_dark.png" alt="Auction Finder" class="h-9 w-auto">
           </a>
           <p class="mt-3 max-w-sm text-sm text-neutral-400">Event-driven sales intelligence with verified nonprofit fundraising leads. Timing precision that turns research into revenue.</p>
         </div>
@@ -7812,7 +7812,7 @@ LANDING_TEST_HTML = """<!doctype html>
       </div>
 
       <div class="mt-10 border-t border-neutral-900 pt-6">
-        <p class="text-xs text-neutral-500">&copy; 2026 Auction Intel. All rights reserved.</p>
+        <p class="text-xs text-neutral-500">&copy; 2026 Auction Finder. All rights reserved.</p>
       </div>
     </div>
   </footer>

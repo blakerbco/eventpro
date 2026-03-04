@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import resend
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
-RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "Auction Intel Admin <admin@auctionintel.app>")
+RESEND_FROM = os.environ.get("RESEND_FROM_EMAIL", "Auction Finder Admin <admin@auctionintel.app>")
 DOMAIN = os.environ.get("APP_DOMAIN", "https://auctionintel.app")
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "final_email_template_series")
@@ -83,14 +83,14 @@ def send_welcome(email: str, is_trial: bool = False):
     """01 — Welcome email on registration."""
     html = _load("01_welcome")
     html = html.replace("DASHBOARD_URL", f"{DOMAIN}/database")
-    _send(email, "Welcome to Auction Intel", html)
+    _send(email, "Welcome to Auction Finder", html)
 
 
 def send_verification_email(email: str, verify_url: str):
     """02 — Email verification link."""
     html = _load("02_verify")
     html = html.replace("DASHBOARD_URL", verify_url)
-    _send(email, "Verify Your Email — Auction Intel", html)
+    _send(email, "Verify Your Email — Auction Finder", html)
 
 
 def send_password_reset(email: str, reset_url: str):
@@ -98,7 +98,7 @@ def send_password_reset(email: str, reset_url: str):
     html = _load("03_password_reset")
     html = html.replace("{date}", _today())
     html = html.replace("{cta_url}", reset_url)
-    _send(email, "Reset Your Auction Intel Password", html)
+    _send(email, "Reset Your Auction Finder Password", html)
 
 
 def send_job_complete(email: str, job_id: str, nonprofit_count: int,
@@ -179,7 +179,7 @@ def send_credit_exhausted(email: str):
     html = _load("09_credit_exhausted")
     html = html.replace("{date}", _today())
     html = html.replace("{cta_url}", f"{DOMAIN}/wallet")
-    _send(email, "Your Auction Intel Balance Has Run Out", html)
+    _send(email, "Your Auction Finder Balance Has Run Out", html)
 
 
 def send_low_balance_warning(email: str, balance_cents: int):
@@ -232,7 +232,7 @@ def send_payment_failed(email: str, amount_cents: int = 0, reason: str = "Card d
     html = html.replace("{date}", _today())
     html = html.replace("{amount}", amount)
     html = html.replace("{cta_url}", f"{DOMAIN}/wallet")
-    _send(email, "Payment Failed — Auction Intel", html)
+    _send(email, "Payment Failed — Auction Finder", html)
 
 
 def send_we_miss_you(email: str, balance_cents: int = 0, last_search_date: str = ""):
@@ -240,7 +240,7 @@ def send_we_miss_you(email: str, balance_cents: int = 0, last_search_date: str =
     html = _load("16_we_miss_you")
     html = html.replace("{date}", _today())
     html = html.replace("{cta_url}", f"{DOMAIN}/database")
-    _send(email, "We Miss You — Auction Intel", html)
+    _send(email, "We Miss You — Auction Finder", html)
 
 
 # ─── Drip Campaign (17–20) ───────────────────────────────────────────────────
@@ -251,7 +251,7 @@ def send_drip_day1_how_it_works(email: str):
     html = html.replace("{date}", _today())
     html = html.replace("{trial_credit}", "$20.00")
     html = html.replace("{cta_url}", f"{DOMAIN}/database")
-    _send(email, "How Auction Intel Works — 3 Simple Steps", html)
+    _send(email, "How Auction Finder Works — 3 Simple Steps", html)
 
 
 def send_drip_day3_first_search(email: str, credit_remaining: str = "$20.00", days_left: int = 4):
