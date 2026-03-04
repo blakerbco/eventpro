@@ -4238,6 +4238,29 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="stat notfound"><div class="num" id="statNotFound">0</div><div class="label">No Auction Found</div></div>
       <div class="stat uncertain"><div class="num" id="statUncertain">0</div><div class="label">Uncertain</div></div>
     </div>
+    <div style="text-align:center;margin:-8px 0 12px;">
+      <button onclick="document.getElementById('resultsKeyModal').style.display='flex'" style="background:none;border:1px solid #333;color:#a3a3a3;font-size:12px;padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;">What do these results mean?</button>
+    </div>
+    <div id="resultsKeyModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:#141414;border:1px solid #333;border-radius:12px;max-width:520px;width:90%;padding:28px;position:relative;max-height:85vh;overflow-y:auto;">
+        <button onclick="document.getElementById('resultsKeyModal').style.display='none'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#737373;font-size:20px;cursor:pointer;">&times;</button>
+        <h3 style="margin:0 0 16px;font-size:18px;font-weight:700;color:#f5f5f5;">Results Key</h3>
+        <div style="font-size:13px;line-height:1.8;color:#d4d4d4;">
+          <p style="margin:0 0 12px;"><span style="color:#4ade80;font-weight:700;">AUCTION FOUND</span> &mdash; A verified auction/fundraising event was discovered for this nonprofit.</p>
+          <p style="margin:0 0 12px;"><span style="color:#60a5fa;font-weight:700;">3RD PARTY</span> &mdash; Event found via a third-party listing site (not the nonprofit's own page).</p>
+          <p style="margin:0 0 12px;"><span style="color:#f87171;font-weight:700;">NO AUCTION FOUND</span> &mdash; No current auction or fundraising event was found for this nonprofit.</p>
+          <p style="margin:0 0 16px;"><span style="color:#fbbf24;font-weight:700;">UNCERTAIN</span> &mdash; Possible event detected but not enough evidence to confirm.</p>
+          <hr style="border:none;border-top:1px solid #333;margin:16px 0;">
+          <h4 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#f5f5f5;">Lead Tiers (only charged when auction is found)</h4>
+          <p style="margin:0 0 8px;"><span style="color:#4ade80;font-weight:700;">Decision Maker — $1.75</span><br>Event details + contact name + verified email. The most complete lead.</p>
+          <p style="margin:0 0 8px;"><span style="color:#60a5fa;font-weight:700;">Outreach Ready — $1.25</span><br>Event details + verified email, but no contact name found.</p>
+          <p style="margin:0 0 8px;"><span style="color:#facc15;font-weight:700;">Event Verified — $0.75</span><br>Event title, date &amp; URL confirmed, but no email found.</p>
+          <p style="margin:0 0 8px;"><span style="color:#737373;font-weight:700;">Not Billable — $0.00</span><br>Auction found but missing required evidence (no event URL or title). No charge.</p>
+          <hr style="border:none;border-top:1px solid #333;margin:16px 0;">
+          <p style="margin:0;color:#a3a3a3;font-size:12px;">You are only charged lead fees for tiers you selected before the search. Research fee ($0.04/nonprofit) is charged for every nonprofit searched. If an auction is found but lands in a tier you didn't select, it shows in your results at no lead fee charge.</p>
+        </div>
+      </div>
+    </div>
 
     <div class="terminal" id="terminal"></div>
 
@@ -4398,8 +4421,14 @@ if (irsData) {
         var _sL = { found: 'AUCTION FOUND', not_found: 'NO AUCTION FOUND', '3rdpty_found': '3RDPTY_FOUND', uncertain: 'UNCERTAIN', error: 'ERROR' };
         var msg = '[' + data.index + '/' + data.total + '] ' + (_sL[st] || st.toUpperCase()) + ': ' + data.nonprofit;
         if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
-        if (st !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tD[data.tier]) {
-          msg += ' [' + _tD[data.tier] + ']';
+        if (st === 'found' || st === '3rdpty_found') {
+          if (data.tier && data.tier !== 'not_billable' && _tD[data.tier] && data.tier_price > 0) {
+            msg += ' [' + _tD[data.tier] + ']';
+          } else if (data.tier === 'not_billable') {
+            msg += ' [Not Billable — missing event evidence]';
+          } else if (data.tier && data.tier_price === 0 && _tD[data.tier]) {
+            msg += ' [' + _tD[data.tier] + ' — tier not selected, no charge]';
+          }
         }
         log(msg, st);
         updateStats();
@@ -4663,25 +4692,31 @@ async function _doSearch(selectedTiers) {
           const _statusLabels = { found: 'AUCTION FOUND', not_found: 'NO AUCTION FOUND', '3rdpty_found': '3RDPTY_FOUND', uncertain: 'UNCERTAIN', error: 'ERROR' };
           let msg = '[' + data.index + '/' + data.total + '] ' + (_statusLabels[status] || status.toUpperCase()) + ': ' + data.nonprofit;
           if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
-          if (status !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
-            msg += ' [' + _tierDisplay[data.tier] + ']';
-          }
-
           log(msg, status);
 
-          // Add colored tier badge after log line (not for not_found)
-          if (status !== 'not_found' && data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier]) {
+          // Add colored tier badge after log line
+          if (status === 'found' || status === '3rdpty_found') {
             const lastLine = terminal.lastElementChild;
             if (lastLine) {
-              const badge = document.createElement('span');
-              badge.textContent = _tierDisplay[data.tier];
-              badge.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;color:#000;background:' + _tierColor[data.tier];
-              lastLine.appendChild(badge);
-              if (data.tier_price > 0) {
+              if (data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier] && data.tier_price > 0) {
+                const badge = document.createElement('span');
+                badge.textContent = _tierDisplay[data.tier];
+                badge.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;color:#000;background:' + _tierColor[data.tier];
+                lastLine.appendChild(badge);
                 const priceTag = document.createElement('span');
                 priceTag.textContent = '$' + (data.tier_price / 100).toFixed(2);
                 priceTag.style.cssText = 'margin-left:4px;font-size:10px;color:#a3a3a3;';
                 lastLine.appendChild(priceTag);
+              } else if (data.tier === 'not_billable') {
+                const nb = document.createElement('span');
+                nb.textContent = 'Not Billable — missing event evidence';
+                nb.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;color:#f87171;background:#1c1917;border:1px solid #7f1d1d;';
+                lastLine.appendChild(nb);
+              } else if (data.tier && data.tier_price === 0 && _tierDisplay[data.tier]) {
+                const nb2 = document.createElement('span');
+                nb2.textContent = _tierDisplay[data.tier] + ' — tier not selected, no charge';
+                nb2.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;color:#a3a3a3;background:#1c1917;border:1px solid #404040;';
+                lastLine.appendChild(nb2);
               }
             }
           }
