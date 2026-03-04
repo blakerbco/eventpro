@@ -800,8 +800,14 @@ def _run_job(
         + sum(t["total"] for t in tier_counts.values())
     )
 
-    # Save all results — tier selection controls billing only, not visibility
-    save_results = all_results
+    # Filter exports to only include results matching selected tiers
+    # not_found / uncertain / error results are excluded — only billable leads in export
+    save_results = []
+    for r in all_results:
+        tier, price = classify_lead_tier(r)
+        if tier in selected_tiers and price > 0:
+            save_results.append(r)
+    print(f"[EXPORT] {len(save_results)} of {len(all_results)} results match selected tiers {selected_tiers}", flush=True)
 
     # Save results
     csv_file = os.path.join(RESULTS_DIR, f"{job_id}.csv")
@@ -7142,8 +7148,8 @@ LANDING_HTML = """<!DOCTYPE html>
 
 # ─── Blog ─────────────────────────────────────────────────────────────────────
 
-BLOG_HEAD = """<!doctype html>
-<html lang="en" class="dark">
+BLOG_HEAD = """<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
@@ -7153,52 +7159,67 @@ BLOG_STYLES = """
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:{400:'#ffd900',500:'#ffd900',600:'#d9b800'}}}}}
+tailwind.config={theme:{extend:{colors:{brand:{50:'#fffdf2',100:'#fff8d1',200:'#fff1a7',300:'#fde86e',400:'#f6de45',500:'#eed12f',600:'#d4b71f',700:'#aa8f16',800:'#7e6912',900:'#58480e'},ink:'#101010',sand:'#d9d2c7',paper:'#f5f2ec',panel:'#f8f6f1'},boxShadow:{soft:'0 10px 40px rgba(0,0,0,0.08)',card:'0 14px 50px rgba(0,0,0,0.10)'},backgroundImage:{grid:'linear-gradient(to right, rgba(16,16,16,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(16,16,16,0.06) 1px, transparent 1px)'}}}}
 </script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.5.1/flowbite.min.css" rel="stylesheet" />
 <style>
-body{background:#050505;color:#e5e5e5;font-family:system-ui,-apple-system,sans-serif}
-.ai-grid{background-image:radial-gradient(circle at 20% 10%,rgba(255,217,0,.14),transparent 35%),radial-gradient(circle at 80% 20%,rgba(59,130,246,.10),transparent 40%),linear-gradient(to bottom,#050505,#000 35%,#000)}
-.prose h2{color:#fafafa;font-weight:800;font-size:1.5rem;margin-top:2rem;margin-bottom:.75rem}
-.prose p{color:#d4d4d4;line-height:1.8;margin-bottom:1rem}
+html{scroll-behavior:smooth}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.section-kicker{letter-spacing:.22em}
+.prose h2{color:#101010;font-weight:900;font-size:1.5rem;margin-top:2rem;margin-bottom:.75rem}
+.prose p{color:rgba(16,16,16,.78);line-height:1.8;margin-bottom:1rem}
 .prose ul{list-style:disc;padding-left:1.5rem;margin-bottom:1rem}
-.prose li{color:#d4d4d4;margin-bottom:.35rem}
+.prose li{color:rgba(16,16,16,.78);margin-bottom:.35rem}
 </style>
 </head>
 """
 
 BLOG_NAV = """
-<body class="ai-grid min-h-screen">
-<nav class="border-b border-neutral-900 bg-black/60 backdrop-blur-md sticky top-0 z-50">
-<div class="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
-<a href="/"><img src="/static/logo_dark.png" alt="Auction Finder" class="h-9"></a>
-<div class="flex items-center gap-4">
-<a href="/blog" class="text-sm text-neutral-300 hover:text-white">Blog</a>
-<a href="/register" class="rounded bg-brand-500 px-4 py-2 text-sm font-bold text-black hover:bg-brand-400">Get Started</a>
-</div>
-</div>
+<body class="bg-sand text-ink antialiased">
+<div class="fixed inset-0 -z-10 bg-sand"></div>
+<div class="fixed inset-0 -z-10 bg-grid bg-[size:36px_36px] opacity-25"></div>
+<header class="sticky top-0 z-50 border-b border-black/10 bg-paper/90 backdrop-blur-xl">
+<nav class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+  <a href="/" class="flex items-center">
+    <img src="/static/header_logo.png" alt="Auction Finder" class="h-10 w-auto">
+  </a>
+  <div class="hidden items-center gap-8 lg:flex">
+    <a href="/blog" class="text-sm font-semibold text-black/80 transition hover:text-black">Blog</a>
+  </div>
+  <div class="hidden items-center gap-3 lg:flex">
+    <a href="/login" class="rounded-none border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-black hover:text-white">Log In</a>
+    <a href="/register" class="rounded-none border border-black bg-brand-500 px-5 py-2.5 text-sm font-extrabold text-black transition hover:bg-brand-400">Start Free</a>
+  </div>
 </nav>
+</header>
 """
 
 BLOG_FOOTER = """
-<footer class="border-t border-neutral-900 bg-black/70 mt-20">
-<div class="mx-auto max-w-7xl px-4 py-10">
-<div class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-<div>
-<a href="/"><img src="/static/logo_dark.png" alt="Auction Finder" class="h-9"></a>
-<p class="mt-3 max-w-sm text-sm text-neutral-400">Event-driven sales intelligence with verified nonprofit fundraising leads.</p>
-</div>
-<div class="flex gap-8 text-sm text-neutral-400">
-<a href="/terms" class="hover:text-white">Terms</a>
-<a href="/privacy-policy" class="hover:text-white">Privacy</a>
-<a href="/contact" class="hover:text-white">Contact</a>
-<a href="/blog" class="hover:text-white">Blog</a>
-</div>
-</div>
-<div class="mt-8 border-t border-neutral-900 pt-6">
-<p class="text-xs text-neutral-500">&copy; 2026 Auction Finder. All rights reserved.</p>
-</div>
+<footer class="border-t-2 border-brand-500 bg-ink mt-24">
+<div class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+  <div class="grid gap-10 lg:grid-cols-[1fr_auto]">
+    <div>
+      <a href="/"><img src="/static/logo_dark.png" alt="Auction Finder" class="h-8 w-auto"></a>
+      <p class="mt-4 max-w-md text-sm leading-7 text-white/70">Event-driven sales intelligence for verified nonprofit fundraising leads — turning research into revenue with timing precision.</p>
+    </div>
+    <div class="grid grid-cols-2 gap-x-16 gap-y-4 text-sm font-semibold sm:grid-cols-2">
+      <div class="space-y-3">
+        <p class="text-xs font-black uppercase tracking-[0.15em] text-white/40">Product</p>
+        <a href="/" class="block text-white/70 transition hover:text-brand-400">Home</a>
+        <a href="/blog" class="block text-white/70 transition hover:text-brand-400">Blog</a>
+      </div>
+      <div class="space-y-3">
+        <p class="text-xs font-black uppercase tracking-[0.15em] text-white/40">Legal</p>
+        <a href="/terms" class="block text-white/70 transition hover:text-brand-400">Terms of Service</a>
+        <a href="/privacy-policy" class="block text-white/70 transition hover:text-brand-400">Privacy Policy</a>
+        <a href="/refund-policy" class="block text-white/70 transition hover:text-brand-400">Refund Policy</a>
+      </div>
+    </div>
+  </div>
+  <div class="mt-8 border-t border-white/10 pt-6 text-center text-xs text-white/50">&copy; 2026 Auction Finder. All rights reserved.</div>
 </div>
 </footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.5.1/flowbite.min.js"></script>
 </body>
 </html>
 """
@@ -7508,17 +7529,28 @@ BLOG_ARTICLE_BODIES = {
 
 
 def _blog_card_html(article):
-    return f'''<article class="group overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/80 transition hover:-translate-y-1 hover:border-neutral-700 hover:shadow-lg hover:shadow-brand-500/5">
+    return f'''<article class="group overflow-hidden border-2 border-black bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-card">
   <a href="/{article['slug']}" class="block">
-    <img src="{article['thumb']}" alt="{article['title']}" class="h-56 w-full object-cover"/>
+    <img src="{article['thumb']}" alt="{article['title']}" class="h-[250px] w-full border-b-2 border-black object-cover"/>
   </a>
   <div class="p-6">
-    <div class="flex flex-wrap items-center gap-x-3 text-xs font-medium text-neutral-500">
-      <span>{article['date']}</span><span>&bull;</span><span>{article['author']}</span>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold uppercase tracking-[0.16em] text-black/55">
+      <span>{article['date']}</span><span>&bull;</span><span>By {article['author']}</span>
     </div>
-    <h3 class="mt-3 text-lg font-bold leading-snug text-neutral-100"><a href="/{article['slug']}" class="hover:text-brand-400 transition">{article['title']}</a></h3>
-    <p class="mt-2 text-sm leading-relaxed text-neutral-400">{article['summary']}</p>
-    <a href="/{article['slug']}" class="mt-4 inline-flex items-center rounded bg-brand-500 px-4 py-2 text-sm font-bold text-black hover:bg-brand-400 transition">Read Article</a>
+    <h3 class="mt-4 text-2xl font-black leading-tight"><a href="/{article['slug']}" class="transition group-hover:text-black/70">{article['title']}</a></h3>
+    <p class="mt-4 text-base leading-7 text-black/72">{article['summary']}</p>
+    <a href="/{article['slug']}" class="mt-5 inline-flex items-center border border-black bg-brand-500 px-4 py-2 text-sm font-black text-black transition hover:bg-brand-400">Read Article</a>
+  </div>
+</article>'''
+
+
+def _blog_related_card_html(article):
+    return f'''<article class="overflow-hidden border-2 border-black bg-white shadow-soft">
+  <a href="/{article['slug']}"><img src="{article['thumb']}" alt="{article['title']}" class="h-[250px] w-full border-b-2 border-black object-cover"/></a>
+  <div class="p-6">
+    <div class="text-xs font-bold uppercase tracking-[0.16em] text-black/55">{article['date']} &bull; {article['author']}</div>
+    <h3 class="mt-4 text-xl font-black leading-tight"><a href="/{article['slug']}" class="hover:text-black/70 transition">{article['title']}</a></h3>
+    <p class="mt-3 text-sm leading-7 text-black/72">{article['summary']}</p>
   </div>
 </article>'''
 
@@ -7526,43 +7558,56 @@ def _blog_card_html(article):
 def _blog_article_page(article):
     body = BLOG_ARTICLE_BODIES[article["slug"]]
     by_slug = {a["slug"]: a for a in BLOG_ARTICLES}
-    related_cards = "\n".join(_blog_card_html(by_slug[s]) for s in article["related"] if s in by_slug)
+    related_cards = "\n".join(_blog_related_card_html(by_slug[s]) for s in article["related"] if s in by_slug)
 
     return (BLOG_HEAD
         + f'<title>{article["seo_title"]} | Auction Finder</title>\n'
         + f'<meta name="description" content="{article["summary"]}">\n'
         + BLOG_STYLES + BLOG_NAV
         + f'''
-<main class="mx-auto max-w-4xl px-4 py-16">
-  <div class="rounded-lg border border-neutral-800 bg-neutral-900/80 p-6 sm:p-10">
-    <p class="text-xs font-semibold uppercase tracking-widest text-brand-500">{article["category"]}</p>
-    <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">{article["title"]}</h1>
-    <div class="mt-4 flex flex-wrap items-center gap-x-3 text-sm text-neutral-400">
-      <span>Published {article["date"]}</span><span>&bull;</span>
-      <span>By {article["author"]}</span><span>&bull;</span>
-      <span>{article["read_time"]}</span>
-    </div>
-    <div class="mt-8 flex justify-center">
-      <img src="{article["hero"]}" alt="{article["title"]}" class="w-full max-w-2xl rounded-lg border border-neutral-800 object-cover"/>
-    </div>
-    <article class="prose mt-10 max-w-none">
-      {body}
-      <div class="mt-10 rounded-lg border border-brand-500/30 bg-brand-500/5 p-6 text-center">
-        <p class="text-lg font-bold text-white">Ready to find {article["category"].lower()} leads?</p>
-        <p class="mt-2 text-sm text-neutral-400">Start discovering nonprofit fundraising events with Auction Finder.</p>
-        <a href="/register" class="mt-4 inline-flex items-center rounded bg-brand-500 px-6 py-3 text-sm font-bold text-black hover:bg-brand-400 transition">Start Free &rarr;</a>
+<section class="py-24">
+  <div class="mx-auto max-w-5xl px-6 lg:px-8">
+    <div class="border-2 border-black bg-white p-8 shadow-card sm:p-12">
+      <div class="max-w-3xl">
+        <p class="section-kicker text-sm font-black text-black/60">{article["category"].upper()}</p>
+        <h1 class="mt-4 text-4xl font-black tracking-tight sm:text-5xl">{article["title"]}</h1>
+        <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold text-black/65">
+          <span>Published {article["date"]}</span>
+          <span>&bull;</span>
+          <span>By {article["author"]}</span>
+          <span>&bull;</span>
+          <span>{article["read_time"]}</span>
+          <span>&bull;</span>
+          <span>Category: {article["category"]}</span>
+        </div>
       </div>
-    </article>
-  </div>
+      <div class="mt-10 flex justify-center">
+        <img src="{article["hero"]}" alt="{article["title"]}" class="h-auto w-full max-w-[675px] border-2 border-black object-cover"/>
+      </div>
+      <article class="prose prose-lg mt-12 max-w-none prose-headings:font-black prose-headings:text-black prose-p:text-black/78 prose-a:text-black prose-strong:text-black">
+        {body}
+        <div class="mt-10 border-2 border-black bg-brand-50 p-8 text-center">
+          <p class="text-xl font-black text-black">Ready to find {article["category"].lower()} leads?</p>
+          <p class="mt-3 text-base text-black/70">Start discovering nonprofit fundraising events with Auction Finder.</p>
+          <a href="/register" class="mt-5 inline-flex items-center border-2 border-black bg-brand-500 px-8 py-3 text-sm font-black text-black transition hover:bg-brand-400">Start Free &rarr;</a>
+        </div>
+      </article>
+    </div>
 
-  <div class="mt-16">
-    <p class="text-xs font-semibold uppercase tracking-widest text-brand-500">More Articles</p>
-    <h2 class="mt-3 text-2xl font-extrabold text-white">Keep reading</h2>
-    <div class="mt-8 grid gap-8 md:grid-cols-3">
-      {related_cards}
+    <div class="mt-10">
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <p class="section-kicker text-sm font-black text-black/60">MORE ARTICLES</p>
+          <h2 class="mt-3 text-3xl font-black tracking-tight">Keep reading</h2>
+        </div>
+        <a href="/blog" class="hidden border border-black bg-white px-4 py-2 text-sm font-black text-black transition hover:bg-black hover:text-white sm:inline-flex">View All Posts</a>
+      </div>
+      <div class="mt-8 grid gap-8 md:grid-cols-3">
+        {related_cards}
+      </div>
     </div>
   </div>
-</main>
+</section>
 '''
         + BLOG_FOOTER)
 
@@ -7574,16 +7619,18 @@ def _blog_index_page():
         + '<meta name="description" content="Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.">\n'
         + BLOG_STYLES + BLOG_NAV
         + f'''
-<main class="mx-auto max-w-7xl px-4 py-16">
-  <div class="max-w-3xl">
-    <p class="text-xs font-semibold uppercase tracking-widest text-brand-500">Blog</p>
-    <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">Insights for auction outreach teams.</h1>
-    <p class="mt-5 max-w-2xl text-lg leading-8 text-neutral-400">Guides, strategies, and industry knowledge to help you find nonprofit fundraising events and connect with the right decision-makers.</p>
+<section class="border-t-2 border-black bg-paper py-24">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="max-w-3xl">
+      <p class="section-kicker text-sm font-black text-black/60">BLOG</p>
+      <h2 class="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Insights for auction outreach teams.</h2>
+      <p class="mt-5 max-w-2xl text-lg leading-8 text-black/70">Guides, strategies, and industry knowledge to help you find nonprofit fundraising events and connect with the right decision-makers.</p>
+    </div>
+    <div class="mt-14 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+      {cards}
+    </div>
   </div>
-  <div class="mt-14 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-    {cards}
-  </div>
-</main>
+</section>
 '''
         + BLOG_FOOTER)
 
