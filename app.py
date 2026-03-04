@@ -352,6 +352,7 @@ _SIDEBAR_ICONS = {
     "tools": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
     "analyzer": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="2"/><path d="M21 21l-4.3-4.3"/><path d="M3.05 11a8 8 0 0 1 15.9 0M3.05 13a8 8 0 0 0 15.9 0"/></svg>',
     "api-keys": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+    "api-docs": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
     "admin-dashboard": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
     "admin-users": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
     "admin-revenue": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
@@ -381,6 +382,7 @@ _SIDEBAR_NAV_ITEMS = [
     ("Settings", [
         ("profile", "/profile", "Profile"),
         ("api-keys", "/settings/api-keys", "API Keys"),
+        ("api-docs", "/settings/api-docs", "API Docs"),
     ]),
     ("Admin", [
         ("admin-dashboard", "/admin/", "Dashboard", True),
@@ -6398,6 +6400,242 @@ SUPPORT_TICKET_HTML = """<!DOCTYPE html>
 </body>
 </html>"""
 
+API_DOCS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auction Finder - API Documentation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Consolas', monospace; background: #121212; color: #f5f5f5; min-height: 100vh; }
+  {{SIDEBAR_CSS}}
+  .container { max-width: 860px; margin: 0 auto; padding: 24px; }
+  h2 { font-size: 20px; color: #eab308; margin-bottom: 8px; }
+  .subtitle { font-size: 13px; color: #a3a3a3; margin-bottom: 32px; }
+  h3 { font-size: 15px; color: #f5f5f5; margin: 24px 0 8px; }
+  p, li { font-size: 13px; color: #a3a3a3; line-height: 1.7; }
+  ul { padding-left: 20px; margin-bottom: 16px; }
+  .endpoint { background: #0a0a0a; border: 1px solid #262626; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .endpoint .method { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; margin-right: 8px; }
+  .method-post { background: #14532d; color: #86efac; }
+  .method-get { background: #1e3a5f; color: #7dd3fc; }
+  .endpoint .path { font-size: 14px; font-weight: 600; color: #f5f5f5; }
+  .endpoint .desc { font-size: 12px; color: #a3a3a3; margin-top: 6px; }
+  pre { background: #000; border: 1px solid #262626; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0; font-size: 12px; line-height: 1.6; color: #d4d4d4; }
+  code { font-family: inherit; }
+  .param-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+  .param-table th { text-align: left; color: #737373; font-size: 10px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #262626; }
+  .param-table td { padding: 6px 8px; border-bottom: 1px solid #1a1a1a; color: #d4d4d4; }
+  .param-table .type { color: #eab308; font-size: 11px; }
+  .note { background: #1a1500; border: 1px solid #332d00; border-radius: 8px; padding: 14px; margin: 16px 0; }
+  .note p { color: #eab308; font-size: 12px; }
+  a { color: #eab308; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+{{SIDEBAR_HTML}}
+<div class="main-content">
+<div class="container">
+  <h2>API Documentation</h2>
+  <p class="subtitle">Use the Auction Finder REST API to run searches, check status, and download results programmatically.</p>
+
+  <div class="note"><p>All requests require an API key. Generate one at <a href="/settings/api-keys">Settings &rarr; API Keys</a>. Pass it as a Bearer token in the Authorization header.</p></div>
+
+  <h3>Authentication</h3>
+  <pre>Authorization: Bearer ak_your_api_key_here</pre>
+
+  <!-- SEARCH -->
+  <div class="endpoint">
+    <span class="method method-post">POST</span>
+    <span class="path">/api/v1/search</span>
+    <p class="desc">Submit a list of nonprofit domains to research. Returns a job_id to track progress.</p>
+    <table class="param-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>domains</td><td class="type">list[str]</td><td>List of nonprofit domains (e.g. ["habitat.org", "redcross.org"])</td></tr>
+        <tr><td>selected_tiers</td><td class="type">list[str]</td><td>Optional. Tiers to bill: "decision_maker", "outreach_ready", "event_verified". Default: all.</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px;color:#737373;font-size:11px;">Example:</p>
+    <pre>import requests
+
+API_KEY = "ak_your_api_key_here"
+BASE = "https://auctionintel.app"
+
+# Start a search
+resp = requests.post(
+    f"{BASE}/api/v1/search",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+    json={
+        "domains": [
+            "habitat.org",
+            "redcross.org",
+            "unitedway.org"
+        ],
+        "selected_tiers": ["decision_maker", "outreach_ready"]
+    }
+)
+data = resp.json()
+job_id = data["job_id"]
+print(f"Job started: {job_id} ({data['total_domains']} domains)")</pre>
+    <p style="margin-top:8px;color:#737373;font-size:11px;">Response:</p>
+    <pre>{
+  "job_id": "job_20260303_141522_a1b2c3d4",
+  "total_domains": 3,
+  "status": "running"
+}</pre>
+  </div>
+
+  <!-- STATUS -->
+  <div class="endpoint">
+    <span class="method method-get">GET</span>
+    <span class="path">/api/v1/status/&lt;job_id&gt;</span>
+    <p class="desc">Check job progress. Poll this endpoint until status is "complete" or "error".</p>
+    <p style="margin-top:12px;color:#737373;font-size:11px;">Example:</p>
+    <pre>import time
+
+# Poll until complete
+while True:
+    resp = requests.get(
+        f"{BASE}/api/v1/status/{job_id}",
+        headers={"Authorization": f"Bearer {API_KEY}"}
+    )
+    status = resp.json()
+    print(f"  {status['processed']}/{status['total']} processed, "
+          f"{status['found']} found")
+
+    if status["status"] in ("complete", "error"):
+        break
+    time.sleep(5)</pre>
+    <p style="margin-top:8px;color:#737373;font-size:11px;">Response:</p>
+    <pre>{
+  "job_id": "job_20260303_141522_a1b2c3d4",
+  "status": "running",
+  "total": 3,
+  "processed": 1,
+  "found": 1,
+  "eta_seconds": 45,
+  "balance_cents": 1850
+}</pre>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="endpoint">
+    <span class="method method-get">GET</span>
+    <span class="path">/api/v1/results/&lt;job_id&gt;?format=csv|json|xlsx</span>
+    <p class="desc">Download results once the job is complete. Returns a file attachment.</p>
+    <table class="param-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>format</td><td class="type">string</td><td>Output format: "csv", "json", or "xlsx". Default: "csv".</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px;color:#737373;font-size:11px;">Example:</p>
+    <pre># Download CSV results
+resp = requests.get(
+    f"{BASE}/api/v1/results/{job_id}?format=csv",
+    headers={"Authorization": f"Bearer {API_KEY}"}
+)
+with open(f"results_{job_id}.csv", "wb") as f:
+    f.write(resp.content)
+print(f"Saved {len(resp.content)} bytes")
+
+# Or get JSON for programmatic use
+resp = requests.get(
+    f"{BASE}/api/v1/results/{job_id}?format=json",
+    headers={"Authorization": f"Bearer {API_KEY}"}
+)
+results = resp.json()
+for r in results:
+    print(f"  {r['nonprofit_name']}: {r['event_title']}")</pre>
+  </div>
+
+  <!-- STOP -->
+  <div class="endpoint">
+    <span class="method method-post">POST</span>
+    <span class="path">/api/v1/stop/&lt;job_id&gt;</span>
+    <p class="desc">Stop a running job. The job finishes processing the current domain and halts.</p>
+    <pre># Stop a running job
+resp = requests.post(
+    f"{BASE}/api/v1/stop/{job_id}",
+    headers={"Authorization": f"Bearer {API_KEY}"}
+)
+print(resp.json()["message"])</pre>
+  </div>
+
+  <!-- RESUME -->
+  <div class="endpoint">
+    <span class="method method-post">POST</span>
+    <span class="path">/api/v1/resume/&lt;job_id&gt;</span>
+    <p class="desc">Resume an interrupted or stopped job. Creates a new child job for the remaining domains.</p>
+    <pre># Resume a stopped/failed job
+resp = requests.post(
+    f"{BASE}/api/v1/resume/{job_id}",
+    headers={"Authorization": f"Bearer {API_KEY}"}
+)
+new_job = resp.json()
+print(f"Resumed as {new_job['job_id']} — {new_job['remaining_domains']} domains left")</pre>
+  </div>
+
+  <!-- FULL EXAMPLE -->
+  <h3>Complete Example</h3>
+  <pre>import requests
+import time
+
+API_KEY = "ak_your_api_key_here"
+BASE = "https://auctionintel.app"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+# 1. Start search
+resp = requests.post(f"{BASE}/api/v1/search", headers=HEADERS, json={
+    "domains": ["habitat.org", "redcross.org", "salvationarmy.org"],
+    "selected_tiers": ["decision_maker"]
+})
+job_id = resp.json()["job_id"]
+print(f"Started job {job_id}")
+
+# 2. Poll until done
+while True:
+    status = requests.get(f"{BASE}/api/v1/status/{job_id}", headers=HEADERS).json()
+    print(f"  {status['processed']}/{status['total']} — {status['found']} found")
+    if status["status"] in ("complete", "error"):
+        break
+    time.sleep(5)
+
+# 3. Download results
+resp = requests.get(f"{BASE}/api/v1/results/{job_id}?format=csv", headers=HEADERS)
+with open(f"results_{job_id}.csv", "wb") as f:
+    f.write(resp.content)
+print(f"Done! Saved results_{job_id}.csv")</pre>
+
+  <h3>Error Codes</h3>
+  <table class="param-table">
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>200</td><td>Success</td></tr>
+      <tr><td>202</td><td>Job still running, no results yet</td></tr>
+      <tr><td>400</td><td>Bad request (missing params, invalid format)</td></tr>
+      <tr><td>401</td><td>Invalid or missing API key</td></tr>
+      <tr><td>402</td><td>Insufficient wallet balance</td></tr>
+      <tr><td>404</td><td>Job or resource not found</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Pricing</h3>
+  <ul>
+    <li><strong>Research fee:</strong> $0.04 per nonprofit domain (charged regardless of result)</li>
+    <li><strong>Decision Maker lead:</strong> $1.75 (has event + contact name + email)</li>
+    <li><strong>Outreach Ready lead:</strong> $1.25 (has event + email)</li>
+    <li><strong>Event Verified lead:</strong> $0.75 (has verified event page only)</li>
+  </ul>
+
+</div>
+</div>
+</body></html>"""
+
+
 LANDING_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7205,6 +7443,18 @@ def api_keys_revoke(key_id):
     user_id = session["user_id"]
     revoke_api_key(key_id, user_id)
     return redirect(url_for("api_keys_page"))
+
+
+# ─── API Documentation ────────────────────────────────────────────────────────
+
+@app.route("/settings/api-docs")
+@login_required
+def api_docs_page():
+    html = API_DOCS_HTML
+    html = _inject_sidebar(html, "api-docs")
+    html = _inject_nav_badge(html)
+    html = html.replace("{{EMAIL}}", html_escape(session.get("email", "")))
+    return html
 
 
 # ─── Newsletter Signup ────────────────────────────────────────────────────────
