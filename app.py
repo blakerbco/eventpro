@@ -6718,6 +6718,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://auctionintel.app">
+<meta property="og:image" content="https://auctionintel.app/static/logo_light.png">
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <script type="application/ld+json">
 {
@@ -7714,6 +7715,26 @@ def _blog_index_page():
 def blog_index():
     return _blog_index_page()
 
+@app.route("/charity-golf-tournament-leads")
+def redirect_golf():
+    return redirect("/charity-golf-outing", code=301)
+
+@app.route("/nonprofit-gala-leads")
+def redirect_gala():
+    return redirect("/charity-gala-events", code=301)
+
+@app.route("/charity-banquet-events")
+def redirect_banquet():
+    return redirect("/charity-events-near-me", code=301)
+
+@app.route("/benefit-fundraiser-leads")
+def redirect_benefit():
+    return redirect("/charity-fundraising-auctions", code=301)
+
+@app.route("/silent-auction-event-leads")
+def redirect_silent():
+    return redirect("/charity-auctions-near-me", code=301)
+
 @app.route("/charity-golf-outing")
 def blog_golf():
     return _blog_article_page(BLOG_ARTICLES[0])
@@ -7733,6 +7754,32 @@ def blog_benefit():
 @app.route("/charity-auctions-near-me")
 def blog_silent():
     return _blog_article_page(BLOG_ARTICLES[4])
+
+@app.route("/robots.txt")
+def robots_txt():
+    from flask import Response
+    txt = """User-agent: *
+Allow: /
+Allow: /blog
+Allow: /charity-golf-outing
+Allow: /charity-gala-events
+Allow: /charity-events-near-me
+Allow: /charity-fundraising-auctions
+Allow: /charity-auctions-near-me
+Allow: /register
+Allow: /login
+Allow: /terms
+Allow: /privacy-policy
+Allow: /refund-policy
+Disallow: /database
+Disallow: /results
+Disallow: /api/
+Disallow: /admin
+Disallow: /wallet
+Disallow: /settings
+Sitemap: https://auctionintel.app/sitemap.xml
+"""
+    return Response(txt, mimetype="text/plain")
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
