@@ -7781,7 +7781,7 @@ def page_not_found(e):
 </style>
 </head>
 <body>
-  <div class="logo"><a href="/"><img src="/static/header_logo.png" alt="Auction Finder"></a></div>
+  <div class="logo"><a href="/"><img src="/static/logo_dark.png" alt="Auction Finder"></a></div>
   <div class="code">404</div>
   <p class="message">This page doesn't exist.</p>
   <p class="sub">The page you're looking for may have been moved or no longer exists. Let's get you back on track.</p>
