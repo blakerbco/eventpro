@@ -7253,7 +7253,7 @@ BLOG_FOOTER = """
 
 BLOG_ARTICLES = [
     {
-        "slug": "charity-golf-tournament-leads",
+        "slug": "charity-golf-outing",
         "title": "Charity Golf Tournament Leads: How to Find High-Value Fundraising Events",
         "seo_title": "Charity Golf Tournament Leads: Find Nonprofit Golf Fundraisers",
         "summary": "A practical guide to discovering charity golf tournaments, connecting with event organizers, and securing auction and sponsorship opportunities.",
@@ -7263,10 +7263,10 @@ BLOG_ARTICLES = [
         "category": "Golf Fundraisers",
         "hero": "/static/blog/golf_1.png",
         "thumb": "/static/blog/golf_2.png",
-        "related": ["nonprofit-gala-leads", "silent-auction-event-leads", "charity-banquet-events"],
+        "related": ["charity-gala-events", "charity-auctions-near-me", "charity-events-near-me"],
     },
     {
-        "slug": "nonprofit-gala-leads",
+        "slug": "charity-gala-events",
         "title": "Nonprofit Gala Leads: How to Find Fundraising Galas and Event Planners",
         "seo_title": "Nonprofit Gala Leads: Find Fundraising Galas & Event Planners",
         "summary": "How to discover nonprofit gala events, connect with development directors and event planners, and participate in high-value charity auctions.",
@@ -7276,10 +7276,10 @@ BLOG_ARTICLES = [
         "category": "Galas & Events",
         "hero": "/static/blog/gala_1.png",
         "thumb": "/static/blog/gala_2.png",
-        "related": ["charity-golf-tournament-leads", "benefit-fundraiser-leads", "charity-banquet-events"],
+        "related": ["charity-golf-outing", "charity-fundraising-auctions", "charity-events-near-me"],
     },
     {
-        "slug": "charity-banquet-events",
+        "slug": "charity-events-near-me",
         "title": "Charity Banquet Events: Finding Fundraising Dinners and Donor Events",
         "seo_title": "Charity Banquet Events: Find Fundraising Dinners & Donor Events",
         "summary": "Discover charity banquet events and connect with nonprofit organizers hosting fundraising dinners, raffles, and donor recognition events.",
@@ -7289,10 +7289,10 @@ BLOG_ARTICLES = [
         "category": "Banquets & Dinners",
         "hero": "/static/blog/banquet_1.png",
         "thumb": "/static/blog/banquet_2.png",
-        "related": ["nonprofit-gala-leads", "benefit-fundraiser-leads", "silent-auction-event-leads"],
+        "related": ["charity-gala-events", "charity-fundraising-auctions", "charity-auctions-near-me"],
     },
     {
-        "slug": "benefit-fundraiser-leads",
+        "slug": "charity-fundraising-auctions",
         "title": "Benefit Fundraiser Leads: Finding High-Impact Charity Events",
         "seo_title": "Benefit Fundraiser Leads: Find High-Impact Charity Events",
         "summary": "How to locate benefit fundraiser events, from charity concerts to auctions and raffles, and connect with the nonprofit organizers running them.",
@@ -7302,10 +7302,10 @@ BLOG_ARTICLES = [
         "category": "Benefit Events",
         "hero": "/static/blog/benefit_1.png",
         "thumb": "/static/blog/benefit_2.png",
-        "related": ["charity-banquet-events", "silent-auction-event-leads", "charity-golf-tournament-leads"],
+        "related": ["charity-events-near-me", "charity-auctions-near-me", "charity-golf-outing"],
     },
     {
-        "slug": "silent-auction-event-leads",
+        "slug": "charity-auctions-near-me",
         "title": "Silent Auction Event Leads: How to Find Fundraising Auctions",
         "seo_title": "Silent Auction Event Leads: Find Nonprofit Fundraising Auctions",
         "summary": "Find silent auction events hosted by nonprofits, connect with event organizers, and get your auction items in front of donors.",
@@ -7315,12 +7315,12 @@ BLOG_ARTICLES = [
         "category": "Silent Auctions",
         "hero": "/static/blog/silent_1.png",
         "thumb": "/static/blog/silent_2.png",
-        "related": ["charity-golf-tournament-leads", "nonprofit-gala-leads", "benefit-fundraiser-leads"],
+        "related": ["charity-golf-outing", "charity-gala-events", "charity-fundraising-auctions"],
     },
 ]
 
 BLOG_ARTICLE_BODIES = {
-    "charity-golf-tournament-leads": """
+    "charity-golf-outing": """
 <p>Charity golf tournaments are one of the most profitable fundraising events nonprofits host each year. Across the United States, thousands of nonprofit organizations host charity golf outings, golf classics, and fundraising tournaments to raise money for their missions.</p>
 <p>For businesses that sell travel packages, sports memorabilia, sponsorship packages, or luxury auction items, these events represent a massive opportunity.</p>
 <p>The challenge? Finding them.</p>
@@ -7391,7 +7391,7 @@ BLOG_ARTICLE_BODIES = {
 <p>If your business sells travel packages, auction items, sponsorships, or experiences, charity golf tournaments can become a consistent source of new opportunities.</p>
 <p>Instead of waiting to discover events by chance, you can proactively find them and reach out to the organizers directly.</p>
 """,
-    "nonprofit-gala-leads": """
+    "charity-gala-events": """
 <p>Nonprofit gala events are among the most important fundraising activities organizations host each year.</p>
 <p>From black-tie charity galas to annual fundraising dinners, these events generate millions of dollars for nonprofit organizations through ticket sales, sponsorships, and auctions.</p>
 <p>For businesses offering travel packages, memorabilia, sponsorships, or luxury experiences, nonprofit galas present an incredible opportunity.</p>
@@ -7447,7 +7447,7 @@ BLOG_ARTICLE_BODIES = {
 <p>If your business participates in fundraising auctions or sponsorship opportunities, nonprofit galas represent one of the most profitable event categories.</p>
 <p>By identifying gala events early, you can secure valuable exposure and generate new business opportunities.</p>
 """,
-    "charity-banquet-events": """
+    "charity-events-near-me": """
 <p>Charity banquets are a cornerstone of nonprofit fundraising.</p>
 <p>These formal dinner events bring together donors, sponsors, and community leaders to support charitable causes while raising funds through auctions, sponsorships, and raffles.</p>
 <p>For companies offering auction items, experiences, or sponsorship opportunities, charity banquets represent an excellent opportunity to connect with nonprofits.</p>
@@ -7489,7 +7489,7 @@ BLOG_ARTICLE_BODIES = {
 <h2>Discover Banquet Events Faster</h2>
 <p>Using platforms like Auction Finder, businesses can identify nonprofit fundraising events across the country. Instead of manually researching organizations, you can quickly find charity banquet events and connect with the organizers.</p>
 """,
-    "benefit-fundraiser-leads": """
+    "charity-fundraising-auctions": """
 <p>Benefit fundraisers are events designed to raise money for nonprofit causes through auctions, sponsorships, and donations.</p>
 <p>These events can include:</p>
 <ul>
@@ -7509,7 +7509,7 @@ BLOG_ARTICLE_BODIES = {
 <h2>Using Technology to Discover Benefit Events</h2>
 <p>With platforms like Auction Finder, businesses can search nonprofit organizations and identify benefit fundraisers across the country. Instead of manual research, you can quickly identify fundraising opportunities and connect with event organizers.</p>
 """,
-    "silent-auction-event-leads": """
+    "charity-auctions-near-me": """
 <p>Silent auctions are one of the most common fundraising activities used by nonprofit organizations.</p>
 <p>These auctions allow attendees to bid on items throughout an event, generating funds for charitable causes.</p>
 <p>Businesses that donate auction items or experiences often seek silent auction event leads to connect with nonprofits hosting fundraising events.</p>
@@ -7714,23 +7714,23 @@ def _blog_index_page():
 def blog_index():
     return _blog_index_page()
 
-@app.route("/charity-golf-tournament-leads")
+@app.route("/charity-golf-outing")
 def blog_golf():
     return _blog_article_page(BLOG_ARTICLES[0])
 
-@app.route("/nonprofit-gala-leads")
+@app.route("/charity-gala-events")
 def blog_gala():
     return _blog_article_page(BLOG_ARTICLES[1])
 
-@app.route("/charity-banquet-events")
+@app.route("/charity-events-near-me")
 def blog_banquet():
     return _blog_article_page(BLOG_ARTICLES[2])
 
-@app.route("/benefit-fundraiser-leads")
+@app.route("/charity-fundraising-auctions")
 def blog_benefit():
     return _blog_article_page(BLOG_ARTICLES[3])
 
-@app.route("/silent-auction-event-leads")
+@app.route("/charity-auctions-near-me")
 def blog_silent():
     return _blog_article_page(BLOG_ARTICLES[4])
 
