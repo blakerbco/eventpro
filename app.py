@@ -6712,12 +6712,32 @@ LANDING_HTML = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Auction Finder - Find Nonprofit Auction Events at Scale</title>
 <meta name="description" content="Find nonprofit auction leads, charity gala contacts, and fundraising event data at scale. Get verified decision-maker emails for nonprofit auctions, golf tournaments, and sponsorship opportunities.">
-<meta name="keywords" content="nonprofit auction leads, nonprofit gala leads, charity golf tournament sponsorship contacts, nonprofit event contact database, fundraising event lead list, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events">
+<meta name="keywords" content="nonprofit auction leads, nonprofit gala leads, charity golf tournament sponsorship contacts, nonprofit event contact database, fundraising event lead list, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events, charity events near me, fundraising auction, golf auction, silent auction fundraising, upcoming auction, charity auctions near me, charity fundraising auctions, charity gala events, charity golf outing, charity golf tournaments, charity silent auction, corporate sponsorship nonprofit, auction finder">
+<meta name="author" content="Auction Intel">
 <meta property="og:title" content="Auction Finder - Find Nonprofit Auction Events at Scale">
 <meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://auctionintel.app">
 <link rel="icon" type="image/png" href="/static/favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Auction Intel",
+  "url": "https://auctionintel.app",
+  "logo": "https://auctionintel.app/static/logo_light.png",
+  "description": "AI-powered nonprofit auction event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.",
+  "sameAs": []
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Auction Finder by Auction Intel",
+  "url": "https://auctionintel.app"
+}
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000000; color: #f5f5f5; }
@@ -7568,12 +7588,33 @@ def _blog_article_page(article):
     return (BLOG_HEAD
         + f'<title>{article["seo_title"]} | Auction Finder</title>\n'
         + f'<meta name="description" content="{article["summary"]}">\n'
+        + f'<meta name="keywords" content="{article["seo_title"]}, nonprofit auction leads, charity fundraising events, {article["category"]}, charity events near me, fundraising auction, golf auction, silent auction fundraising, upcoming auction, charity auctions near me, charity fundraising auctions, charity gala events, charity golf outing, charity golf tournaments, charity silent auction, corporate sponsorship nonprofit, auction finder">\n'
+        + f'<meta name="author" content="{article["author"]}">\n'
         + f'<meta property="og:title" content="{article["seo_title"]} | Auction Finder">\n'
         + f'<meta property="og:description" content="{article["summary"]}">\n'
         + f'<meta property="og:type" content="article">\n'
         + f'<meta property="og:url" content="https://auctionintel.app/{article["slug"]}">\n'
         + f'<meta property="og:image" content="https://auctionintel.app{article["hero"]}">\n'
         + f'<link rel="canonical" href="https://auctionintel.app/{article["slug"]}">\n'
+        + f'''<script type="application/ld+json">
+{{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "{article["seo_title"]}",
+  "description": "{article["summary"]}",
+  "image": "https://auctionintel.app{article["hero"]}",
+  "author": {{"@type": "Person", "name": "{article["author"]}"}},
+  "publisher": {{
+    "@type": "Organization",
+    "name": "Auction Intel",
+    "logo": {{"@type": "ImageObject", "url": "https://auctionintel.app/static/logo_light.png"}}
+  }},
+  "datePublished": "{article["date"]}",
+  "url": "https://auctionintel.app/{article["slug"]}",
+  "mainEntityOfPage": {{"@type": "WebPage", "@id": "https://auctionintel.app/{article["slug"]}"}}
+}}
+</script>
+'''
         + BLOG_STYLES + BLOG_NAV
         + f'''
 <section class="py-24">
@@ -7628,11 +7669,29 @@ def _blog_index_page():
     return (BLOG_HEAD
         + '<title>Blog | Auction Finder</title>\n'
         + '<meta name="description" content="Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.">\n'
+        + '<meta name="keywords" content="nonprofit auction blog, charity event guides, fundraising auction tips, nonprofit gala prospecting, golf tournament leads, silent auction strategies, benefit fundraiser outreach, charity events near me, fundraising auction, golf auction, silent auction fundraising, upcoming auction, charity auctions near me, charity fundraising auctions, charity gala events, charity golf outing, charity golf tournaments, charity silent auction, corporate sponsorship nonprofit, auction finder">\n'
+        + '<meta name="author" content="Auction Intel">\n'
         + '<meta property="og:title" content="Blog | Auction Finder">\n'
         + '<meta property="og:description" content="Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.">\n'
         + '<meta property="og:type" content="website">\n'
         + '<meta property="og:url" content="https://auctionintel.app/blog">\n'
         + '<link rel="canonical" href="https://auctionintel.app/blog">\n'
+        + '''<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "Auction Finder Blog",
+  "url": "https://auctionintel.app/blog",
+  "description": "Insights and guides for nonprofit auction prospecting, charity golf tournaments, galas, banquets, benefit fundraisers, and silent auctions.",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Auction Intel",
+    "url": "https://auctionintel.app",
+    "logo": {"@type": "ImageObject", "url": "https://auctionintel.app/static/logo_light.png"}
+  }
+}
+</script>
+'''
         + BLOG_STYLES + BLOG_NAV
         + f'''
 <section class="border-t-2 border-black bg-paper py-24">
@@ -7674,6 +7733,28 @@ def blog_benefit():
 @app.route("/silent-auction-event-leads")
 def blog_silent():
     return _blog_article_page(BLOG_ARTICLES[4])
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    from flask import Response
+    pages = [
+        {"loc": "https://auctionintel.app/", "priority": "1.0"},
+        {"loc": "https://auctionintel.app/blog", "priority": "0.8"},
+        {"loc": "https://auctionintel.app/login", "priority": "0.5"},
+        {"loc": "https://auctionintel.app/register", "priority": "0.6"},
+        {"loc": "https://auctionintel.app/terms", "priority": "0.3"},
+        {"loc": "https://auctionintel.app/privacy-policy", "priority": "0.3"},
+        {"loc": "https://auctionintel.app/refund-policy", "priority": "0.3"},
+    ]
+    for article in BLOG_ARTICLES:
+        pages.append({"loc": f'https://auctionintel.app/{article["slug"]}', "priority": "0.7"})
+    urls = ""
+    for p in pages:
+        urls += f'  <url>\n    <loc>{p["loc"]}</loc>\n    <priority>{p["priority"]}</priority>\n  </url>\n'
+    xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{urls}</urlset>'''
+    return Response(xml, mimetype="application/xml")
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
@@ -8146,7 +8227,7 @@ LANDING_TEST_HTML = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Auction Finder — Find nonprofit auction events</title>
   <meta name="description" content="Find nonprofit auction leads, charity gala contacts, and fundraising event data at scale. Get verified decision-maker emails for nonprofit auctions, golf tournaments, and sponsorship opportunities.">
-  <meta name="keywords" content="nonprofit auction leads, nonprofit gala leads, charity golf tournament sponsorship contacts, nonprofit event contact database, fundraising event lead list, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events">
+  <meta name="keywords" content="nonprofit auction leads, nonprofit gala leads, charity golf tournament sponsorship contacts, nonprofit event contact database, fundraising event lead list, nonprofit gala contact list, fundraising event leads, sponsorship opportunities nonprofit, silent auction events, charity auction database, nonprofit event leads, find charity galas, upcoming auction events, charity events near me, fundraising auction, golf auction, silent auction fundraising, upcoming auction, charity auctions near me, charity fundraising auctions, charity gala events, charity golf outing, charity golf tournaments, charity silent auction, corporate sponsorship nonprofit, auction finder">
   <meta property="og:title" content="Auction Finder — Find nonprofit auction events">
   <meta property="og:description" content="AI-powered nonprofit event discovery. Find verified auction leads, gala contacts, and fundraising event data with decision-maker emails.">
   <meta property="og:type" content="website">
