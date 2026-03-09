@@ -7755,6 +7755,44 @@ def blog_benefit():
 def blog_silent():
     return _blog_article_page(BLOG_ARTICLES[4])
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page Not Found - Auction Finder</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000; color: #f5f5f5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; }
+  .logo { margin-bottom: 48px; }
+  .logo img { height: 48px; }
+  .code { font-size: 120px; font-weight: 900; color: #eab308; line-height: 1; letter-spacing: -4px; }
+  .message { font-size: 22px; font-weight: 600; color: #d4d4d4; margin-top: 16px; }
+  .sub { font-size: 15px; color: #737373; margin-top: 12px; max-width: 420px; line-height: 1.6; }
+  .buttons { margin-top: 40px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .btn { padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+  .btn-primary { background: #ffd900; color: #000; }
+  .btn-primary:hover { background: #eab308; transform: translateY(-1px); }
+  .btn-secondary { border: 1px solid #333; color: #d4d4d4; }
+  .btn-secondary:hover { border-color: #eab308; color: #eab308; }
+</style>
+</head>
+<body>
+  <div class="logo"><a href="/"><img src="/static/header_logo.png" alt="Auction Finder"></a></div>
+  <div class="code">404</div>
+  <p class="message">This page doesn't exist.</p>
+  <p class="sub">The page you're looking for may have been moved or no longer exists. Let's get you back on track.</p>
+  <div class="buttons">
+    <a href="/" class="btn btn-primary">Back to Home</a>
+    <a href="/blog" class="btn btn-secondary">Read the Blog</a>
+    <a href="/register" class="btn btn-secondary">Start Free</a>
+  </div>
+</body>
+</html>""", 404
+
 @app.route("/robots.txt")
 def robots_txt():
     from flask import Response
