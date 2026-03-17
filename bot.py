@@ -12,7 +12,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 
 import requests
@@ -204,10 +204,33 @@ def _has_valid_url(result: Dict[str, Any]) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
+def _parse_event_date(date_str: str) -> Optional[datetime]:
+    """Parse M/D/YYYY or MM/DD/YYYY event date. Returns datetime or None."""
+    if not date_str or not isinstance(date_str, str):
+        return None
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", date_str.strip())
+    if m:
+        try:
+            return datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)), tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _is_at_least_30_days_out(result: Dict[str, Any]) -> bool:
+    """Return True if event_date is at least 30 days in the future.
+    Returns False if date is missing, unparseable, or too soon."""
+    event_dt = _parse_event_date(result.get("event_date", ""))
+    if not event_dt:
+        return False
+    return event_dt >= datetime.now(timezone.utc) + timedelta(days=30)
+
+
 def classify_lead_tier(result: Dict[str, Any]) -> tuple:
     """Returns (tier_name, price_cents) based on fields present.
     3-tier system: decision_maker ($1.75), outreach_ready ($1.25), event_verified ($0.75).
     Hard gates: must have event_title AND event_url (non-negotiable).
+    Date gate: event must be at least 30 days in the future.
     Soft requirement: evidence_auction strongly preferred but not a hard kill."""
     has_title = bool(result.get("event_title", "").strip())
     has_url = _has_valid_url(result)
@@ -217,6 +240,10 @@ def classify_lead_tier(result: Dict[str, Any]) -> tuple:
 
     # Hard gates: must have verified event page URL + event title
     if not has_title or not has_url:
+        return ("not_billable", 0)
+
+    # Date gate: event must be at least 30 days out — no stale leads
+    if not _is_at_least_30_days_out(result):
         return ("not_billable", 0)
 
     # Auction evidence gate: require evidence OR auction_type field
