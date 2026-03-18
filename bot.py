@@ -199,6 +199,138 @@ def validate_email_emailable(email: str) -> str:
     return state
 
 
+def validate_emails_bulk(emails: list) -> dict:
+    """Verify a list of emails via Emailable Bulk API.
+
+    POST to /v1/batch to create batch, then poll GET /v1/batch?id=... until complete.
+    For ≤1,000 emails: parse 'emails' array from JSON response.
+    For >1,000 emails: download CSV from 'download_file' URL.
+    Returns dict mapping email -> state (deliverable/undeliverable/risky/unknown).
+    """
+    if not EMAILABLE_API_KEY:
+        print("[EMAILABLE-BULK] NO API KEY — skipping bulk verification", flush=True)
+        return {}
+    if not emails:
+        return {}
+
+    # Deduplicate and clean
+    unique_emails = list(set(e.strip() for e in emails if e and "@" in e))
+    if not unique_emails:
+        return {}
+
+    print(f"[EMAILABLE-BULK] Submitting {len(unique_emails)} emails for bulk verification...", flush=True)
+
+    # POST to create batch
+    try:
+        resp = requests.post(
+            "https://api.emailable.com/v1/batch",
+            data={"emails": ",".join(unique_emails), "api_key": EMAILABLE_API_KEY},
+            timeout=30,
+        )
+    except Exception as e:
+        print(f"[EMAILABLE-BULK] POST ERROR: {type(e).__name__}: {e}", flush=True)
+        return {}
+
+    if resp.status_code != 200:
+        print(f"[EMAILABLE-BULK] POST HTTP {resp.status_code}: {resp.text[:300]}", flush=True)
+        return {}
+
+    try:
+        batch_data = resp.json()
+    except Exception as e:
+        print(f"[EMAILABLE-BULK] POST JSON PARSE ERROR: {e}", flush=True)
+        return {}
+
+    batch_id = batch_data.get("id")
+    if not batch_id:
+        print(f"[EMAILABLE-BULK] No batch ID in response: {batch_data}", flush=True)
+        return {}
+
+    print(f"[EMAILABLE-BULK] Batch created: {batch_id}", flush=True)
+
+    # Poll for completion — check every 15s, timeout after 30 min
+    poll_url = "https://api.emailable.com/v1/batch"
+    max_polls = 120  # 120 * 15s = 30 min
+    for poll_num in range(1, max_polls + 1):
+        time.sleep(15)
+
+        try:
+            poll_resp = requests.get(
+                poll_url,
+                params={"id": batch_id, "api_key": EMAILABLE_API_KEY},
+                timeout=30,
+            )
+        except Exception as e:
+            print(f"[EMAILABLE-BULK] POLL ERROR (attempt {poll_num}): {type(e).__name__}: {e}", flush=True)
+            continue
+
+        if poll_resp.status_code != 200:
+            print(f"[EMAILABLE-BULK] POLL HTTP {poll_resp.status_code} (attempt {poll_num})", flush=True)
+            continue
+
+        try:
+            poll_data = poll_resp.json()
+        except Exception as e:
+            print(f"[EMAILABLE-BULK] POLL JSON ERROR (attempt {poll_num}): {e}", flush=True)
+            continue
+
+        message = poll_data.get("message", "")
+        if "progress" in message.lower() or "processing" in message.lower() or "verifying" in message.lower():
+            total_counts = poll_data.get("total_counts", {})
+            processed = total_counts.get("processed", "?")
+            total = total_counts.get("total", len(unique_emails))
+            print(f"[EMAILABLE-BULK] Poll {poll_num}: {message} ({processed}/{total})", flush=True)
+            continue
+
+        if "completed" not in message.lower() and "complete" not in message.lower():
+            print(f"[EMAILABLE-BULK] Poll {poll_num}: {message}", flush=True)
+            continue
+
+        # Batch complete — extract results
+        print(f"[EMAILABLE-BULK] Batch complete after {poll_num} polls", flush=True)
+
+        result_map = {}
+
+        # Small batch (≤1000): results in 'emails' array
+        if "emails" in poll_data and isinstance(poll_data["emails"], list):
+            for entry in poll_data["emails"]:
+                email_addr = entry.get("email", "").strip().lower()
+                state = entry.get("state", "unknown")
+                if email_addr:
+                    result_map[email_addr] = state
+            print(f"[EMAILABLE-BULK] Parsed {len(result_map)} results from JSON", flush=True)
+            return result_map
+
+        # Large batch (>1000): download CSV
+        download_url = poll_data.get("download_file", "")
+        if download_url:
+            print(f"[EMAILABLE-BULK] Downloading CSV from: {download_url[:80]}...", flush=True)
+            try:
+                dl_resp = requests.get(download_url, timeout=120)
+                if dl_resp.status_code == 200:
+                    import io
+                    import csv as csv_mod
+                    content = dl_resp.content.decode("utf-8", errors="replace")
+                    reader = csv_mod.DictReader(io.StringIO(content))
+                    for row in reader:
+                        email_addr = row.get("email", "").strip().lower()
+                        state = row.get("state", "unknown")
+                        if email_addr:
+                            result_map[email_addr] = state
+                    print(f"[EMAILABLE-BULK] Parsed {len(result_map)} results from CSV", flush=True)
+                else:
+                    print(f"[EMAILABLE-BULK] CSV download HTTP {dl_resp.status_code}", flush=True)
+            except Exception as e:
+                print(f"[EMAILABLE-BULK] CSV download error: {type(e).__name__}: {e}", flush=True)
+            return result_map
+
+        print(f"[EMAILABLE-BULK] Complete but no emails array or download_file in response", flush=True)
+        return result_map
+
+    print(f"[EMAILABLE-BULK] Timed out after {max_polls} polls", flush=True)
+    return {}
+
+
 def _has_valid_url(result: Dict[str, Any]) -> bool:
     url = result.get("event_url", "").strip()
     return url.startswith("http://") or url.startswith("https://")

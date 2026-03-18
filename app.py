@@ -49,7 +49,7 @@ from bot import (
     _error_result, extract_json, extract_json_from_response,
     classify_lead_tier, _has_valid_url,
     _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
-    validate_email_emailable, EMAILABLE_API_KEY,  # EMAILABLE_API_KEY still used for startup log
+    validate_email_emailable, validate_emails_bulk, EMAILABLE_API_KEY,
 )
 
 from db import (
@@ -524,21 +524,8 @@ def _research_one(
         else:
             tier, price = classify_lead_tier(cached)
 
-        # Validate email via Emailable
+        # Email validation deferred to bulk step after research loop
         cached["email_status"] = ""
-        contact_email = cached.get("contact_email", "").strip()
-        if contact_email and status in ("found", "3rdpty_found"):
-            progress_q.put({"type": "email_validating", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
-            print(f"[EMAILABLE-CACHE] Calling for: {contact_email}", flush=True)
-            email_state = validate_email_emailable(contact_email)
-            cached["email_status"] = email_state
-            print(f"[EMAILABLE-CACHE] {contact_email} => {email_state}", flush=True)
-            progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
-            if email_state != "deliverable":
-                cached["contact_email"] = ""
-                cached["contact_name"] = ""
-                tier, price = "event_verified", 75
-                progress_q.put({"type": "email_purged", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
 
         title = cached.get("event_title", "")
 
@@ -622,21 +609,8 @@ def _research_one(
     else:
         tier, price = classify_lead_tier(result)
 
-    # Validate email via Emailable
+    # Email validation deferred to bulk step after research loop
     result["email_status"] = ""
-    contact_email = result.get("contact_email", "").strip()
-    if contact_email and status in ("found", "3rdpty_found"):
-        progress_q.put({"type": "email_validating", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
-        print(f"[EMAILABLE-FRESH] Calling for: {contact_email}", flush=True)
-        email_state = validate_email_emailable(contact_email)
-        result["email_status"] = email_state
-        print(f"[EMAILABLE-FRESH] {contact_email} => {email_state}", flush=True)
-        progress_q.put({"type": "email_result", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email, "result": email_state})
-        if email_state != "deliverable":
-            result["contact_email"] = ""
-            result["contact_name"] = ""
-            tier, price = "event_verified", 75
-            progress_q.put({"type": "email_purged", "index": index, "total": total, "nonprofit": nonprofit, "email": contact_email})
 
     # Skip lead fee if tier not in selected_tiers
     _sel = selected_tiers or ["decision_maker", "outreach_ready", "event_verified"]
@@ -782,6 +756,53 @@ def _run_job(
             time.sleep(PAUSE_BETWEEN_DOMAINS)
 
     elapsed = time.time() - start
+
+    # ── Bulk email verification (billable leads only) ──
+    billable_emails = {}  # email -> list of result dicts that use it
+    for r in all_results:
+        tier, _ = classify_lead_tier(r)
+        if tier == "not_billable":
+            continue
+        email = r.get("contact_email", "").strip()
+        if email and "@" in email:
+            billable_emails.setdefault(email.lower(), []).append(r)
+
+    if billable_emails:
+        progress_q.put({
+            "type": "processing",
+            "index": 0, "total": 0,
+            "nonprofit": f"Verifying {len(billable_emails)} emails via Emailable bulk API...",
+        })
+        print(f"[BULK-VERIFY] Submitting {len(billable_emails)} billable emails", flush=True)
+
+        bulk_results = validate_emails_bulk(list(billable_emails.keys()))
+
+        verified_count = 0
+        purged_count = 0
+        for email_lower, results_using_it in billable_emails.items():
+            state = bulk_results.get(email_lower, "unknown")
+            for r in results_using_it:
+                r["email_status"] = state
+                if state != "deliverable":
+                    original_email = r.get("contact_email", "")
+                    r["contact_email"] = ""
+                    r["contact_name"] = ""
+                    purged_count += 1
+                    print(f"[BULK-VERIFY] Purged {original_email} ({state}) from {r.get('query_domain', '')}", flush=True)
+                else:
+                    verified_count += 1
+                # Re-save updated result to DB
+                if job_id:
+                    save_single_result(job_id, r.get("query_domain", ""), r)
+
+        print(f"[BULK-VERIFY] Done: {verified_count} deliverable, {purged_count} purged", flush=True)
+        progress_q.put({
+            "type": "processing",
+            "index": 0, "total": 0,
+            "nonprofit": f"Email verification complete: {verified_count} verified, {purged_count} purged",
+        })
+    else:
+        print(f"[BULK-VERIFY] No billable emails to verify", flush=True)
 
     # Enrich missing address/phone from IRS database
     _enrich_from_irs(all_results)
@@ -6920,7 +6941,7 @@ LANDING_HTML = """<!DOCTYPE html>
 
 <!-- Hero -->
 <div class="hero">
-  <h1><span class="gold">Find nonprofit auction events.</span><br><span style="font-size:38px;">Verified. Exportable. Ready to contact.</span></h1>
+  <h1><span class="gold">Find charity auction events.</span><br><span style="font-size:38px;">Verified. Exportable. Ready to contact.</span></h1>
   <p class="subtitle">Auction Finder's new Auction Finder Research Engine scans nonprofit websites to find upcoming fundraising events with a live auction, a silent auction, or both. Get high-quality leads with a verified event page link, the event date, event-level contacts (email/phone), the auction type, and more.</p>
   <div class="cta-row">
     <a href="/register" class="btn-primary">Get Started Free</a>
