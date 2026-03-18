@@ -320,6 +320,24 @@ def init_db():
         cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake["id"],))
         conn.commit()
 
+    # Ensure blake1@auctionintel.us admin account exists
+    _blake1_email = "blake1@auctionintel.us"
+    cur.execute("SELECT id FROM users WHERE email = %s", (_blake1_email,))
+    blake1 = _fetchone(cur)
+    if not blake1:
+        _blake1_hash = generate_password_hash("Massterlock3308!!")
+        cur.execute(
+            "INSERT INTO users (email, password_hash, is_admin, email_verified) VALUES (%s, %s, 1, 1) RETURNING id",
+            (_blake1_email, _blake1_hash),
+        )
+        blake1_id = cur.fetchone()[0]
+        cur.execute("INSERT INTO wallets (user_id, balance_cents) VALUES (%s, 0)", (blake1_id,))
+        conn.commit()
+        print(f"[ADMIN INIT] Created admin user: {_blake1_email} (id={blake1_id})")
+    else:
+        cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake1["id"],))
+        conn.commit()
+
     # Ensure all admin users are always email-verified
     cur.execute("UPDATE users SET email_verified = 1 WHERE is_admin = 1 AND (email_verified = 0 OR email_verified IS NULL)")
     conn.commit()
