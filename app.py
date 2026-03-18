@@ -50,6 +50,7 @@ from bot import (
     classify_lead_tier, _has_valid_url,
     _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
     validate_email_emailable, validate_emails_bulk, EMAILABLE_API_KEY,
+    POE_API_KEY_2, POE_BOT_NAME_2,
 )
 
 from db import (
@@ -247,6 +248,7 @@ def api_auth(f):
             request._api_user_id = uid
             request._api_is_admin = user.get("is_admin", False)
             request._api_is_trial = user.get("is_trial", False)
+            request._api_email = user.get("email", "")
             return f(*args, **kwargs)
         # Fall back to session auth
         if not session.get("user_id"):
@@ -254,6 +256,7 @@ def api_auth(f):
         request._api_user_id = session["user_id"]
         request._api_is_admin = session.get("is_admin", False)
         request._api_is_trial = session.get("is_trial", False)
+        request._api_email = session.get("email", "")
         return f(*args, **kwargs)
     return decorated
 
@@ -482,6 +485,7 @@ def _research_one(
     is_trial: bool = False, balance_exhausted: list = None,
     selected_tiers: list = None,
     paid_domains: set = None,
+    poe_bot_name: str = None, poe_api_key: str = None,
 ) -> Dict[str, Any]:
     """Research a single nonprofit via Poe bot — simple synchronous call.
     Matches the proven AUCTIONINTEL.APP_BOT.PY pattern exactly.
@@ -573,7 +577,7 @@ def _research_one(
         return cached
 
     # ── Call Poe bot (same as AUCTIONINTEL.APP_BOT.PY) ──
-    text = call_poe_bot_sync(nonprofit)
+    text = call_poe_bot_sync(nonprofit, bot_name=poe_bot_name, api_key=poe_api_key)
 
     if not text:
         # Empty response = bot call failed
@@ -672,7 +676,7 @@ def _research_one(
 def _run_job(
     nonprofits: List[str], job_id: str, progress_q,
     user_id: Optional[int] = None, is_admin: bool = False, is_trial: bool = False,
-    selected_tiers: list = None,
+    selected_tiers: list = None, user_email: str = "",
 ):
     """Run research — one domain at a time, no batching, no async.
     Matches AUCTIONINTEL.APP_BOT.PY sequential pattern."""
@@ -680,6 +684,16 @@ def _run_job(
         selected_tiers = ["decision_maker", "outreach_ready", "event_verified"]
     if len(nonprofits) > MAX_NONPROFITS:
         nonprofits = nonprofits[:MAX_NONPROFITS]
+
+    # Route Poe credentials based on user — blake1@ uses second Poe account
+    poe_bot_name = None  # defaults to POE_BOT_NAME in call_poe_bot_sync
+    poe_api_key = None
+    if user_email == "blake1@auctionintel.us" and POE_API_KEY_2:
+        poe_bot_name = POE_BOT_NAME_2
+        poe_api_key = POE_API_KEY_2
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_2}", flush=True)
+    else:
+        print(f"[POE-ROUTING] {user_email or 'default'} -> bot={POE_BOT_NAME}", flush=True)
 
     # Randomize processing order so identical queries yield different result ordering
     random.shuffle(nonprofits)
@@ -733,6 +747,7 @@ def _run_job(
             is_trial=is_trial, balance_exhausted=balance_exhausted,
             selected_tiers=selected_tiers,
             paid_domains=paid_domains,
+            poe_bot_name=poe_bot_name, poe_api_key=poe_api_key,
         )
         all_results.append(result)
 
@@ -947,11 +962,11 @@ def _run_job(
 def _job_worker(
     nonprofits: List[str], job_id: str, progress_q,
     user_id: Optional[int] = None, is_admin: bool = False, is_trial: bool = False,
-    selected_tiers: list = None,
+    selected_tiers: list = None, user_email: str = "",
 ):
     """Thread target that runs the job (synchronous — no async needed)."""
     try:
-        _run_job(nonprofits, job_id, progress_q, user_id=user_id, is_admin=is_admin, is_trial=is_trial, selected_tiers=selected_tiers or ["decision_maker", "outreach_ready", "event_verified"])
+        _run_job(nonprofits, job_id, progress_q, user_id=user_id, is_admin=is_admin, is_trial=is_trial, selected_tiers=selected_tiers or ["decision_maker", "outreach_ready", "event_verified"], user_email=user_email)
     except Exception as e:
         print(f"[JOB ERROR] {job_id}: {type(e).__name__}: {e}", flush=True)
         progress_q.put({"type": "error", "message": str(e)})
@@ -1566,10 +1581,11 @@ def start_search():
     # Persist job to SQLite
     create_search_job(user_id, job_id, len(nonprofits))
 
+    _user_email = session.get("email", "")
     thread = threading.Thread(
         target=_job_worker,
         args=(nonprofits, job_id, progress_q),
-        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers},
+        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers, "user_email": _user_email},
         daemon=True,
     )
     thread.start()
@@ -7939,10 +7955,11 @@ def api_v1_search():
 
     create_search_job(user_id, job_id, len(nonprofits))
 
+    _user_email = getattr(request, "_api_email", "")
     thread = threading.Thread(
         target=_job_worker,
         args=(nonprofits, job_id, progress_q),
-        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers},
+        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers, "user_email": _user_email},
         daemon=True,
     )
     thread.start()
@@ -8132,10 +8149,11 @@ def api_v1_resume(job_id):
     except Exception as e:
         print(f"[RESUME] Failed to set resumed_from: {e}", flush=True)
 
+    _user_email = getattr(request, "_api_email", "")
     thread = threading.Thread(
         target=_job_worker,
         args=(remaining, new_job_id, progress_q),
-        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers},
+        kwargs={"user_id": user_id, "is_admin": is_admin, "is_trial": is_trial, "selected_tiers": selected_tiers, "user_email": _user_email},
         daemon=True,
     )
     thread.start()

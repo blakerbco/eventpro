@@ -26,6 +26,9 @@ import fastapi_poe as fp
 POE_API_KEY = os.environ.get("POE_API_KEY", "").strip()
 POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "auctionintel.app.v2").strip()
 
+POE_API_KEY_2 = os.environ.get("POE_API_KEY_2", "").strip()
+POE_BOT_NAME_2 = os.environ.get("POE_BOT_NAME_2", "auction.v2_dupe").strip()
+
 MAX_NONPROFITS = 5000
 MAX_RETRIES = 2
 RETRY_DELAY_SECONDS = 15
@@ -49,9 +52,11 @@ CSV_COLUMNS = [
 
 # ─── Poe Bot API (matches AUCTIONINTEL.APP_BOT.PY exactly) ──────────────────
 
-def call_poe_bot_sync(domain: str) -> str:
+def call_poe_bot_sync(domain: str, bot_name: str = None, api_key: str = None) -> str:
     """Send a single domain to the Poe bot and return the full streamed response.
-    Copied from the working AUCTIONINTEL.APP_BOT.PY script."""
+    Accepts optional bot_name/api_key overrides for multi-account support."""
+    _bot = bot_name or POE_BOT_NAME
+    _key = api_key or POE_API_KEY
     message = fp.ProtocolMessage(role="user", content=domain)
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -59,15 +64,15 @@ def call_poe_bot_sync(domain: str) -> str:
             full_response = ""
             for partial in fp.get_bot_response_sync(
                 messages=[message],
-                bot_name=POE_BOT_NAME,
-                api_key=POE_API_KEY,
+                bot_name=_bot,
+                api_key=_key,
             ):
                 full_response += partial.text
             return full_response
 
         except Exception as e:
             error_msg = str(e)
-            print(f"    Attempt {attempt}/{MAX_RETRIES} failed: {error_msg[:120]}", file=sys.stderr)
+            print(f"    Attempt {attempt}/{MAX_RETRIES} failed ({_bot}): {error_msg[:120]}", file=sys.stderr)
             if attempt < MAX_RETRIES:
                 print(f"    Retrying in {RETRY_DELAY_SECONDS}s...", file=sys.stderr)
                 time.sleep(RETRY_DELAY_SECONDS)
