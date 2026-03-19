@@ -372,7 +372,9 @@ def classify_lead_tier(result: Dict[str, Any]) -> tuple:
     has_title = bool(result.get("event_title", "").strip())
     has_url = _has_valid_url(result)
     has_auction_evidence = bool(result.get("evidence_auction", "").strip())
-    has_name = bool(result.get("contact_name", "").strip())
+    _name_raw = result.get("contact_name", "").strip().lower()
+    _placeholder_names = {"no contact found", "not found", "n/a", "unknown", "none", "no name found", "no contact", "no name"}
+    has_name = bool(_name_raw) and _name_raw not in _placeholder_names
     has_email = _is_valid_email(result.get("contact_email", ""))
 
     # Hard gates: must have verified event page URL + event title
