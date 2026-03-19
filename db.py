@@ -351,6 +351,42 @@ def init_db():
         cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake1["id"],))
         conn.commit()
 
+    # Ensure blake2@auctionintel.us admin account exists
+    _blake2_email = "blake2@auctionintel.us"
+    cur.execute("SELECT id FROM users WHERE email = %s", (_blake2_email,))
+    blake2 = _fetchone(cur)
+    if not blake2:
+        _blake2_hash = generate_password_hash("Massterlock3308!!")
+        cur.execute(
+            "INSERT INTO users (email, password_hash, is_admin, email_verified) VALUES (%s, %s, 1, 1) RETURNING id",
+            (_blake2_email, _blake2_hash),
+        )
+        blake2_id = cur.fetchone()[0]
+        cur.execute("INSERT INTO wallets (user_id, balance_cents) VALUES (%s, 0)", (blake2_id,))
+        conn.commit()
+        print(f"[ADMIN INIT] Created admin user: {_blake2_email} (id={blake2_id})")
+    else:
+        cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake2["id"],))
+        conn.commit()
+
+    # Ensure blake3@auctionintel.us admin account exists
+    _blake3_email = "blake3@auctionintel.us"
+    cur.execute("SELECT id FROM users WHERE email = %s", (_blake3_email,))
+    blake3 = _fetchone(cur)
+    if not blake3:
+        _blake3_hash = generate_password_hash("Massterlock3308!!")
+        cur.execute(
+            "INSERT INTO users (email, password_hash, is_admin, email_verified) VALUES (%s, %s, 1, 1) RETURNING id",
+            (_blake3_email, _blake3_hash),
+        )
+        blake3_id = cur.fetchone()[0]
+        cur.execute("INSERT INTO wallets (user_id, balance_cents) VALUES (%s, 0)", (blake3_id,))
+        conn.commit()
+        print(f"[ADMIN INIT] Created admin user: {_blake3_email} (id={blake3_id})")
+    else:
+        cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake3["id"],))
+        conn.commit()
+
     # Ensure all admin users are always email-verified
     cur.execute("UPDATE users SET email_verified = 1 WHERE is_admin = 1 AND (email_verified = 0 OR email_verified IS NULL)")
     conn.commit()

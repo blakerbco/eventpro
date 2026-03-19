@@ -50,7 +50,8 @@ from bot import (
     classify_lead_tier, _has_valid_url,
     _missing_billable_fields, call_poe_bot_sync, _poe_result_to_full,
     validate_email_emailable, validate_emails_bulk, EMAILABLE_API_KEY,
-    POE_API_KEY_2, POE_BOT_NAME_2,
+    POE_API_KEY, POE_API_KEY_2, POE_BOT_NAME_2,
+    POE_BOT_NAME_3, POE_BOT_NAME_4,
 )
 
 from db import (
@@ -685,13 +686,21 @@ def _run_job(
     if len(nonprofits) > MAX_NONPROFITS:
         nonprofits = nonprofits[:MAX_NONPROFITS]
 
-    # Route Poe credentials based on user — blake1@ uses second Poe account
+    # Route Poe credentials based on user — each admin uses a separate Poe account
     poe_bot_name = None  # defaults to POE_BOT_NAME in call_poe_bot_sync
     poe_api_key = None
     if user_email == "blake1@auctionintel.us" and POE_API_KEY_2:
         poe_bot_name = POE_BOT_NAME_2
         poe_api_key = POE_API_KEY_2
         print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_2}", flush=True)
+    elif user_email == "blake2@auctionintel.us" and POE_API_KEY:
+        poe_bot_name = POE_BOT_NAME_3
+        poe_api_key = POE_API_KEY
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_3} (key 1)", flush=True)
+    elif user_email == "blake3@auctionintel.us" and POE_API_KEY_2:
+        poe_bot_name = POE_BOT_NAME_4
+        poe_api_key = POE_API_KEY_2
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_4} (key 2)", flush=True)
     else:
         print(f"[POE-ROUTING] {user_email or 'default'} -> bot={POE_BOT_NAME}", flush=True)
 
@@ -802,6 +811,7 @@ def _run_job(
                     original_email = r.get("contact_email", "")
                     r["contact_email"] = ""
                     r["contact_name"] = ""
+                    r["email_status"] = ""
                     purged_count += 1
                     print(f"[BULK-VERIFY] Purged {original_email} ({state}) from {r.get('query_domain', '')}", flush=True)
                 else:
@@ -840,14 +850,13 @@ def _run_job(
         + sum(t["total"] for t in tier_counts.values())
     )
 
-    # Filter exports to only include results matching selected tiers
-    # not_found / uncertain / error results are excluded — only billable leads in export
+    # Export ALL results with status "found" or "3rdpty_found" (not just billable)
     save_results = []
     for r in all_results:
-        tier, price = classify_lead_tier(r)
-        if tier in selected_tiers and price > 0:
+        st = r.get("status", "")
+        if st in ("found", "3rdpty_found"):
             save_results.append(r)
-    print(f"[EXPORT] {len(save_results)} of {len(all_results)} results match selected tiers {selected_tiers}", flush=True)
+    print(f"[EXPORT] {len(save_results)} of {len(all_results)} found results included in export", flush=True)
 
     # Save results
     csv_file = os.path.join(RESULTS_DIR, f"{job_id}.csv")
