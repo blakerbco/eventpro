@@ -35,10 +35,23 @@ _local = threading.local()
 
 
 def _get_conn():
-    """Return a per-thread PostgreSQL connection."""
-    if not hasattr(_local, "conn") or _local.conn is None or _local.conn.closed:
-        _local.conn = psycopg2.connect(DB_CONN_STRING)
-        _local.conn.autocommit = False
+    """Return a per-thread PostgreSQL connection. Auto-reconnects on stale/broken connections."""
+    conn = getattr(_local, "conn", None)
+    if conn is not None and not conn.closed:
+        try:
+            # Test if connection is actually alive (catches SSL EOF, broken pipe, etc.)
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            return conn
+        except Exception as e:
+            print(f"[DB] Stale connection detected ({type(e).__name__}: {e}), reconnecting...", flush=True)
+            try:
+                conn.close()
+            except Exception:
+                pass
+    _local.conn = psycopg2.connect(DB_CONN_STRING)
+    _local.conn.autocommit = False
     return _local.conn
 
 
