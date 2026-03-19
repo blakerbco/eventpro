@@ -2789,10 +2789,13 @@ def admin_activity_page():
     job_rows = ""
     for j in recent_jobs:
         status_color = {"running": "#eab308", "complete": "#4ade80", "error": "#f87171"}.get(j["status"], "#a3a3a3")
+        rebuild_btn = ""
+        if j["status"] == "error":
+            rebuild_btn = f' <button onclick="rebuildJob(\'{j["job_id"]}\')" style="background:#eab308;color:#000;border:none;padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;">Rebuild</button>'
         job_rows += (
             f'<tr><td>{j["job_id"][:12]}...</td>'
             f'<td><a href="/admin/users/{j.get("id","")}" style="color:#eab308;">{html_escape(j.get("user_email",""))}</a></td>'
-            f'<td style="color:{status_color}">{j["status"]}</td>'
+            f'<td style="color:{status_color}">{j["status"]}{rebuild_btn}</td>'
             f'<td>{j["nonprofit_count"]}</td><td>{j["found_count"]}</td>'
             f'<td>{j["billable_count"]}</td><td>${j["total_cost_cents"]/100:,.2f}</td>'
             f'<td>{str(j.get("created_at",""))[:16]}</td>'
@@ -3463,6 +3466,20 @@ function switchTab(name){
   document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
   event.target.classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
+}
+function rebuildJob(jobId){
+  if(!confirm('Rebuild job '+jobId+'? This will recover saved results and generate export files.')) return;
+  var btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Rebuilding...';
+  fetch('/admin/rebuild-job/'+jobId, {method:'POST'})
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.error){ alert('Error: '+data.error); btn.disabled=false; btn.textContent='Rebuild'; return; }
+      alert('Rebuilt! Found: '+data.found+', Billable: '+data.billable+', Exported: '+data.exported);
+      location.reload();
+    })
+    .catch(function(e){ alert('Error: '+e); btn.disabled=false; btn.textContent='Rebuild'; });
 }
 </script>
 </body></html>"""
