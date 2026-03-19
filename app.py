@@ -2983,6 +2983,87 @@ def admin_results_export():
     )
 
 
+@app.route("/admin/rebuild-job/<job_id>", methods=["POST"])
+@_admin_required
+def admin_rebuild_job(job_id):
+    """Rebuild a crashed job from saved individual results in job_results table."""
+    results = get_completed_results(job_id)
+    if not results:
+        return jsonify({"error": f"No saved results found for {job_id}"}), 404
+
+    print(f"[REBUILD] {job_id}: found {len(results)} saved results, rebuilding...", flush=True)
+
+    # Classify and count
+    found_count = sum(1 for r in results if r.get("status") in ("found", "3rdpty_found"))
+    billable_count = 0
+    for r in results:
+        tier, price = classify_lead_tier(r)
+        if tier != "not_billable":
+            billable_count += 1
+
+    # Generate export files (only billable leads)
+    save_results = []
+    for r in results:
+        tier, price = classify_lead_tier(r)
+        if tier != "not_billable":
+            save_results.append(r)
+
+    # CSV
+    csv_file = os.path.join(RESULTS_DIR, f"{job_id}.csv")
+    with open(csv_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+        for r in save_results:
+            writer.writerow({col: r.get(col, "") for col in CSV_COLUMNS})
+
+    # JSON
+    json_file = os.path.join(RESULTS_DIR, f"{job_id}.json")
+    output = {
+        "meta": {"total_nonprofits": len(results), "model": "Auctionintel.app", "rebuilt": True},
+        "summary": {
+            "found": found_count,
+            "not_found": sum(1 for r in results if r.get("status") == "not_found"),
+        },
+        "results": save_results,
+    }
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+    # XLSX
+    xlsx_file = os.path.join(RESULTS_DIR, f"{job_id}.xlsx")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Auction Results"
+    ws.append(CSV_COLUMNS)
+    for r in save_results:
+        ws.append([r.get(col, "") for col in CSV_COLUMNS])
+    wb.save(xlsx_file)
+
+    # Save to DB
+    try:
+        with open(csv_file, "rb") as f:
+            save_result_file(job_id, "csv", f.read())
+        with open(json_file, "rb") as f:
+            save_result_file(job_id, "json", f.read())
+        with open(xlsx_file, "rb") as f:
+            save_result_file(job_id, "xlsx", f.read())
+    except Exception as e:
+        print(f"[REBUILD] Failed to save files to DB: {e}", flush=True)
+
+    # Update job status
+    complete_search_job(job_id, found_count=found_count, billable_count=billable_count, total_cost_cents=0)
+    print(f"[REBUILD] {job_id}: complete — {found_count} found, {billable_count} billable, {len(save_results)} exported", flush=True)
+
+    return jsonify({
+        "status": "rebuilt",
+        "job_id": job_id,
+        "total_results": len(results),
+        "found": found_count,
+        "billable": billable_count,
+        "exported": len(save_results),
+    })
+
+
 @app.route("/admin/tickets")
 @_admin_required
 def admin_tickets_page():
