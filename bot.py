@@ -27,7 +27,7 @@ POE_API_KEY = os.environ.get("POE_API_KEY", "").strip()
 POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "auctionintel.app.v2").strip()
 
 POE_API_KEY_2 = os.environ.get("POE_API_KEY_2", "").strip()
-POE_BOT_NAME_2 = os.environ.get("POE_BOT_NAME_2", "auction.v2_dupe").strip()
+POE_BOT_NAME_2 = os.environ.get("POE_BOT_NAME_2", "auction.v2_dupe1").strip()
 
 MAX_NONPROFITS = 5000
 MAX_RETRIES = 2
