@@ -2986,6 +2986,24 @@ def admin_results_export():
     )
 
 
+@app.route("/admin/results/domains")
+@_admin_required
+def admin_export_cached_domains():
+    """Download a plain text list of all domains in the research cache."""
+    cache_entries = admin_get_all_cache_results()
+    domains = sorted(set(
+        entry.get("result_json", {}).get("query_domain", entry.get("cache_key", "")).strip()
+        for entry in cache_entries
+        if entry.get("result_json", {}).get("query_domain", "").strip() or entry.get("cache_key", "").strip()
+    ))
+    content = "\n".join(domains)
+    return Response(
+        content,
+        mimetype="text/plain",
+        headers={"Content-Disposition": "attachment; filename=searched_domains.txt"},
+    )
+
+
 @app.route("/admin/rebuild-job/<job_id>", methods=["POST"])
 @_admin_required
 def admin_rebuild_job(job_id):
