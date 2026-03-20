@@ -27,7 +27,7 @@ POE_API_KEY = os.environ.get("POE_API_KEY", "").strip()
 POE_BOT_NAME = os.environ.get("POE_BOT_NAME", "auctionintel.app").strip()
 
 POE_API_KEY_2 = os.environ.get("POE_API_KEY_2", "").strip()
-POE_BOT_NAME_2 = os.environ.get("POE_BOT_NAME_2", "auctionintel.app").strip()
+POE_BOT_NAME_2 = os.environ.get("POE_BOT_NAME_2", "auctionintel.app_dup").strip()
 
 POE_BOT_NAME_3 = os.environ.get("POE_BOT_NAME_3", "auctionintel.app").strip()
 POE_BOT_NAME_4 = os.environ.get("POE_BOT_NAME_4", "auctionintel.app").strip()
