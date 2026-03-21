@@ -3023,15 +3023,15 @@ def admin_cleanup():
 @_admin_required
 def admin_leads_export():
     """Export filtered leads from research cache — lightweight direct SQL query."""
-    import zipfile
-    import json as _jmod
-    from db import _get_conn, _fetchall
-
-    placeholder_names = {"no contact found", "not found", "n/a", "unknown", "none", "no name found", "no contact", "no name", ""}
-    placeholder_emails = {"no email found", "not found", "n/a", "unknown", "none", "no email", ""}
-    min_date = datetime(2026, 4, 17)
-
     try:
+        import zipfile
+        import json as _jmod
+        from db import _get_conn
+
+        placeholder_names = {"no contact found", "not found", "n/a", "unknown", "none", "no name found", "no contact", "no name", ""}
+        placeholder_emails = {"no email found", "not found", "n/a", "unknown", "none", "no email", ""}
+        min_date = datetime(2026, 4, 17)
+
         conn = _get_conn()
         cur = conn.cursor()
         # Only pull found results — much lighter than loading everything
@@ -3040,80 +3040,83 @@ def admin_leads_export():
             WHERE status IN ('found', '3rdpty_found')
             AND expires_at > NOW()
         """)
-        rows = _fetchall(cur)
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description]
+        rows = [dict(zip(cols, r)) for r in rows]
         cur.close()
-    except Exception as e:
-        print(f"[LEADS EXPORT] DB error: {e}", flush=True)
-        return f"<h1>Export Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
-    leads_no_email = []
-    leads_with_email = []
+        leads_no_email = []
+        leads_with_email = []
 
-    for row in rows:
-        try:
-            result = _jmod.loads(row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"]
-        except Exception:
-            continue
-
-        name = (result.get("contact_name") or "").strip()
-        if name.lower() in placeholder_names:
-            continue
-
-        date_str = (result.get("event_date") or "").strip()
-        if not date_str:
-            continue
-        try:
-            evt_date = datetime.strptime(date_str, "%m/%d/%Y")
-        except ValueError:
+        for row in rows:
             try:
-                evt_date = datetime.strptime(date_str[:10], "%Y-%m-%d")
-            except ValueError:
+                result = _jmod.loads(row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"]
+            except Exception:
                 continue
-        if evt_date < min_date:
-            continue
 
-        row_base = {
-            "contact_name": name,
-            "auction_type": result.get("auction_type", ""),
-            "evidence_auction": result.get("evidence_auction", ""),
-            "event_date": date_str,
-        }
-        leads_no_email.append(row_base)
+            name = (result.get("contact_name") or "").strip()
+            if name.lower() in placeholder_names:
+                continue
 
-        email = (result.get("contact_email") or "").strip()
-        if email.lower() not in placeholder_emails and "@" in email:
-            row_email = dict(row_base)
-            row_email["contact_email"] = email
-            leads_with_email.append(row_email)
+            date_str = (result.get("event_date") or "").strip()
+            if not date_str:
+                continue
+            try:
+                evt_date = datetime.strptime(date_str, "%m/%d/%Y")
+            except ValueError:
+                try:
+                    evt_date = datetime.strptime(date_str[:10], "%Y-%m-%d")
+                except ValueError:
+                    continue
+            if evt_date < min_date:
+                continue
 
-    # Build CSVs
-    cols1 = ["contact_name", "auction_type", "evidence_auction", "event_date"]
-    buf1 = io.StringIO()
-    w1 = csv.DictWriter(buf1, fieldnames=cols1, extrasaction="ignore", quoting=csv.QUOTE_ALL)
-    w1.writeheader()
-    for r in leads_no_email:
-        w1.writerow(r)
+            row_base = {
+                "contact_name": name,
+                "auction_type": result.get("auction_type", ""),
+                "evidence_auction": result.get("evidence_auction", ""),
+                "event_date": date_str,
+            }
+            leads_no_email.append(row_base)
 
-    cols2 = ["contact_name", "contact_email", "auction_type", "evidence_auction", "event_date"]
-    buf2 = io.StringIO()
-    w2 = csv.DictWriter(buf2, fieldnames=cols2, extrasaction="ignore", quoting=csv.QUOTE_ALL)
-    w2.writeheader()
-    for r in leads_with_email:
-        w2.writerow(r)
+            email = (result.get("contact_email") or "").strip()
+            if email.lower() not in placeholder_emails and "@" in email:
+                row_email = dict(row_base)
+                row_email["contact_email"] = email
+                leads_with_email.append(row_email)
 
-    # Zip both files
-    zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("leads_no_email.csv", buf1.getvalue())
-        zf.writestr("leads_with_email.csv", buf2.getvalue())
-    zip_buf.seek(0)
+        # Build CSVs
+        cols1 = ["contact_name", "auction_type", "evidence_auction", "event_date"]
+        buf1 = io.StringIO()
+        w1 = csv.DictWriter(buf1, fieldnames=cols1, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+        w1.writeheader()
+        for r in leads_no_email:
+            w1.writerow(r)
 
-    print(f"[LEADS EXPORT] {len(leads_no_email)} contacts (no email), {len(leads_with_email)} with email", flush=True)
-    return Response(
-        zip_buf.getvalue(),
-        mimetype="application/zip",
-        headers={"Content-Disposition": "attachment; filename=leads_export.zip"},
-    )
+        cols2 = ["contact_name", "contact_email", "auction_type", "evidence_auction", "event_date"]
+        buf2 = io.StringIO()
+        w2 = csv.DictWriter(buf2, fieldnames=cols2, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+        w2.writeheader()
+        for r in leads_with_email:
+            w2.writerow(r)
+
+        # Zip both files
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("leads_no_email.csv", buf1.getvalue())
+            zf.writestr("leads_with_email.csv", buf2.getvalue())
+        zip_buf.seek(0)
+
+        print(f"[LEADS EXPORT] {len(leads_no_email)} contacts (no email), {len(leads_with_email)} with email", flush=True)
+        return Response(
+            zip_buf.getvalue(),
+            mimetype="application/zip",
+            headers={"Content-Disposition": "attachment; filename=leads_export.zip"},
+        )
+    except Exception as e:
+        print(f"[LEADS EXPORT] CRASH: {type(e).__name__}: {e}", flush=True)
+        import traceback; traceback.print_exc()
+        return f"<h1>Leads Export Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
 
 @app.route("/admin/results/domains")
