@@ -3099,29 +3099,22 @@ def admin_leads_export():
             if evt_date < min_date:
                 continue
 
-            row_base = {
-                "contact_name": name,
-                "auction_type": result.get("auction_type", ""),
-                "evidence_auction": result.get("evidence_auction", ""),
-                "event_date": date_str,
-            }
+            row_base = {col: result.get(col, "") for col in CSV_COLUMNS}
             leads_no_email.append(row_base)
 
             email = (result.get("contact_email") or "").strip()
             if email.lower() not in placeholder_emails and "@" in email:
-                row_email = dict(row_base)
-                row_email["contact_email"] = email
-                leads_with_email.append(row_email)
+                leads_with_email.append(row_base)
 
         # Build CSVs
-        cols1 = ["contact_name", "auction_type", "evidence_auction", "event_date"]
+        cols1 = CSV_COLUMNS
         buf1 = io.StringIO()
         w1 = csv.DictWriter(buf1, fieldnames=cols1, extrasaction="ignore", quoting=csv.QUOTE_ALL)
         w1.writeheader()
         for r in leads_no_email:
             w1.writerow(r)
 
-        cols2 = ["contact_name", "contact_email", "auction_type", "evidence_auction", "event_date"]
+        cols2 = CSV_COLUMNS
         buf2 = io.StringIO()
         w2 = csv.DictWriter(buf2, fieldnames=cols2, extrasaction="ignore", quoting=csv.QUOTE_ALL)
         w2.writeheader()
