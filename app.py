@@ -3022,29 +3022,43 @@ def admin_cleanup():
 @app.route("/admin/results/leads-export")
 @_admin_required
 def admin_leads_export():
-    """Export filtered leads from entire research cache as 2 CSV downloads (zipped)."""
+    """Export filtered leads from research cache — lightweight direct SQL query."""
     import zipfile
-    cache_entries = admin_get_all_cache_results()
+    import json as _jmod
+    from db import _get_conn, _fetchall
 
     placeholder_names = {"no contact found", "not found", "n/a", "unknown", "none", "no name found", "no contact", "no name", ""}
     placeholder_emails = {"no email found", "not found", "n/a", "unknown", "none", "no email", ""}
     min_date = datetime(2026, 4, 17)
 
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+        # Only pull found results — much lighter than loading everything
+        cur.execute("""
+            SELECT result_json FROM research_cache
+            WHERE status IN ('found', '3rdpty_found')
+            AND expires_at > NOW()
+        """)
+        rows = _fetchall(cur)
+        cur.close()
+    except Exception as e:
+        print(f"[LEADS EXPORT] DB error: {e}", flush=True)
+        return f"<h1>Export Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
+
     leads_no_email = []
     leads_with_email = []
 
-    for entry in cache_entries:
-        result = entry.get("result_json", {})
-        st = entry.get("status", "uncertain")
-        if st not in ("found", "3rdpty_found"):
+    for row in rows:
+        try:
+            result = _jmod.loads(row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"]
+        except Exception:
             continue
 
-        # Must have valid contact name
         name = (result.get("contact_name") or "").strip()
         if name.lower() in placeholder_names:
             continue
 
-        # Must have event_date on or after 04/17/2026
         date_str = (result.get("event_date") or "").strip()
         if not date_str:
             continue
