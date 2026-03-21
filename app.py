@@ -84,6 +84,7 @@ from db import (
     admin_get_recent_activity, admin_get_recent_logins,
     admin_get_cache_stats, admin_get_drip_stats,
     get_user_paid_domains, admin_get_all_cache_results,
+    cleanup_expired_cache, cleanup_old_job_results,
 )
 import emails
 from html import escape as html_escape
@@ -3007,6 +3008,15 @@ def admin_results_export():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=cache_export_{tier_filter}.csv"},
     )
+
+
+@app.route("/admin/cleanup", methods=["POST"])
+@_admin_required
+def admin_cleanup():
+    """Manually trigger DB cleanup to free disk space."""
+    cache_deleted = cleanup_expired_cache()
+    jobs_deleted = cleanup_old_job_results()
+    return jsonify({"cache_deleted": cache_deleted, "jobs_deleted": jobs_deleted, "message": f"Freed space: {cache_deleted} expired cache + {jobs_deleted} old job results"})
 
 
 @app.route("/admin/results/leads-export")
@@ -8113,6 +8123,8 @@ print("Database initialized.", file=sys.stderr)
 cleanup_stale_running_jobs()
 cleanup_expired_jobs()
 flush_uncertain_cache()
+cleanup_expired_cache()
+cleanup_old_job_results()
 
 
 # ─── REST API v1 ─────────────────────────────────────────────────────────────

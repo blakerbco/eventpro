@@ -1935,6 +1935,45 @@ def admin_get_all_cache_results() -> list:
     return rows
 
 
+def cleanup_expired_cache() -> int:
+    """Delete expired research_cache entries and vacuum to reclaim disk space."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM research_cache WHERE expires_at <= NOW()")
+    deleted = cur.rowcount
+    conn.commit()
+    cur.close()
+    if deleted > 0:
+        # VACUUM needs autocommit
+        old_autocommit = conn.autocommit
+        conn.autocommit = True
+        cur2 = conn.cursor()
+        cur2.execute("VACUUM research_cache")
+        cur2.close()
+        conn.autocommit = old_autocommit
+    print(f"[DB CLEANUP] Deleted {deleted} expired cache entries", flush=True)
+    return deleted
+
+
+def cleanup_old_job_results() -> int:
+    """Delete job_results older than 30 days to free disk."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM job_results WHERE created_at < NOW() - INTERVAL '30 days'")
+    deleted = cur.rowcount
+    conn.commit()
+    cur.close()
+    if deleted > 0:
+        old_autocommit = conn.autocommit
+        conn.autocommit = True
+        cur2 = conn.cursor()
+        cur2.execute("VACUUM job_results")
+        cur2.close()
+        conn.autocommit = old_autocommit
+    print(f"[DB CLEANUP] Deleted {deleted} old job_results entries", flush=True)
+    return deleted
+
+
 def admin_get_drip_stats() -> list:
     """Drip campaign send counts by drip_key."""
     conn = _get_conn()
