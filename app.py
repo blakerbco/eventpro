@@ -3123,18 +3123,23 @@ def admin_leads_export():
 @_admin_required
 def admin_export_cached_domains():
     """Download a plain text list of all domains in the research cache."""
-    cache_entries = admin_get_all_cache_results()
-    domains = sorted(set(
-        entry.get("result_json", {}).get("query_domain", entry.get("cache_key", "")).strip()
-        for entry in cache_entries
-        if entry.get("result_json", {}).get("query_domain", "").strip() or entry.get("cache_key", "").strip()
-    ))
-    content = "\n".join(domains)
-    return Response(
-        content,
-        mimetype="text/plain",
-        headers={"Content-Disposition": "attachment; filename=searched_domains.txt"},
-    )
+    try:
+        from db import _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT cache_key FROM research_cache WHERE expires_at > NOW()")
+        rows = cur.fetchall()
+        cur.close()
+        domains = sorted(set(r[0].strip() for r in rows if r[0] and r[0].strip()))
+        content = "\n".join(domains)
+        return Response(
+            content,
+            mimetype="text/plain",
+            headers={"Content-Disposition": "attachment; filename=searched_domains.txt"},
+        )
+    except Exception as e:
+        print(f"[DOMAINS EXPORT] CRASH: {type(e).__name__}: {e}", flush=True)
+        return f"<h1>Domains Export Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
 
 @app.route("/admin/rebuild-job/<job_id>", methods=["POST"])
