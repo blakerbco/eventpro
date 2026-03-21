@@ -1956,22 +1956,9 @@ def cleanup_expired_cache() -> int:
 
 
 def cleanup_old_job_results() -> int:
-    """Delete job_results older than 30 days to free disk."""
-    conn = _get_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM job_results WHERE created_at < NOW() - INTERVAL '30 days'")
-    deleted = cur.rowcount
-    conn.commit()
-    cur.close()
-    if deleted > 0:
-        old_autocommit = conn.autocommit
-        conn.autocommit = True
-        cur2 = conn.cursor()
-        cur2.execute("VACUUM job_results")
-        cur2.close()
-        conn.autocommit = old_autocommit
-    print(f"[DB CLEANUP] Deleted {deleted} old job_results entries", flush=True)
-    return deleted
+    """No-op: keeping all job_results permanently. Upgrade DB storage instead."""
+    print(f"[DB CLEANUP] job_results cleanup disabled — keeping all records", flush=True)
+    return 0
 
 
 def admin_get_drip_stats() -> list:
