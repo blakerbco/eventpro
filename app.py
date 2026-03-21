@@ -1061,8 +1061,8 @@ def login_page():
 @app.route("/login", methods=["POST"])
 def login_submit():
     ip = _get_client_ip()
-    # 5 login attempts per IP per 5 minutes
-    if _rate_limit(f"login:{ip}", 5, 300):
+    # 30 login attempts per IP per 5 minutes (relaxed for multi-account admin use)
+    if _rate_limit(f"login:{ip}", 30, 300):
         return LOGIN_HTML.replace("<!-- error -->", '<p class="error">Too many login attempts. Try again in a few minutes.</p>'), 429
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
