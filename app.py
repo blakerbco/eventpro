@@ -2894,41 +2894,55 @@ def admin_system_page():
 @_admin_required
 def admin_results_page():
   try:
-    cache_entries = admin_get_all_cache_results()
+    from db import _get_conn
+    conn = _get_conn()
+    cur = conn.cursor()
     now = datetime.now(timezone.utc)
 
-    # Classify each entry and build stats
+    # Get counts directly from SQL — no loading JSON blobs
+    cur.execute("""
+        SELECT status, COUNT(*) FROM research_cache
+        WHERE expires_at > NOW()
+        GROUP BY status
+    """)
     status_counts = {}
+    for row in cur.fetchall():
+        status_counts[row[0]] = row[1]
+    total = sum(status_counts.values())
+
+    # Get expiry buckets via SQL
+    cur.execute("""
+        SELECT
+            SUM(CASE WHEN expires_at <= NOW() THEN 1 ELSE 0 END),
+            SUM(CASE WHEN expires_at > NOW() AND expires_at <= NOW() + INTERVAL '7 days' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN expires_at > NOW() + INTERVAL '7 days' AND expires_at <= NOW() + INTERVAL '30 days' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN expires_at > NOW() + INTERVAL '30 days' THEN 1 ELSE 0 END)
+        FROM research_cache
+    """)
+    exp_row = cur.fetchone()
+    expiry_buckets = {
+        "expired": exp_row[0] or 0,
+        "lt_7d": exp_row[1] or 0,
+        "lt_30d": exp_row[2] or 0,
+        "gt_30d": exp_row[3] or 0,
+    }
+
+    # Tier counts — need JSON but only for found results
+    cur.execute("""
+        SELECT result_json FROM research_cache
+        WHERE status IN ('found', '3rdpty_found')
+        AND expires_at > NOW()
+    """)
+    import json as _jmod
     tier_counts = {}
-    expiry_buckets = {"expired": 0, "lt_7d": 0, "lt_30d": 0, "gt_30d": 0}
-    total = len(cache_entries)
-
-    for entry in cache_entries:
-        result = entry.get("result_json", {})
-        st = entry.get("status", "uncertain")
-        status_counts[st] = status_counts.get(st, 0) + 1
-
-        # Tier classification for found results
-        if st in ("found", "3rdpty_found"):
+    for row in cur.fetchall():
+        try:
+            result = _jmod.loads(row[0]) if isinstance(row[0], str) else row[0]
             tier, price = classify_lead_tier(result)
             tier_counts[tier] = tier_counts.get(tier, 0) + 1
-
-        # Expiry bucketing
-        try:
-            exp_str = entry.get("expires_at", "")
-            if exp_str:
-                exp_dt = datetime.strptime(str(exp_str)[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-                delta = exp_dt - now
-                if delta.total_seconds() < 0:
-                    expiry_buckets["expired"] += 1
-                elif delta.days < 7:
-                    expiry_buckets["lt_7d"] += 1
-                elif delta.days < 30:
-                    expiry_buckets["lt_30d"] += 1
-                else:
-                    expiry_buckets["gt_30d"] += 1
-        except Exception as e:
-            print(f"[ADMIN RESULTS] Expiry parse error: {e}", flush=True)
+        except Exception:
+            pass
+    cur.close()
 
     found_count = status_counts.get("found", 0) + status_counts.get("3rdpty_found", 0)
     not_found_count = status_counts.get("not_found", 0)
@@ -2970,27 +2984,38 @@ def admin_results_page():
 @app.route("/admin/results/export")
 @_admin_required
 def admin_results_export():
+  try:
+    import json as _jmod
+    from db import _get_conn
     tier_filter = request.args.get("tier", "all")
     fmt = request.args.get("format", "csv")
-    cache_entries = admin_get_all_cache_results()
 
-    # Filter by tier
+    conn = _get_conn()
+    cur = conn.cursor()
+    if tier_filter in ("all",):
+        cur.execute("SELECT result_json FROM research_cache WHERE expires_at > NOW()")
+    else:
+        cur.execute("SELECT result_json FROM research_cache WHERE status IN ('found', '3rdpty_found') AND expires_at > NOW()")
+    raw_rows = cur.fetchall()
+    cur.close()
+
     filtered = []
-    for entry in cache_entries:
-        result = entry.get("result_json", {})
-        st = entry.get("status", "uncertain")
+    for row in raw_rows:
+        try:
+            result = _jmod.loads(row[0]) if isinstance(row[0], str) else row[0]
+        except Exception:
+            continue
         if tier_filter == "all":
             filtered.append(result)
-        elif tier_filter == "all_found" and st in ("found", "3rdpty_found"):
+        elif tier_filter == "all_found":
             filtered.append(result)
-        elif st in ("found", "3rdpty_found"):
+        else:
             tier, price = classify_lead_tier(result)
             if tier == tier_filter:
                 filtered.append(result)
 
     if fmt == "json":
-        import json as _json_mod
-        content = _json_mod.dumps(filtered, indent=2, ensure_ascii=False)
+        content = _jmod.dumps(filtered, indent=2, ensure_ascii=False)
         return Response(
             content,
             mimetype="application/json",
@@ -3008,6 +3033,9 @@ def admin_results_export():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=cache_export_{tier_filter}.csv"},
     )
+  except Exception as e:
+    print(f"[RESULTS EXPORT] CRASH: {type(e).__name__}: {e}", flush=True)
+    return f"<h1>Export Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
 
 @app.route("/admin/cleanup", methods=["POST"])
