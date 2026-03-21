@@ -2892,6 +2892,7 @@ def admin_system_page():
 @app.route("/admin/results")
 @_admin_required
 def admin_results_page():
+  try:
     cache_entries = admin_get_all_cache_results()
     now = datetime.now(timezone.utc)
 
@@ -2959,6 +2960,10 @@ def admin_results_page():
     html = html.replace("{{STATUS_ROWS}}", status_rows or '<tr><td colspan="2" style="text-align:center;color:#525252;">No entries</td></tr>')
 
     return html
+  except Exception as e:
+    print(f"[ADMIN RESULTS] CRASH: {type(e).__name__}: {e}", flush=True)
+    import traceback; traceback.print_exc()
+    return f"<h1>Admin Results Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
 
 @app.route("/admin/results/export")
