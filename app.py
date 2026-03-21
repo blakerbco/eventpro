@@ -8276,6 +8276,7 @@ def api_v1_status(job_id):
     events = job["progress_queue"].events
     processed = sum(1 for e in events if e and e.get("type") == "result")
     found = sum(1 for e in events if e and e.get("type") == "result" and e.get("status") in ("found", "3rdpty_found"))
+    decision_makers = sum(1 for e in events if e and e.get("type") == "result" and e.get("tier") == "decision_maker")
     total = len(job.get("nonprofits", []))
 
     # Find latest ETA
@@ -8291,6 +8292,7 @@ def api_v1_status(job_id):
         "total": total,
         "processed": processed,
         "found": found,
+        "decision_makers": decision_makers,
         "eta_seconds": eta_remaining,
     }
     if not is_admin:
