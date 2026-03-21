@@ -3009,6 +3009,89 @@ def admin_results_export():
     )
 
 
+@app.route("/admin/results/leads-export")
+@_admin_required
+def admin_leads_export():
+    """Export filtered leads from entire research cache as 2 CSV downloads (zipped)."""
+    import zipfile
+    cache_entries = admin_get_all_cache_results()
+
+    placeholder_names = {"no contact found", "not found", "n/a", "unknown", "none", "no name found", "no contact", "no name", ""}
+    placeholder_emails = {"no email found", "not found", "n/a", "unknown", "none", "no email", ""}
+    min_date = datetime(2026, 4, 17)
+
+    leads_no_email = []
+    leads_with_email = []
+
+    for entry in cache_entries:
+        result = entry.get("result_json", {})
+        st = entry.get("status", "uncertain")
+        if st not in ("found", "3rdpty_found"):
+            continue
+
+        # Must have valid contact name
+        name = (result.get("contact_name") or "").strip()
+        if name.lower() in placeholder_names:
+            continue
+
+        # Must have event_date on or after 04/17/2026
+        date_str = (result.get("event_date") or "").strip()
+        if not date_str:
+            continue
+        try:
+            evt_date = datetime.strptime(date_str, "%m/%d/%Y")
+        except ValueError:
+            try:
+                evt_date = datetime.strptime(date_str[:10], "%Y-%m-%d")
+            except ValueError:
+                continue
+        if evt_date < min_date:
+            continue
+
+        row_base = {
+            "contact_name": name,
+            "auction_type": result.get("auction_type", ""),
+            "evidence_auction": result.get("evidence_auction", ""),
+            "event_date": date_str,
+        }
+        leads_no_email.append(row_base)
+
+        email = (result.get("contact_email") or "").strip()
+        if email.lower() not in placeholder_emails and "@" in email:
+            row_email = dict(row_base)
+            row_email["contact_email"] = email
+            leads_with_email.append(row_email)
+
+    # Build CSVs
+    cols1 = ["contact_name", "auction_type", "evidence_auction", "event_date"]
+    buf1 = io.StringIO()
+    w1 = csv.DictWriter(buf1, fieldnames=cols1, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+    w1.writeheader()
+    for r in leads_no_email:
+        w1.writerow(r)
+
+    cols2 = ["contact_name", "contact_email", "auction_type", "evidence_auction", "event_date"]
+    buf2 = io.StringIO()
+    w2 = csv.DictWriter(buf2, fieldnames=cols2, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+    w2.writeheader()
+    for r in leads_with_email:
+        w2.writerow(r)
+
+    # Zip both files
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("leads_no_email.csv", buf1.getvalue())
+        zf.writestr("leads_with_email.csv", buf2.getvalue())
+    zip_buf.seek(0)
+
+    print(f"[LEADS EXPORT] {len(leads_no_email)} contacts (no email), {len(leads_with_email)} with email", flush=True)
+    return Response(
+        zip_buf.getvalue(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": "attachment; filename=leads_export.zip"},
+    )
+
+
 @app.route("/admin/results/domains")
 @_admin_required
 def admin_export_cached_domains():
