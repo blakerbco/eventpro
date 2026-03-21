@@ -689,14 +689,14 @@ def _run_job(
     # Route Poe credentials based on user — each admin uses a separate Poe account
     poe_bot_name = None  # defaults to POE_BOT_NAME in call_poe_bot_sync
     poe_api_key = None
-    if user_email == "blake1@auctionintel.us" and POE_API_KEY_2:
+    if user_email == "blake1@auctionintel.us" and POE_API_KEY:
         poe_bot_name = POE_BOT_NAME_2
-        poe_api_key = POE_API_KEY_2
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_2}", flush=True)
-    elif user_email == "blake2@auctionintel.us" and POE_API_KEY:
-        poe_bot_name = POE_BOT_NAME_3
         poe_api_key = POE_API_KEY
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_3} (key 1)", flush=True)
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_2} (key 1)", flush=True)
+    elif user_email == "blake2@auctionintel.us" and POE_API_KEY_2:
+        poe_bot_name = POE_BOT_NAME_3
+        poe_api_key = POE_API_KEY_2
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_3} (key 2)", flush=True)
     elif user_email == "blake3@auctionintel.us" and POE_API_KEY_2:
         poe_bot_name = POE_BOT_NAME_4
         poe_api_key = POE_API_KEY_2
