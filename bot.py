@@ -32,6 +32,9 @@ POE_BOT_NAME_2 = os.environ.get("POE_BOT_NAME_2", "auctionintel.app").strip()
 POE_BOT_NAME_3 = os.environ.get("POE_BOT_NAME_3", "auctionintel.app_dup").strip()
 POE_BOT_NAME_4 = os.environ.get("POE_BOT_NAME_4", "auctionintel.app_dup").strip()
 
+POE_BOT_NAME_5 = os.environ.get("POE_BOT_NAME_5", "auctionintel.app").strip()
+POE_BOT_NAME_6 = os.environ.get("POE_BOT_NAME_6", "auctionintel.app_dup").strip()
+
 MAX_NONPROFITS = 5000
 MAX_RETRIES = 2
 RETRY_DELAY_SECONDS = 15

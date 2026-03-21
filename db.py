@@ -387,6 +387,20 @@ def init_db():
         cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake3["id"],))
         conn.commit()
 
+    # Ensure blake4@auctionintel.us is admin
+    cur.execute("SELECT id FROM users WHERE email = %s", ("blake4@auctionintel.us",))
+    blake4 = _fetchone(cur)
+    if blake4:
+        cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake4["id"],))
+        conn.commit()
+
+    # Ensure blake5@auctionintel.us is admin
+    cur.execute("SELECT id FROM users WHERE email = %s", ("blake5@auctionintel.us",))
+    blake5 = _fetchone(cur)
+    if blake5:
+        cur.execute("UPDATE users SET is_admin = 1 WHERE id = %s", (blake5["id"],))
+        conn.commit()
+
     # Ensure all admin users are always email-verified
     cur.execute("UPDATE users SET email_verified = 1 WHERE is_admin = 1 AND (email_verified = 0 OR email_verified IS NULL)")
     conn.commit()

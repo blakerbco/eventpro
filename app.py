@@ -52,6 +52,7 @@ from bot import (
     validate_email_emailable, validate_emails_bulk, EMAILABLE_API_KEY,
     POE_API_KEY, POE_API_KEY_2, POE_BOT_NAME_2,
     POE_BOT_NAME_3, POE_BOT_NAME_4,
+    POE_BOT_NAME_5, POE_BOT_NAME_6,
 )
 
 from db import (
@@ -701,6 +702,14 @@ def _run_job(
         poe_bot_name = POE_BOT_NAME_4
         poe_api_key = POE_API_KEY_2
         print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_4} (key 2)", flush=True)
+    elif user_email == "blake4@auctionintel.us" and POE_API_KEY:
+        poe_bot_name = POE_BOT_NAME_5
+        poe_api_key = POE_API_KEY
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_5} (key 1)", flush=True)
+    elif user_email == "blake5@auctionintel.us" and POE_API_KEY_2:
+        poe_bot_name = POE_BOT_NAME_6
+        poe_api_key = POE_API_KEY_2
+        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_6} (key 2)", flush=True)
     else:
         print(f"[POE-ROUTING] {user_email or 'default'} -> bot={POE_BOT_NAME}", flush=True)
 
