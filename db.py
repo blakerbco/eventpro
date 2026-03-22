@@ -921,11 +921,12 @@ def create_api_key(user_id: int, label: str = "") -> str:
     """Generate an API key, store SHA-256 hash, return plaintext (shown once)."""
     plaintext = "ak_" + secrets.token_hex(32)
     key_hash = _hashlib.sha256(plaintext.encode()).hexdigest()
+    key_prefix = plaintext[:12]
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO api_keys (user_id, key_hash, label) VALUES (%s, %s, %s)",
-        (user_id, key_hash, label),
+        "INSERT INTO api_keys (user_id, key_name, key_hash, key_prefix, label, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
+        (user_id, label or "API Key", key_hash, key_prefix, label, True),
     )
     conn.commit()
     cur.close()
