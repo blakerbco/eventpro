@@ -2915,10 +2915,14 @@ def admin_batch_runner():
         """)
         rows = cur.fetchall()
 
-        jobs_html = ""
+        # Separate running and completed jobs
+        running_jobs = []
+        completed_jobs = []
+
         if not rows:
             jobs_html = '<p style="color:#737373;text-align:center;padding:40px;">No jobs found. Run batch_runner.py to create jobs.</p>'
         else:
+            # First pass: categorize jobs
             for row in rows:
                 job_id = row[0]
                 total_domains = row[1]
@@ -2978,10 +2982,18 @@ def admin_batch_runner():
 
                 started_str = started_at.strftime('%Y-%m-%d %H:%M:%S') if started_at else 'Unknown'
 
-                jobs_html += f"""
+                # Blinking light for running jobs
+                status_indicator = ""
+                if status_class == "status-running":
+                    status_indicator = '<span class="blink-dot"></span>'
+
+                job_html = f"""
                 <div class="job-card">
                     <div class="job-header">
-                        <div class="job-id">{html_escape(job_id)}</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            {status_indicator}
+                            <div class="job-id">{html_escape(job_id)}</div>
+                        </div>
                         <div class="job-status {status_class}">{status_text}</div>
                     </div>
                     <div class="job-stats">
@@ -3012,6 +3024,21 @@ def admin_batch_runner():
                     <div style="font-size:10px;color:#525252;margin-top:8px;">Started: {started_str}</div>
                 </div>
                 """
+
+                # Categorize by status
+                if status_class == "status-running":
+                    running_jobs.append(job_html)
+                else:
+                    completed_jobs.append(job_html)
+
+            # Render: running jobs first, then completed
+            jobs_html = ""
+            if running_jobs:
+                jobs_html += '<div class="section-title" style="color:#3b82f6;">Running Jobs</div>'
+                jobs_html += ''.join(running_jobs)
+            if completed_jobs:
+                jobs_html += '<div class="section-title" style="margin-top:20px;">Completed Jobs</div>'
+                jobs_html += ''.join(completed_jobs)
 
         cur.close()
 
@@ -3986,6 +4013,21 @@ ADMIN_BATCH_RUNNER_HTML = """<!DOCTYPE html>
   .job-actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
   .job-actions a, .job-actions button { font-size:11px; padding:6px 12px; border:none; cursor:pointer; }
   .refresh-note { font-size:11px; color:#737373; margin-top:8px; }
+
+  /* Blinking indicator for running jobs */
+  .blink-dot {
+    width: 12px;
+    height: 12px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: inline-block;
+    animation: blink 1.5s infinite;
+    box-shadow: 0 0 8px #3b82f6;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
 </style>
 </head>
 <body>
