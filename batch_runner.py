@@ -14,6 +14,7 @@ Usage:
 
 import json
 import os
+import random
 import threading
 import time
 import tkinter as tk
@@ -68,6 +69,23 @@ class StreamPanel(ttk.LabelFrame):
         self.key_entry = ttk.Entry(key_frame, textvariable=self.key_var, width=28, show="*")
         self.key_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
+        # EQ bars (music visualizer style)
+        self.eq_canvas = tk.Canvas(self, height=40, bg="#0a0a0a", highlightthickness=0)
+        self.eq_canvas.pack(fill="x", padx=5, pady=2)
+        self.eq_bars = []
+        self.eq_heights = [0] * 8
+        bar_width = 8
+        gap = 4
+        for i in range(8):
+            x = i * (bar_width + gap) + gap
+            bar = self.eq_canvas.create_rectangle(
+                x, 40, x + bar_width, 40,
+                fill=STREAM_COLORS[index % len(STREAM_COLORS)],
+                outline=""
+            )
+            self.eq_bars.append(bar)
+        self.eq_animating = False
+
         # Progress bar
         self.progress_var = tk.DoubleVar(value=0)
         self.progress_bar = ttk.Progressbar(self, variable=self.progress_var, maximum=100)
@@ -108,7 +126,28 @@ class StreamPanel(ttk.LabelFrame):
         self.count_var.set("")
         self.domains_var.set(f"{len(domains)} domains")
 
+        # Start EQ animation
+        self.eq_animating = True
+        threading.Thread(target=self._animate_eq, daemon=True).start()
+
         threading.Thread(target=self._run, args=(domains,), daemon=True).start()
+
+    def _animate_eq(self):
+        """Animate EQ bars while job is running."""
+        while self.eq_animating:
+            for i, bar in enumerate(self.eq_bars):
+                # Random height between 5 and 35
+                target_height = random.randint(5, 35)
+                # Smooth transition
+                self.eq_heights[i] += (target_height - self.eq_heights[i]) * 0.3
+                y_top = 40 - self.eq_heights[i]
+                x1, _, x2, _ = self.eq_canvas.coords(bar)
+                self.eq_canvas.coords(bar, x1, y_top, x2, 40)
+            time.sleep(0.05)
+        # Reset bars to 0 when stopped
+        for bar in self.eq_bars:
+            x1, _, x2, _ = self.eq_canvas.coords(bar)
+            self.eq_canvas.coords(bar, x1, 40, x2, 40)
 
     def _run(self, domains):
         """Submit job and poll status."""
@@ -122,6 +161,7 @@ class StreamPanel(ttk.LabelFrame):
             if resp.status_code != 200:
                 self.status_var.set(f"Error: {resp.status_code} — {resp.text[:80]}")
                 self.running = False
+                self.eq_animating = False
                 self.stop_btn.config(state="disabled")
                 return
 
@@ -164,11 +204,13 @@ class StreamPanel(ttk.LabelFrame):
                         self.status_var.set(f"Complete — {found} found")
                         self.progress_var.set(100)
                         self.running = False
+                        self.eq_animating = False
                         self.stop_btn.config(state="disabled")
                         break
                     elif status == "error":
                         self.status_var.set(f"Error — {processed}/{total} processed, {found} found")
                         self.running = False
+                        self.eq_animating = False
                         self.stop_btn.config(state="disabled")
                         break
                     else:
@@ -180,12 +222,14 @@ class StreamPanel(ttk.LabelFrame):
         except Exception as e:
             self.status_var.set(f"Submit error: {e}")
             self.running = False
+            self.eq_animating = False
             self.stop_btn.config(state="disabled")
 
     def stop_job(self):
         """Stop running job."""
         if self.job_id and self.api_key:
             self.running = False
+            self.eq_animating = False
             self.stop_btn.config(state="disabled")
             self.status_var.set("Stopping...")
             try:
