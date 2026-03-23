@@ -8475,12 +8475,34 @@ def api_v1_status(job_id):
         # Check DB for completed/failed jobs
         db_job = get_search_job(job_id)
         if db_job:
+            # Calculate decision_makers from job_results
+            decision_makers = 0
+            try:
+                from db import _get_conn
+                import json as _jmod
+                conn = _get_conn()
+                cur = conn.cursor()
+                cur.execute("SELECT result_json FROM job_results WHERE job_id = %s", (job_id,))
+                for row in cur.fetchall():
+                    try:
+                        result = _jmod.loads(row[0]) if isinstance(row[0], str) else row[0]
+                        if result:
+                            tier, _ = classify_lead_tier(result)
+                            if tier == "decision_maker":
+                                decision_makers += 1
+                    except Exception:
+                        pass
+                cur.close()
+            except Exception:
+                pass
+
             resp = {
                 "job_id": job_id,
                 "status": db_job["status"],
                 "total": db_job["nonprofit_count"] or 0,
                 "processed": db_job["nonprofit_count"] or 0,
                 "found": db_job["found_count"] or 0,
+                "decision_makers": decision_makers,
             }
             if not is_admin:
                 resp["balance_cents"] = get_balance(user_id)
