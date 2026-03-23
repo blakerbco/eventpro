@@ -3282,16 +3282,31 @@ def admin_leads_export():
 @app.route("/admin/results/domains")
 @_admin_required
 def admin_export_cached_domains():
-    """Download a plain text list of all domains in the research cache."""
+    """Download a plain text list of all domains from cache and job results."""
     try:
         from db import _get_conn
         conn = _get_conn()
         cur = conn.cursor()
+
+        domains = set()
+
+        # Get from research_cache
         cur.execute("SELECT DISTINCT cache_key FROM research_cache WHERE expires_at > NOW()")
         rows = cur.fetchall()
+        for r in rows:
+            if r[0] and r[0].strip():
+                domains.add(r[0].strip())
+
+        # Also get from job_results (batch jobs)
+        cur.execute("SELECT DISTINCT domain FROM job_results")
+        rows = cur.fetchall()
+        for r in rows:
+            if r[0] and r[0].strip():
+                domains.add(r[0].strip())
+
         cur.close()
-        domains = sorted(set(r[0].strip() for r in rows if r[0] and r[0].strip()))
-        content = "\n".join(domains)
+
+        content = "\n".join(sorted(domains))
         return Response(
             content,
             mimetype="text/plain",
