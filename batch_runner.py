@@ -23,9 +23,30 @@ from datetime import datetime
 import requests
 
 API_BASE = "https://auctionintel.app"
+CONFIG_FILE = "batch_runner_config.json"
 
 STREAM_LABELS = ["blake", "blake1", "blake2", "blake3", "blake4", "blake5"]
 STREAM_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"]
+
+
+def load_config():
+    """Load saved API keys from config file."""
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"api_keys": [""] * 6}
+
+
+def save_config(api_keys):
+    """Save API keys to config file."""
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump({"api_keys": api_keys}, f, indent=2)
+    except Exception as e:
+        print(f"Failed to save config: {e}")
 
 
 class StreamPanel(ttk.LabelFrame):
@@ -230,6 +251,8 @@ class BatchRunner(tk.Tk):
             row, col = divmod(i, 3)
             panel = StreamPanel(grid_frame, i)
             panel.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            # Add callback to save keys when changed
+            panel.key_var.trace_add("write", lambda *args: self.save_api_keys())
             self.streams.append(panel)
 
         for c in range(3):
@@ -244,6 +267,22 @@ class BatchRunner(tk.Tk):
 
         self.domains = []
         self.exclude_domains = set()
+
+        # Load saved API keys
+        self.load_api_keys()
+
+    def load_api_keys(self):
+        """Load saved API keys from config file."""
+        config = load_config()
+        api_keys = config.get("api_keys", [""] * 6)
+        for i, key in enumerate(api_keys[:6]):
+            if i < len(self.streams):
+                self.streams[i].key_var.set(key)
+
+    def save_api_keys(self):
+        """Save current API keys to config file."""
+        api_keys = [s.key_var.get() for s in self.streams]
+        save_config(api_keys)
 
     def load_file(self):
         path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("CSV files", "*.csv"), ("All", "*.*")])
