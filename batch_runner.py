@@ -85,6 +85,9 @@ class StreamPanel(ttk.LabelFrame):
             )
             self.eq_bars.append(bar)
         self.eq_animating = False
+        self.processing_speed = 0.0  # domains per second
+        self.last_processed = 0
+        self.last_poll_time = time.time()
 
         # Progress bar
         self.progress_var = tk.DoubleVar(value=0)
@@ -109,9 +112,18 @@ class StreamPanel(ttk.LabelFrame):
         self.domains_var = tk.StringVar(value="0 domains")
         ttk.Label(self, textvariable=self.domains_var, foreground="#666").pack(padx=5, pady=(0, 2))
 
+        # Timing stats
+        self.timing_var = tk.StringVar(value="")
+        ttk.Label(self, textvariable=self.timing_var, foreground="#06b6d4", font=("Segoe UI", 8)).pack(padx=5, pady=(0, 2))
+
         # Stop button
         self.stop_btn = ttk.Button(self, text="Stop", command=self.stop_job, state="disabled")
         self.stop_btn.pack(padx=5, pady=(0, 5))
+
+        # Timing tracking
+        self.job_start_time = None
+        self.last_job_duration = None
+        self.avg_time_per_domain = None
 
     def start_job(self, domains):
         """Submit search via API and start polling."""
@@ -126,24 +138,62 @@ class StreamPanel(ttk.LabelFrame):
         self.count_var.set("")
         self.domains_var.set(f"{len(domains)} domains")
 
+        # Start timing
+        self.job_start_time = time.time()
+
         # Start EQ animation
         self.eq_animating = True
         threading.Thread(target=self._animate_eq, daemon=True).start()
 
+        # Start timing display updater
+        threading.Thread(target=self._update_timing, daemon=True).start()
+
         threading.Thread(target=self._run, args=(domains,), daemon=True).start()
 
+    def _update_timing(self):
+        """Update timing display while job is running."""
+        while self.running and self.job_start_time:
+            elapsed = time.time() - self.job_start_time
+            mins = int(elapsed // 60)
+            secs = int(elapsed % 60)
+
+            timing_str = f"Elapsed: {mins}m {secs}s"
+
+            if self.avg_time_per_domain:
+                timing_str += f"  |  Avg: {self.avg_time_per_domain:.1f}s/domain"
+
+            if self.last_job_duration:
+                last_mins = int(self.last_job_duration // 60)
+                last_secs = int(self.last_job_duration % 60)
+                timing_str += f"  |  Last: {last_mins}m {last_secs}s"
+
+            self.timing_var.set(timing_str)
+            time.sleep(1)
+
     def _animate_eq(self):
-        """Animate EQ bars while job is running."""
+        """Animate EQ bars based on actual processing speed."""
         while self.eq_animating:
+            # Speed affects bar height and animation intensity
+            # processing_speed ranges from 0 (idle) to ~2+ (fast processing)
+            speed_factor = min(self.processing_speed * 10, 1.0)  # Normalize to 0-1
+
             for i, bar in enumerate(self.eq_bars):
-                # Random height between 5 and 35
-                target_height = random.randint(5, 35)
-                # Smooth transition
-                self.eq_heights[i] += (target_height - self.eq_heights[i]) * 0.3
+                # Height based on processing speed: faster = taller bars
+                min_height = 5 if speed_factor > 0.1 else 2
+                max_height = int(10 + (25 * speed_factor))  # 10-35 range
+                target_height = random.randint(min_height, max_height)
+
+                # Smooth transition (faster when processing faster)
+                smoothness = 0.2 + (0.3 * speed_factor)
+                self.eq_heights[i] += (target_height - self.eq_heights[i]) * smoothness
                 y_top = 40 - self.eq_heights[i]
                 x1, _, x2, _ = self.eq_canvas.coords(bar)
                 self.eq_canvas.coords(bar, x1, y_top, x2, 40)
-            time.sleep(0.05)
+
+            # Update rate: faster processing = faster animation
+            sleep_time = 0.05 - (0.02 * speed_factor)  # 0.03-0.05 seconds
+            time.sleep(max(0.03, sleep_time))
+
         # Reset bars to 0 when stopped
         for bar in self.eq_bars:
             x1, _, x2, _ = self.eq_canvas.coords(bar)
@@ -188,6 +238,15 @@ class StreamPanel(ttk.LabelFrame):
                     status = sd.get("status", "unknown")
                     eta = sd.get("eta_seconds")
 
+                    # Calculate processing speed for EQ animation
+                    current_time = time.time()
+                    time_delta = current_time - self.last_poll_time
+                    if time_delta > 0:
+                        domains_delta = processed - self.last_processed
+                        self.processing_speed = domains_delta / time_delta
+                        self.last_processed = processed
+                        self.last_poll_time = current_time
+
                     pct = (processed / total * 100) if total > 0 else 0
                     self.progress_var.set(pct)
                     self.count_var.set(f"{processed}/{total}  |  {found} found")
@@ -201,6 +260,12 @@ class StreamPanel(ttk.LabelFrame):
                         eta_str = f" — ~{mins}m {secs}s left"
 
                     if status == "complete":
+                        # Record job completion time
+                        if self.job_start_time:
+                            self.last_job_duration = time.time() - self.job_start_time
+                            if total > 0:
+                                self.avg_time_per_domain = self.last_job_duration / total
+
                         self.status_var.set(f"Complete — {found} found")
                         self.progress_var.set(100)
                         self.running = False
@@ -208,6 +273,10 @@ class StreamPanel(ttk.LabelFrame):
                         self.stop_btn.config(state="disabled")
                         break
                     elif status == "error":
+                        # Record time even on error
+                        if self.job_start_time:
+                            self.last_job_duration = time.time() - self.job_start_time
+
                         self.status_var.set(f"Error — {processed}/{total} processed, {found} found")
                         self.running = False
                         self.eq_animating = False
