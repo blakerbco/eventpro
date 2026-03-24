@@ -2914,6 +2914,7 @@ def admin_batch_runner():
             LIMIT 50
         """)
         rows = cur.fetchall()
+        print(f"[ADMIN BATCH] Found {len(rows)} jobs in database", flush=True)
 
         # Separate running and completed jobs
         running_jobs = []
@@ -2923,11 +2924,13 @@ def admin_batch_runner():
             jobs_html = '<p style="color:#737373;text-align:center;padding:40px;">No jobs found. Run batch_runner.py to create jobs.</p>'
         else:
             # First pass: categorize jobs
-            for row in rows:
+            for idx, row in enumerate(rows):
                 job_id = row[0]
                 total_domains = row[1]
                 processed = row[2]
                 started_at = row[3]
+
+                print(f"[ADMIN BATCH] Processing job {idx+1}/{len(rows)}: {job_id} ({processed}/{total_domains})", flush=True)
 
                 # Get found count and tier breakdown
                 cur.execute("""
@@ -2935,6 +2938,7 @@ def admin_batch_runner():
                     WHERE job_id = %s AND result_json IS NOT NULL
                 """, (job_id,))
                 result_rows = cur.fetchall()
+                print(f"[ADMIN BATCH]   Found {len(result_rows)} results to parse", flush=True)
 
                 found_count = 0
                 dm_count = 0
@@ -2953,14 +2957,20 @@ def admin_batch_runner():
                                 or_count += 1
                             elif tier == "event_verified":
                                 ev_count += 1
-                    except Exception:
+                    except Exception as e:
+                        print(f"[ADMIN BATCH]   Error parsing result: {e}", flush=True)
                         pass
 
-                # Determine job status
-                if processed >= total_domains:
+                # Check database for actual job status
+                cur.execute("SELECT status FROM search_jobs WHERE job_id = %s", (job_id,))
+                db_status_row = cur.fetchone()
+                db_status = db_status_row[0] if db_status_row else None
+
+                # Determine job status - check both database and in-memory
+                if processed >= total_domains or db_status == 'complete':
                     status_class = "status-complete"
                     status_text = "Complete"
-                elif job_id in jobs:
+                elif db_status == 'running' or (processed < total_domains and job_id in jobs):
                     status_class = "status-running"
                     status_text = f"Running ({processed}/{total_domains})"
                 else:
