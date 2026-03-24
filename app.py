@@ -3354,6 +3354,109 @@ def admin_export_cached_domains():
         return f"<h1>Domains Export Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
 
+@app.route("/admin/db-check")
+@_admin_required
+def admin_db_check():
+    """Debug endpoint to check which database we're connected to."""
+    import os as _os
+    from db import DB_CONN_STRING, _get_conn
+
+    # Check environment variables
+    irs_db = _os.environ.get("IRS_DB_CONNECTION", "")
+    db_url = _os.environ.get("DATABASE_URL", "")
+    db_private = _os.environ.get("DATABASE_PRIVATE_URL", "")
+
+    # Determine which is being used
+    if irs_db:
+        source = "IRS_DB_CONNECTION"
+    elif db_url:
+        source = "DATABASE_URL"
+    elif db_private:
+        source = "DATABASE_PRIVATE_URL"
+    else:
+        source = "FALLBACK"
+
+    # Check if it's new or old database
+    if "ballast.proxy.rlwy.net:30705" in DB_CONN_STRING:
+        db_name = "✓ NEW DATABASE (ballast)"
+        db_color = "#10b981"
+    elif "crossover.proxy.rlwy.net:23768" in DB_CONN_STRING:
+        db_name = "✗ OLD DATABASE (crossover) - WRONG!"
+        db_color = "#ef4444"
+    else:
+        db_name = "? UNKNOWN DATABASE"
+        db_color = "#f59e0b"
+
+    # Query database for stats
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM job_results")
+        job_count = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM search_jobs")
+        search_count = cur.fetchone()[0]
+
+        cur.execute("""
+            SELECT job_id, COUNT(*) as domains
+            FROM job_results
+            GROUP BY job_id
+            ORDER BY MIN(created_at) DESC
+            LIMIT 5
+        """)
+        recent_jobs = cur.fetchall()
+
+        cur.close()
+
+        jobs_html = "<br>".join([f"{row[0]}: {row[1]} domains" for row in recent_jobs])
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>Database Connection Check</title></head>
+        <body style="font-family:monospace;padding:40px;background:#0a0a0a;color:#d4d4d4;">
+            <h1 style="color:#fbbf24;">Database Connection Check</h1>
+
+            <h2>Environment Variable Used:</h2>
+            <p style="color:#10b981;font-size:18px;">{source}</p>
+
+            <h2>Database:</h2>
+            <p style="color:{db_color};font-size:18px;font-weight:bold;">{db_name}</p>
+
+            <h2>Connection String:</h2>
+            <p style="color:#737373;">{DB_CONN_STRING[:80]}...</p>
+
+            <h2>Data Counts:</h2>
+            <p>job_results: {job_count:,} records</p>
+            <p>search_jobs: {search_count:,} records</p>
+
+            <h2>Recent Jobs:</h2>
+            <p style="color:#737373;">{jobs_html or "No jobs found"}</p>
+
+            <br><br>
+            <p><a href="/admin/batch-runner" style="color:#3b82f6;">← Back to Batch Runner</a></p>
+        </body>
+        </html>
+        """, 200
+    except Exception as e:
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>Database Connection Error</title></head>
+        <body style="font-family:monospace;padding:40px;background:#0a0a0a;color:#d4d4d4;">
+            <h1 style="color:#ef4444;">Database Connection Error</h1>
+            <p style="color:#fbbf24;">Source: {source}</p>
+            <p style="color:{db_color};">{db_name}</p>
+            <p>Connection string: {DB_CONN_STRING[:80]}...</p>
+            <p style="color:#ef4444;">Error: {e}</p>
+            <br><br>
+            <p><a href="/admin/batch-runner" style="color:#3b82f6;">← Back to Batch Runner</a></p>
+        </body>
+        </html>
+        """, 500
+
+
 @app.route("/admin/rebuild-job/<job_id>", methods=["POST"])
 @_admin_required
 def admin_rebuild_job(job_id):
