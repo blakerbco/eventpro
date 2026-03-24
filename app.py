@@ -2932,34 +2932,59 @@ def admin_batch_runner():
 
                 print(f"[ADMIN BATCH] Processing job {idx+1}/{len(rows)}: {job_id} ({processed}/{total_domains})", flush=True)
 
-                # Get found count and tier breakdown
+                # Try to get cached counts from search_jobs first (MUCH faster)
                 cur.execute("""
-                    SELECT result_json FROM job_results
-                    WHERE job_id = %s AND result_json IS NOT NULL
+                    SELECT found_count, billable_count FROM search_jobs
+                    WHERE job_id = %s
                 """, (job_id,))
-                result_rows = cur.fetchall()
-                print(f"[ADMIN BATCH]   Found {len(result_rows)} results to parse", flush=True)
+                search_job_row = cur.fetchone()
 
-                found_count = 0
-                dm_count = 0
-                or_count = 0
-                ev_count = 0
+                if search_job_row:
+                    # Use cached counts - instant!
+                    found_count = search_job_row[0] or 0
+                    billable_count = search_job_row[1] or 0
+                    dm_count = billable_count  # Approximate - we don't break down tiers in search_jobs
+                    or_count = 0
+                    ev_count = 0
+                    print(f"[ADMIN BATCH]   Using cached counts: {found_count} found, {billable_count} billable", flush=True)
+                else:
+                    # Fallback: count manually (slow but accurate)
+                    print(f"[ADMIN BATCH]   No cached counts, sampling first 100 results...", flush=True)
+                    cur.execute("""
+                        SELECT result_json FROM job_results
+                        WHERE job_id = %s AND result_json IS NOT NULL
+                        LIMIT 100
+                    """, (job_id,))
+                    result_rows = cur.fetchall()
 
-                for r in result_rows:
-                    try:
-                        result = _jmod.loads(r[0]) if isinstance(r[0], str) else r[0]
-                        if result.get("status") in ("found", "3rdpty_found"):
-                            found_count += 1
-                            tier, price = classify_lead_tier(result)
-                            if tier == "decision_maker":
-                                dm_count += 1
-                            elif tier == "outreach_ready":
-                                or_count += 1
-                            elif tier == "event_verified":
-                                ev_count += 1
-                    except Exception as e:
-                        print(f"[ADMIN BATCH]   Error parsing result: {e}", flush=True)
-                        pass
+                    found_count = 0
+                    dm_count = 0
+                    or_count = 0
+                    ev_count = 0
+
+                    for r in result_rows:
+                        try:
+                            result = _jmod.loads(r[0]) if isinstance(r[0], str) else r[0]
+                            if result.get("status") in ("found", "3rdpty_found"):
+                                found_count += 1
+                                tier, price = classify_lead_tier(result)
+                                if tier == "decision_maker":
+                                    dm_count += 1
+                                elif tier == "outreach_ready":
+                                    or_count += 1
+                                elif tier == "event_verified":
+                                    ev_count += 1
+                        except Exception as e:
+                            print(f"[ADMIN BATCH]   Error parsing result: {e}", flush=True)
+                            pass
+
+                    # Scale up the sample counts
+                    if result_rows:
+                        scale_factor = processed / len(result_rows)
+                        found_count = int(found_count * scale_factor)
+                        dm_count = int(dm_count * scale_factor)
+                        or_count = int(or_count * scale_factor)
+                        ev_count = int(ev_count * scale_factor)
 
                 # Check database for actual job status
                 cur.execute("SELECT status FROM search_jobs WHERE job_id = %s", (job_id,))

@@ -80,25 +80,40 @@ for job_id in JOB_IDS:
 
     print(f"  Decision Makers: {dm_count}, Outreach Ready: {or_count}, Event Verified: {ev_count}, Not Billable: {not_billable_count}")
 
-    # Write CSV
+    # Write CSV with ALL 18 fields
     csv_file = f"{job_id}.csv"
     with open(csv_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=[
-            'domain', 'nonprofit_name', 'status', 'contact_email', 'contact_name',
-            'event_title', 'event_url', 'tier', 'tier_price'
+            'nonprofit_name', 'query_domain', 'event_title', 'event_type',
+            'evidence_date', 'auction_type', 'event_date', 'event_url',
+            'confidence_score', 'evidence_auction', 'contact_name', 'contact_email',
+            'email_status', 'contact_role', 'organization_address', 'organization_phone_maps',
+            'contact_source_url', 'event_summary', 'tier', 'tier_price', 'status'
         ])
         writer.writeheader()
         for r in results:
             writer.writerow({
-                'domain': r.get('domain', ''),
                 'nonprofit_name': r.get('nonprofit_name', ''),
-                'status': r.get('status', ''),
-                'contact_email': r.get('contact_email', ''),
-                'contact_name': r.get('contact_name', ''),
+                'query_domain': r.get('query_domain', ''),
                 'event_title': r.get('event_title', ''),
+                'event_type': r.get('event_type', ''),
+                'evidence_date': r.get('evidence_date', ''),
+                'auction_type': r.get('auction_type', ''),
+                'event_date': r.get('event_date', ''),
                 'event_url': r.get('event_url', ''),
+                'confidence_score': r.get('confidence_score', ''),
+                'evidence_auction': r.get('evidence_auction', ''),
+                'contact_name': r.get('contact_name', ''),
+                'contact_email': r.get('contact_email', ''),
+                'email_status': r.get('email_status', ''),
+                'contact_role': r.get('contact_role', ''),
+                'organization_address': r.get('organization_address', ''),
+                'organization_phone_maps': r.get('organization_phone_maps', ''),
+                'contact_source_url': r.get('contact_source_url', ''),
+                'event_summary': r.get('event_summary', ''),
                 'tier': r.get('tier', ''),
                 'tier_price': r.get('tier_price', 0),
+                'status': r.get('status', ''),
             })
 
     # Write JSON
