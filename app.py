@@ -1629,6 +1629,24 @@ def start_search():
 @login_required
 def stream_progress(job_id):
     if job_id not in jobs:
+        # Check if job exists in DB (already completed before server restart)
+        db_job = get_search_job(job_id)
+        if db_job and db_job["status"] in ("complete", "error"):
+            # Send a synthetic complete event so frontend knows it's done
+            def completed_stream():
+                yield "retry: 3000\n\n"
+                summary = {}
+                try:
+                    summary = json.loads(db_job.get("results_summary") or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                evt = {"type": "complete", "job_id": job_id, "summary": summary,
+                       "csv_file": f"{job_id}.csv", "json_file": f"{job_id}.json", "xlsx_file": f"{job_id}.xlsx"}
+                yield f"id: 1\ndata: {json.dumps(evt)}\n\n"
+            resp = Response(completed_stream(), mimetype="text/event-stream")
+            resp.headers["Cache-Control"] = "no-cache"
+            resp.headers["X-Accel-Buffering"] = "no"
+            return resp
         return Response("Job not found", status=404)
 
     progress_q = jobs[job_id]["progress_queue"]
@@ -1709,7 +1727,23 @@ def job_status(job_id):
     """Lightweight polling endpoint — fallback when SSE reconnects fail."""
     job = jobs.get(job_id)
     if not job:
-        return jsonify({"error": "Job not found"}), 404
+        # Fall back to DB (survives Railway restarts)
+        db_job = get_search_job(job_id)
+        if not db_job:
+            return jsonify({"error": "Job not found"}), 404
+        resp = {"status": db_job["status"], "job_id": job_id}
+        if db_job["status"] == "complete":
+            try:
+                summary = json.loads(db_job.get("results_summary") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                summary = {}
+            resp["summary"] = summary
+            resp["csv_file"] = f"{job_id}.csv"
+            resp["json_file"] = f"{job_id}.json"
+            resp["xlsx_file"] = f"{job_id}.xlsx"
+        elif db_job["status"] == "error":
+            resp["error"] = db_job.get("results_summary", "Job failed")
+        return jsonify(resp)
     resp = {"status": job["status"], "job_id": job_id}
     if job["status"] == "complete" and job.get("results"):
         resp["summary"] = job["results"].get("summary", {})
@@ -1763,9 +1797,32 @@ def download_result(job_id, fmt):
 @app.route("/api/results/<job_id>")
 @login_required
 def view_results(job_id):
-    if job_id not in jobs or jobs[job_id]["status"] != "complete":
+    # Try in-memory first (active job)
+    if job_id in jobs and jobs[job_id]["status"] == "complete" and jobs[job_id].get("results"):
+        return jsonify(jobs[job_id]["results"])
+
+    # Fall back to DB (survives Railway restarts)
+    db_job = get_search_job(job_id)
+    if not db_job or db_job["status"] not in ("complete", "error"):
         return jsonify({"error": "Job not found or not complete"}), 404
-    return jsonify(jobs[job_id]["results"])
+
+    # Reconstruct results from job_results table
+    results = get_completed_results(job_id)
+    summary = {}
+    try:
+        if db_job.get("results_summary"):
+            summary = json.loads(db_job["results_summary"])
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    return jsonify({
+        "meta": {
+            "total_nonprofits": db_job.get("nonprofit_count", 0),
+            "source": "database",
+        },
+        "summary": summary,
+        "results": results,
+    })
 
 
 # ─── Exclusive Leads ─────────────────────────────────────────────────────────
@@ -2943,9 +3000,10 @@ def admin_batch_runner():
                     # Use cached counts - instant!
                     found_count = search_job_row[0] or 0
                     billable_count = search_job_row[1] or 0
-                    dm_count = billable_count  # Approximate - we don't break down tiers in search_jobs
-                    or_count = 0
-                    ev_count = 0
+                    # Note: search_jobs doesn't break down by tier, so we show billable total
+                    dm_count = billable_count  # This is actually total billable, not just DM
+                    or_count = 0  # We don't have tier breakdown in search_jobs
+                    ev_count = 0  # We don't have tier breakdown in search_jobs
                     print(f"[ADMIN BATCH]   Using cached counts: {found_count} found, {billable_count} billable", flush=True)
                 else:
                     # Fallback: count manually (slow but accurate)

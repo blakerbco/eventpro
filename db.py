@@ -276,6 +276,19 @@ def init_db():
         print(f"[DB] Migration search_jobs columns error: {e}", flush=True)
         conn.rollback()
 
+    # Migration: backfill NULL expires_at on search_jobs (lost during DB migration)
+    try:
+        cur.execute(
+            "UPDATE search_jobs SET expires_at = created_at + INTERVAL '6 months' WHERE expires_at IS NULL"
+        )
+        backfilled_jobs = cur.rowcount
+        conn.commit()
+        if backfilled_jobs:
+            print(f"[DB] Backfilled expires_at for {backfilled_jobs} search job(s)", flush=True)
+    except Exception as e:
+        print(f"[DB] Backfill expires_at error: {e}", flush=True)
+        conn.rollback()
+
     # Migration: add last_login_at and is_banned columns to users
     try:
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP")
@@ -714,7 +727,8 @@ def create_search_job(user_id: int, job_id: str, nonprofit_count: int):
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO search_jobs (user_id, job_id, status, nonprofit_count) VALUES (%s, %s, 'running', %s)",
+        "INSERT INTO search_jobs (user_id, job_id, status, nonprofit_count, expires_at) "
+        "VALUES (%s, %s, 'running', %s, NOW() + INTERVAL '6 months')",
         (user_id, job_id, nonprofit_count),
     )
     conn.commit()
@@ -726,14 +740,24 @@ def complete_search_job(job_id: str, found_count: int, billable_count: int,
     """Mark a search job as complete with results."""
     conn = _get_conn()
     cur = conn.cursor()
-    cur.execute(
-        """UPDATE search_jobs SET status='complete', found_count=%s, billable_count=%s,
-           total_cost_cents=%s, results_summary=%s, completed_at=NOW()
-           WHERE job_id=%s""",
-        (found_count, billable_count, total_cost_cents, results_summary, job_id),
-    )
-    conn.commit()
-    cur.close()
+    try:
+        cur.execute(
+            """UPDATE search_jobs SET status='complete', found_count=%s, billable_count=%s,
+               total_cost_cents=%s, results_summary=%s, completed_at=NOW()
+               WHERE job_id=%s""",
+            (found_count, billable_count, total_cost_cents, results_summary, job_id),
+        )
+        updated = cur.rowcount
+        conn.commit()
+        if updated == 0:
+            print(f"[COMPLETE_JOB WARN] {job_id}: UPDATE matched 0 rows — job may not exist in search_jobs", flush=True)
+        else:
+            print(f"[COMPLETE_JOB] {job_id}: marked complete (found={found_count}, billable={billable_count})", flush=True)
+    except Exception as e:
+        print(f"[COMPLETE_JOB ERROR] {job_id}: {type(e).__name__}: {e}", flush=True)
+        conn.rollback()
+    finally:
+        cur.close()
 
 
 def save_job_checkpoint(job_id: str, results_json: str):
@@ -773,7 +797,7 @@ def get_user_jobs(user_id: int, limit: int = 50) -> list:
         """SELECT job_id, status, nonprofit_count, found_count, billable_count,
                   total_cost_cents, results_summary, created_at, completed_at
            FROM search_jobs
-           WHERE user_id = %s AND expires_at > NOW()
+           WHERE user_id = %s AND (expires_at IS NULL OR expires_at > NOW())
            ORDER BY created_at DESC LIMIT %s""",
         (user_id, limit),
     )
