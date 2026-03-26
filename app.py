@@ -2875,6 +2875,7 @@ def admin_revenue_page():
 @app.route("/admin/activity")
 @_admin_required
 def admin_activity_page():
+  try:
     recent_jobs = admin_get_recent_activity(50)
     recent_logins = admin_get_recent_logins(20)
 
@@ -2886,16 +2887,16 @@ def admin_activity_page():
     # Recent jobs
     job_rows = ""
     for j in recent_jobs:
-        status_color = {"running": "#eab308", "complete": "#4ade80", "error": "#f87171"}.get(j["status"], "#a3a3a3")
+        status_color = {"running": "#eab308", "complete": "#4ade80", "error": "#f87171"}.get(j.get("status", ""), "#a3a3a3")
         rebuild_btn = ""
-        if j["status"] == "error":
+        if j.get("status") == "error":
             rebuild_btn = f' <button onclick="rebuildJob(\'{j["job_id"]}\')" style="background:#eab308;color:#000;border:none;padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;">Rebuild</button>'
         job_rows += (
             f'<tr><td>{j["job_id"][:12]}...</td>'
             f'<td><a href="/admin/users/{j.get("id","")}" style="color:#eab308;">{html_escape(j.get("user_email",""))}</a></td>'
-            f'<td style="color:{status_color}">{j["status"]}{rebuild_btn}</td>'
-            f'<td>{j["nonprofit_count"]}</td><td>{j["found_count"]}</td>'
-            f'<td>{j["billable_count"]}</td><td>${j["total_cost_cents"]/100:,.2f}</td>'
+            f'<td style="color:{status_color}">{j.get("status","")}{rebuild_btn}</td>'
+            f'<td>{j.get("nonprofit_count") or 0}</td><td>{j.get("found_count") or 0}</td>'
+            f'<td>{j.get("billable_count") or 0}</td><td>${(j.get("total_cost_cents") or 0)/100:,.2f}</td>'
             f'<td>{str(j.get("created_at",""))[:16]}</td>'
             f'<td>{str(j.get("completed_at","") or "-")[:16]}</td></tr>\n'
         )
@@ -2913,6 +2914,11 @@ def admin_activity_page():
     html = html.replace("{{LOGIN_ROWS}}", login_rows or '<tr><td colspan="3" style="text-align:center;color:#525252;">No logins recorded</td></tr>')
 
     return html
+  except Exception as e:
+    print(f"[ADMIN ACTIVITY] CRASH: {type(e).__name__}: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
+    return f"<h1>Activity Error</h1><pre>{type(e).__name__}: {e}</pre>", 500
 
 
 @app.route("/admin/system")
@@ -2979,67 +2985,52 @@ def admin_batch_runner():
         conn = _get_conn()
         cur = conn.cursor()
 
-        # Get all unique jobs with their stats
+        # Primary source: search_jobs (has ALL jobs, even interrupted ones)
         cur.execute("""
-            SELECT
-                job_id,
-                COUNT(*) as total_domains,
-                COUNT(CASE WHEN result_json IS NOT NULL THEN 1 END) as processed,
-                MIN(created_at) as started_at
-            FROM job_results
-            GROUP BY job_id
-            ORDER BY MIN(created_at) DESC
+            SELECT sj.job_id, sj.status, sj.nonprofit_count, sj.found_count,
+                   sj.billable_count, sj.created_at,
+                   COALESCE(jr.processed, 0) as processed
+            FROM search_jobs sj
+            LEFT JOIN (
+                SELECT job_id, COUNT(*) as processed
+                FROM job_results
+                GROUP BY job_id
+            ) jr ON jr.job_id = sj.job_id
+            ORDER BY sj.created_at DESC
             LIMIT 50
         """)
         rows = cur.fetchall()
-        print(f"[ADMIN BATCH] Found {len(rows)} jobs in database", flush=True)
+        print(f"[ADMIN BATCH] Found {len(rows)} jobs in search_jobs", flush=True)
 
         # Separate running and completed jobs
         running_jobs = []
         completed_jobs = []
+        error_jobs = []
 
         if not rows:
-            jobs_html = '<p style="color:#737373;text-align:center;padding:40px;">No jobs found. Run batch_runner.py to create jobs.</p>'
+            jobs_html = '<p style="color:#737373;text-align:center;padding:40px;">No jobs found.</p>'
         else:
-            # First pass: categorize jobs
             for idx, row in enumerate(rows):
                 job_id = row[0]
-                total_domains = row[1]
-                processed = row[2]
-                started_at = row[3]
+                db_status = row[1] or 'unknown'
+                nonprofit_count = row[2] or 0
+                found_count = row[3] or 0
+                billable_count = row[4] or 0
+                started_at = row[5]
+                processed = row[6] or 0
 
-                print(f"[ADMIN BATCH] Processing job {idx+1}/{len(rows)}: {job_id} ({processed}/{total_domains})", flush=True)
-
-                # Try to get cached counts from search_jobs first (MUCH faster)
-                cur.execute("""
-                    SELECT found_count, billable_count FROM search_jobs
-                    WHERE job_id = %s
-                """, (job_id,))
-                search_job_row = cur.fetchone()
-
-                if search_job_row and (search_job_row[0] or 0) > 0:
-                    # Use cached counts - instant!
-                    found_count = search_job_row[0] or 0
-                    billable_count = search_job_row[1] or 0
-                    dm_count = billable_count
-                    or_count = 0
-                    ev_count = 0
-                    print(f"[ADMIN BATCH]   Using cached counts: {found_count} found, {billable_count} billable", flush=True)
-                else:
-                    # Fallback: count manually (slow but accurate)
-                    print(f"[ADMIN BATCH]   No cached counts, sampling first 100 results...", flush=True)
+                # If cached counts are 0 but we have processed results, recount
+                if found_count == 0 and processed > 0:
                     cur.execute("""
                         SELECT result_json FROM job_results
                         WHERE job_id = %s AND result_json IS NOT NULL
-                        LIMIT 100
+                        LIMIT 200
                     """, (job_id,))
                     result_rows = cur.fetchall()
-
-                    found_count = 0
                     dm_count = 0
                     or_count = 0
                     ev_count = 0
-
+                    found_count = 0
                     for r in result_rows:
                         try:
                             result = _jmod.loads(r[0]) if isinstance(r[0], str) else r[0]
@@ -3052,43 +3043,43 @@ def admin_batch_runner():
                                     or_count += 1
                                 elif tier == "event_verified":
                                     ev_count += 1
-                        except Exception as e:
-                            print(f"[ADMIN BATCH]   Error parsing result: {e}", flush=True)
+                        except Exception:
                             pass
+                    if result_rows and len(result_rows) < processed:
+                        scale = processed / len(result_rows)
+                        found_count = int(found_count * scale)
+                        dm_count = int(dm_count * scale)
+                        or_count = int(or_count * scale)
+                        ev_count = int(ev_count * scale)
+                else:
+                    dm_count = billable_count
+                    or_count = 0
+                    ev_count = 0
 
-                    # Scale up the sample counts
-                    if result_rows:
-                        scale_factor = processed / len(result_rows)
-                        found_count = int(found_count * scale_factor)
-                        dm_count = int(dm_count * scale_factor)
-                        or_count = int(or_count * scale_factor)
-                        ev_count = int(ev_count * scale_factor)
-
-                # Check database for actual job status
-                cur.execute("SELECT status FROM search_jobs WHERE job_id = %s", (job_id,))
-                db_status_row = cur.fetchone()
-                db_status = db_status_row[0] if db_status_row else None
-
-                # Determine job status - check both database and in-memory
-                if processed >= total_domains or db_status == 'complete':
+                # Status display
+                if db_status == 'complete':
                     status_class = "status-complete"
                     status_text = "Complete"
-                elif db_status == 'running' or (processed < total_domains and job_id in jobs):
+                elif db_status == 'running' or job_id in jobs:
                     status_class = "status-running"
-                    status_text = f"Running ({processed}/{total_domains})"
+                    status_text = f"Running ({processed}/{nonprofit_count})"
+                elif db_status == 'error':
+                    status_class = "status-error"
+                    status_text = "Interrupted"
                 else:
                     status_class = "status-complete"
-                    status_text = "Complete"
+                    status_text = db_status.title()
 
-                # Download links always available — files generate on-the-fly if needed
+                # Download links — always available, files generate on-the-fly
                 download_links = ""
                 if processed > 0:
                     download_links += f'<a href="/api/download/{job_id}/csv" class="btn-gold">Download CSV</a>'
                     download_links += f'<a href="/api/download/{job_id}/json" class="btn-outline">Download JSON</a>'
+                elif db_status == 'error':
+                    download_links = '<span style="color:#f87171;font-size:11px;">Interrupted before results saved</span>'
 
                 started_str = started_at.strftime('%Y-%m-%d %H:%M:%S') if started_at else 'Unknown'
 
-                # Blinking light for running jobs
                 status_indicator = ""
                 if status_class == "status-running":
                     status_indicator = '<span class="blink-dot"></span>'
@@ -3104,7 +3095,7 @@ def admin_batch_runner():
                     </div>
                     <div class="job-stats">
                         <div class="stat">
-                            <div class="stat-value">{processed}/{total_domains}</div>
+                            <div class="stat-value">{processed}/{nonprofit_count}</div>
                             <div>Processed</div>
                         </div>
                         <div class="stat">
@@ -3131,17 +3122,21 @@ def admin_batch_runner():
                 </div>
                 """
 
-                # Categorize by status
                 if status_class == "status-running":
                     running_jobs.append(job_html)
+                elif status_class == "status-error":
+                    error_jobs.append(job_html)
                 else:
                     completed_jobs.append(job_html)
 
-            # Render: running jobs first, then completed
+            # Render: running first, then errors, then completed
             jobs_html = ""
             if running_jobs:
                 jobs_html += '<div class="section-title" style="color:#3b82f6;">Running Jobs</div>'
                 jobs_html += ''.join(running_jobs)
+            if error_jobs:
+                jobs_html += '<div class="section-title" style="margin-top:20px;color:#f87171;">Interrupted Jobs</div>'
+                jobs_html += ''.join(error_jobs)
             if completed_jobs:
                 jobs_html += '<div class="section-title" style="margin-top:20px;">Completed Jobs</div>'
                 jobs_html += ''.join(completed_jobs)
