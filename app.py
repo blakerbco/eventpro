@@ -3067,9 +3067,9 @@ def admin_batch_runner():
                 # Build download links
                 download_links = ""
                 if csv_exists:
-                    download_links += f'<a href="/results/{job_id}/csv" class="btn-gold">Download CSV</a>'
+                    download_links += f'<a href="/api/download/{job_id}/csv" class="btn-gold">Download CSV</a>'
                 if json_exists:
-                    download_links += f'<a href="/results/{job_id}/json" class="btn-outline">Download JSON</a>'
+                    download_links += f'<a href="/api/download/{job_id}/json" class="btn-outline">Download JSON</a>'
                 if not csv_exists and not json_exists and processed > 0:
                     download_links += f'<form method="POST" action="/admin/rebuild-job/{job_id}" style="display:inline;"><button type="submit" class="btn-outline">Rebuild Files</button></form>'
 
@@ -5195,18 +5195,18 @@ if (irsData) {
 
         var _tD = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
         var _sL = { found: 'AUCTION FOUND', not_found: 'NO AUCTION FOUND', '3rdpty_found': '3RDPTY_FOUND', uncertain: 'UNCERTAIN', error: 'ERROR' };
-        var msg = '[' + data.index + '/' + data.total + '] ' + (_sL[st] || st.toUpperCase()) + ': ' + data.nonprofit;
+        var displaySt = st;
+        if ((st === 'found' || st === '3rdpty_found') && data.tier === 'not_billable') displaySt = 'not_found';
+        var msg = '[' + data.index + '/' + data.total + '] ' + (_sL[displaySt] || displaySt.toUpperCase()) + ': ' + data.nonprofit;
         if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
-        if (st === 'found' || st === '3rdpty_found') {
-          if (data.tier && data.tier !== 'not_billable' && _tD[data.tier] && data.tier_price > 0) {
+        if ((st === 'found' || st === '3rdpty_found') && data.tier !== 'not_billable') {
+          if (data.tier && _tD[data.tier] && data.tier_price > 0) {
             msg += ' [' + _tD[data.tier] + ']';
-          } else if (data.tier === 'not_billable') {
-            msg += ' [Not Billable — missing event evidence]';
           } else if (data.tier && data.tier_price === 0 && _tD[data.tier]) {
             msg += ' [' + _tD[data.tier] + ' — tier not selected, no charge]';
           }
         }
-        log(msg, st);
+        log(msg, displaySt);
         updateStats();
         updateProgress();
         break;
@@ -5466,15 +5466,17 @@ async function _doSearch(selectedTiers) {
           const _tierDisplay = { decision_maker: 'Decision Maker', outreach_ready: 'Outreach Ready', event_verified: 'Event Verified' };
           const _tierColor = { decision_maker: '#4ade80', outreach_ready: '#60a5fa', event_verified: '#facc15' };
           const _statusLabels = { found: 'AUCTION FOUND', not_found: 'NO AUCTION FOUND', '3rdpty_found': '3RDPTY_FOUND', uncertain: 'UNCERTAIN', error: 'ERROR' };
-          let msg = '[' + data.index + '/' + data.total + '] ' + (_statusLabels[status] || status.toUpperCase()) + ': ' + data.nonprofit;
+          let displayStatus = status;
+          if ((status === 'found' || status === '3rdpty_found') && data.tier === 'not_billable') displayStatus = 'not_found';
+          let msg = '[' + data.index + '/' + data.total + '] ' + (_statusLabels[displayStatus] || displayStatus.toUpperCase()) + ': ' + data.nonprofit;
           if (IS_ADMIN && data.event_title) msg += ' -> ' + data.event_title;
-          log(msg, status);
+          log(msg, displayStatus);
 
           // Add colored tier badge after log line
-          if (status === 'found' || status === '3rdpty_found') {
+          if ((status === 'found' || status === '3rdpty_found') && data.tier !== 'not_billable') {
             const lastLine = terminal.lastElementChild;
             if (lastLine) {
-              if (data.tier && data.tier !== 'not_billable' && _tierDisplay[data.tier] && data.tier_price > 0) {
+              if (data.tier && _tierDisplay[data.tier] && data.tier_price > 0) {
                 const badge = document.createElement('span');
                 badge.textContent = _tierDisplay[data.tier];
                 badge.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;color:#000;background:' + _tierColor[data.tier];
@@ -5483,9 +5485,6 @@ async function _doSearch(selectedTiers) {
                 priceTag.textContent = '$' + (data.tier_price / 100).toFixed(2);
                 priceTag.style.cssText = 'margin-left:4px;font-size:10px;color:#a3a3a3;';
                 lastLine.appendChild(priceTag);
-              } else if (data.tier === 'not_billable') {
-                const nb = document.createElement('span');
-                nb.textContent = 'Not Billable — missing event evidence';
                 nb.style.cssText = 'margin-left:8px;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;color:#f87171;background:#1c1917;border:1px solid #7f1d1d;';
                 lastLine.appendChild(nb);
               } else if (data.tier && data.tier_price === 0 && _tierDisplay[data.tier]) {
