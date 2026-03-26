@@ -692,28 +692,16 @@ def _run_job(
     # Route Poe credentials based on user — each admin uses a separate Poe account
     poe_bot_name = None  # defaults to POE_BOT_NAME in call_poe_bot_sync
     poe_api_key = None
-    if user_email == "blake1@auctionintel.us" and POE_API_KEY:
-        poe_bot_name = POE_BOT_NAME_2
+    # All accounts use auctionintel.app bot (dup bots were fabricating events)
+    if user_email in ("blake1@auctionintel.us", "blake4@auctionintel.us") and POE_API_KEY:
+        poe_bot_name = POE_BOT_NAME
         poe_api_key = POE_API_KEY
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_2} (key 1)", flush=True)
-    elif user_email == "blake2@auctionintel.us" and POE_API_KEY_2:
-        poe_bot_name = POE_BOT_NAME_3
+    elif user_email in ("blake2@auctionintel.us", "blake3@auctionintel.us", "blake5@auctionintel.us") and POE_API_KEY_2:
+        poe_bot_name = POE_BOT_NAME
         poe_api_key = POE_API_KEY_2
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_3} (key 2)", flush=True)
-    elif user_email == "blake3@auctionintel.us" and POE_API_KEY_2:
-        poe_bot_name = POE_BOT_NAME_4
-        poe_api_key = POE_API_KEY_2
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_4} (key 2)", flush=True)
-    elif user_email == "blake4@auctionintel.us" and POE_API_KEY:
-        poe_bot_name = POE_BOT_NAME_5
-        poe_api_key = POE_API_KEY
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_5} (key 1)", flush=True)
-    elif user_email == "blake5@auctionintel.us" and POE_API_KEY_2:
-        poe_bot_name = POE_BOT_NAME_6
-        poe_api_key = POE_API_KEY_2
-        print(f"[POE-ROUTING] {user_email} -> bot={POE_BOT_NAME_6} (key 2)", flush=True)
     else:
-        print(f"[POE-ROUTING] {user_email or 'default'} -> bot={POE_BOT_NAME}", flush=True)
+        pass  # defaults to POE_BOT_NAME + POE_API_KEY
+    print(f"[POE-ROUTING] {user_email or 'default'} -> bot={poe_bot_name or POE_BOT_NAME}", flush=True)
 
     # Randomize processing order so identical queries yield different result ordering
     random.shuffle(nonprofits)
