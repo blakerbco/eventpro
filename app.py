@@ -1778,7 +1778,40 @@ def download_result(job_id, fmt):
     # File not on disk — try database
     content = get_result_file(job_id, fmt)
     if content is None:
-        return Response("File not found", status=404)
+        # No pre-built file — generate on-the-fly from job_results
+        results = get_completed_results(job_id)
+        if not results:
+            return Response("No results found for this job", status=404)
+        # Filter to found/3rdpty_found for export
+        save_results = [r for r in results if r.get("status") in ("found", "3rdpty_found")]
+        if not save_results:
+            save_results = results  # Fall back to all results if no found ones
+        if fmt == "csv":
+            import io as _io
+            buf = _io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, extrasaction="ignore", quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            for r in save_results:
+                writer.writerow({col: r.get(col, "") for col in CSV_COLUMNS})
+            content = buf.getvalue().encode("utf-8")
+        elif fmt == "json":
+            content = json.dumps({"results": save_results}, indent=2, ensure_ascii=False).encode("utf-8")
+        elif fmt == "xlsx":
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Auction Results"
+            ws.append(CSV_COLUMNS)
+            for r in save_results:
+                ws.append([r.get(col, "") for col in CSV_COLUMNS])
+            import io as _io
+            buf = _io.BytesIO()
+            wb.save(buf)
+            content = buf.getvalue()
+        # Cache the generated file for next time
+        try:
+            save_result_file(job_id, fmt, content)
+        except Exception as e:
+            print(f"[DOWNLOAD] Failed to cache generated {fmt} for {job_id}: {e}", flush=True)
 
     mime_types = {
         "csv": "text/csv",
@@ -2996,14 +3029,13 @@ def admin_batch_runner():
                 """, (job_id,))
                 search_job_row = cur.fetchone()
 
-                if search_job_row:
+                if search_job_row and (search_job_row[0] or 0) > 0:
                     # Use cached counts - instant!
                     found_count = search_job_row[0] or 0
                     billable_count = search_job_row[1] or 0
-                    # Note: search_jobs doesn't break down by tier, so we show billable total
-                    dm_count = billable_count  # This is actually total billable, not just DM
-                    or_count = 0  # We don't have tier breakdown in search_jobs
-                    ev_count = 0  # We don't have tier breakdown in search_jobs
+                    dm_count = billable_count
+                    or_count = 0
+                    ev_count = 0
                     print(f"[ADMIN BATCH]   Using cached counts: {found_count} found, {billable_count} billable", flush=True)
                 else:
                     # Fallback: count manually (slow but accurate)
@@ -3060,18 +3092,11 @@ def admin_batch_runner():
                     status_class = "status-complete"
                     status_text = "Complete"
 
-                # Check if files exist
-                csv_exists = get_result_file(job_id, "csv") is not None
-                json_exists = get_result_file(job_id, "json") is not None
-
-                # Build download links
+                # Download links always available — files generate on-the-fly if needed
                 download_links = ""
-                if csv_exists:
+                if processed > 0:
                     download_links += f'<a href="/api/download/{job_id}/csv" class="btn-gold">Download CSV</a>'
-                if json_exists:
                     download_links += f'<a href="/api/download/{job_id}/json" class="btn-outline">Download JSON</a>'
-                if not csv_exists and not json_exists and processed > 0:
-                    download_links += f'<form method="POST" action="/admin/rebuild-job/{job_id}" style="display:inline;"><button type="submit" class="btn-outline">Rebuild Files</button></form>'
 
                 started_str = started_at.strftime('%Y-%m-%d %H:%M:%S') if started_at else 'Unknown'
 
